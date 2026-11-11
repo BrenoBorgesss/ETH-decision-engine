@@ -152,7 +152,7 @@ def test_perda_maxima_atingida_bloqueia(conn):
 
 def test_ethusdt_converte_resultado_pelo_cambio(conn):
     trades = [{"id": 5, "orderId": 5, "price": "2390", "qty": "0.1", "quoteQty": "239", "commission": "0.239", "commissionAsset": "USDT", "time": T_TRADE, "isBuyer": True}]
-    fake = FakeBinance(trades=trades, balances=[{"asset": "USDT", "free": "100", "locked": "0"}])
+    fake = FakeBinance(trades=trades, balances=[{"asset": "USDT", "free": "100", "locked": "0"}, {"asset": "ETH", "free": "0.1", "locked": "0"}])
     cfg = Config.model_validate({"capital_operacao": {"modo": "brl", "valor": 5000}})
     st = refresh(conn, fake, par="ETHUSDT", saldo="USDT", cfg=cfg)
     fx = (5.0 + 5.02) / 2
@@ -164,7 +164,7 @@ def test_ethusdt_converte_resultado_pelo_cambio(conn):
 def test_teto_do_capital_de_operacao_em_reais_vale_tambem_no_ethusdt(conn):
     # Teto de R$ 1.000 = 1000 / 5,01 USDT. A compra de 239,239 USDT passa do teto: só parte entra.
     trades = [{"id": 5, "orderId": 5, "price": "2390", "qty": "0.1", "quoteQty": "239", "commission": "0.239", "commissionAsset": "USDT", "time": T_TRADE, "isBuyer": True}]
-    st = refresh(conn, FakeBinance(trades=trades, balances=[{"asset": "USDT", "free": "100", "locked": "0"}]), par="ETHUSDT", saldo="USDT")
+    st = refresh(conn, FakeBinance(trades=trades, balances=[{"asset": "USDT", "free": "100", "locked": "0"}, {"asset": "ETH", "free": "0.1", "locked": "0"}]), par="ETHUSDT", saldo="USDT")
     cap_usdt = 1000 / ((5.0 + 5.02) / 2)
     assert st.day.open_qty == pytest.approx(cap_usdt / 2392.39)
     assert st.day.ignored_buy_qty == pytest.approx(0.1 - cap_usdt / 2392.39)
@@ -226,3 +226,31 @@ def test_sincronizacao_em_janelas_de_24h_e_sem_duplicar(conn):
     asyncio.run(go(DAY_START + 2 * day + 5000))  # roda de novo: não duplica
     count = conn.execute("SELECT COUNT(*) FROM account_trades").fetchone()[0]
     assert count == 5
+
+
+# ------------------------------------------------------------- Etapa 9: posição x saldo de ETH
+
+
+def test_posicao_conferida_com_o_saldo_de_eth(conn):
+    """9.3: a posição vem do histórico de operações, mas precisa existir no saldo de ETH lido da conta."""
+    st = refresh(conn, FakeBinance())
+    assert st.reasons == [] and any("2.00000000 ETH na conta estão fora da operação" in w for w in st.warnings)
+    sumiu = FakeBinance(balances=[{"asset": "BRL", "free": "500", "locked": "0"}, {"asset": "ETH", "free": "0.01", "locked": "0"}])
+    st = refresh(conn, sumiu)
+    assert st.blocked and any("maior que o saldo de ETH na conta" in r for r in st.reasons)
+    assert st.limits is None  # nada é calculado em cima de uma posição que não existe
+
+
+def test_eth_em_ordem_aberta_conta_como_saldo(conn):
+    travado = FakeBinance(balances=[{"asset": "BRL", "free": "500", "locked": "0"}, {"asset": "ETH", "free": "0", "locked": "0.02995"}])
+    st = refresh(conn, travado)
+    assert st.reasons == [] and st.day.open_qty == pytest.approx(0.02995)
+
+
+def test_saldo_lido_ha_muito_tempo_bloqueia(conn, monkeypatch):
+    """B7: conta.saldo_max_s agora é aplicado (antes existia no config e nenhum código lia)."""
+    from cryptoagent.data import rest
+
+    monkeypatch.setattr(rest.BinanceReadOnlyClient, "local_now_ms", lambda self: NOW + 121_000)
+    st = refresh(conn, FakeBinance())
+    assert st.blocked and any("saldo velha demais" in r for r in st.reasons)
