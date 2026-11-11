@@ -804,10 +804,17 @@ Backup antes da etapa: tag git `backup-antes-etapa-13` (aponta para `457b161`).
 - [x] **13.4** Resumo final: o que foi corrigido, o que melhorou (com números), o que ficou pendente e como rodar o projeto.
   - Entregue no relatório da etapa; os números e as listas estão no `CHANGELOG.md` e no `README.md`.
 
+### Publicação no GitHub (autorizada por você depois da Etapa 13)
+- Repositório: https://github.com/BrenoBorgesss/ETH-decision-engine (público). O nome `eth-decision-engine` já existia na sua conta, com um único commit (licença Apache-2.0). Por decisão sua ("Substituir (MIT)"), o envio substituiu esse commit.
+- `main` avançada até `melhorias` (avanço direto, sem reescrever histórico). Envio com `--force-with-lease` preso ao commit remoto `6da7ad5`, para não apagar nada além do que foi visto. `main` e `melhorias` no GitHub em `7963b5c`. As tags de backup ficaram só na sua máquina.
+- README e LINKEDIN com o endereço do repositório; selos de CI, licença e Python no README.
+- Descrição e 13 topics colocados pela página do repositório.
+- **CI de verdade (o [BLOQUEADO] da Etapa 11 foi resolvido):** execução #1 (`main`) e #2 (`melhorias`) com status **Success**. Lint e testes no Ubuntu com Python 3.11 e 3.14 e no Windows com 3.14, com cobertura mínima por área. Linux e Python 3.11 passam.
+- Avisos do GitHub (não falham o CI): as actions `checkout@v4`, `setup-python@v5` e `upload-artifact@v4` usam Node.js 20, que está sendo descontinuado. Atualizar para as versões novas fica como melhoria.
+
 ### Pendências finais (para você)
 
 **[BLOQUEADO]**
-- **CI no GitHub:** o repositório não tem remote. Precisa do nome do repositório e da sua autorização para criar e enviar. Só então Linux e Python 3.11 são testados.
 - **Conta real:** a chave da Binance está recusada (−2015). Os caminhos da conta real (saldo, posição, resultado do dia, painel com a conta) só foram testados com respostas simuladas. O painel nunca foi aberto com a sua conta.
 
 **Decisões em aberto**
@@ -815,7 +822,6 @@ Backup antes da etapa: tag git `backup-antes-etapa-13` (aponta para `457b161`).
 2. Copiar o histórico antigo do paper (3 carteiras, 1 operação, 857 sinais, em `data/agent.sqlite`) para o banco novo da simulação?
 3. Aval para a calibração do alerta de mudança de regime, ajustada depois de ver os dados (Etapa 8; configurável).
 4. Reescrever o histórico do git para tirar o caminho antigo `C:\Users\<usuário>\...`? Minha recomendação é não reescrever.
-5. Nome do repositório (sugestões na Etapa 12); depois, trocar `<nome-do-repositorio>` no README e `<link do repositório>` no LINKEDIN.
 
 **Ações simples**
 - Apagar a pasta `C:\c` (um arquivo de cobertura criado por engano na Etapa 11).
