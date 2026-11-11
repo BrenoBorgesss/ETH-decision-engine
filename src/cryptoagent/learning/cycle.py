@@ -44,7 +44,10 @@ from cryptoagent.timeutils import format_local, now_ms
 
 DAY_MS = 86_400_000
 MODEL_SOURCE = "modelo_logistico"
-DRIFT_FEATURES = [f for f in FEATURES if not f.startswith(("regime_", "hora_"))]
+# Variáveis comparadas no drift dos momentos candidatos. Ficam de fora: indicadores de categoria (regime, hora) e
+# as de NÍVEL da tendência longa do 4h (contexto_*). Estas mudam devagar e ficam semanas no mesmo patamar: 30 dias
+# delas quase sempre diferem de 6 meses, então o PSI acusaria mudança em todo ciclo, sem dizer nada sobre o padrão.
+DRIFT_FEATURES = [f for f in FEATURES if not f.startswith(("regime_", "hora_", "contexto_"))]
 
 
 @dataclass

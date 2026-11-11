@@ -89,3 +89,12 @@ def test_demo_treina_o_modelo_sem_rede_e_sem_chave(sem_rede_e_sem_chave, capsys)
     assert "Desafiador x regras" in saida and "regras (campeão atual)" in saida
     modelos = sorted((ROOT / "data" / "demo" / "models" / "ETHBRL").glob("modelo-*.json"))
     assert modelos and json.loads(modelos[-1].read_text(encoding="utf-8"))["tipo"] == "regressao_logistica"
+
+
+def test_demo_roda_o_ciclo_de_aprendizado_e_mostra_versoes_e_panorama(sem_rede_e_sem_chave, capsys):
+    assert app.main(["--demo", "aprendizado", "reavaliar"]) == 0
+    assert app.main(["--demo", "aprendizado", "versoes"]) == 0
+    assert app.main(["--demo", "aprendizado", "panorama"]) == 0
+    saida = capsys.readouterr().out
+    assert "Campeão x desafiantes" in saida and "Versões da estratégia" in saida and "Calibração da confiança" in saida
+    assert (ROOT / "data" / "demo" / "learning" / "aprendizado.html").is_file()

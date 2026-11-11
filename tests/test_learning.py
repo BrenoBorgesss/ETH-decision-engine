@@ -90,6 +90,29 @@ def test_psi_estavel_e_mudanca_forte():
     assert psi_categorical(a, a) == pytest.approx(0) and psi_categorical(a, b) > 0.25
 
 
+def test_psi_desconta_o_acaso_das_amostras_pequenas():
+    rng = np.random.default_rng(7)
+    valores = [psi_numeric(rng.normal(0, 1, 364), rng.normal(0, 1, 51)) for _ in range(200)]
+    assert np.mean(valores) < 0.10  # mesma distribuição: perto de zero depois do desconto
+    assert psi_numeric(rng.normal(0, 1, 364), rng.normal(1.5, 1, 51)) > 0.25  # mudança real continua detectada
+
+
+def test_drift_so_alerta_quando_o_ultimo_periodo_e_incomum():
+    from cryptoagent.learning.drift import candidate_drift
+
+    rng = np.random.default_rng(11)
+    feats = [f"x{i}" for i in range(15)]
+    day = 86_400_000
+    t = np.sort(rng.integers(0, 180 * day, 600))
+    base = pd.DataFrame({"t_ms": t, **{f: rng.normal(0, 1, len(t)) for f in feats}})
+    falsos = sum(candidate_drift(base.assign(**{f: rng.normal(0, 1, len(t)) for f in feats}), feats, 180 * day, 30, 150, 0.25).alert for _ in range(10))
+    assert falsos <= 1  # nada mudou: no máximo um alarme falso em 10
+    mudou = base.copy()
+    mudou.loc[mudou["t_ms"] >= 150 * day, "x3"] += 2.0
+    item = candidate_drift(mudou, feats, 180 * day, 30, 150, 0.25)
+    assert item.alert and "x3" in item.detail and "incomum" in item.detail
+
+
 def test_simulacao_muito_abaixo_do_backtest_e_alerta():
     assert simulation_drift([-0.5] * 9, [0.0, 0.2]).value is None  # menos de 10 operações
     item = simulation_drift([-0.6, -0.5, -0.7, -0.4, -0.55, -0.65, -0.5, -0.6, -0.45, -0.5], [0.01, 0.30])
