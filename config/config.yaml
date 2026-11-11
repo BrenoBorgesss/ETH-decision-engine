@@ -22,6 +22,8 @@ binance:
   limite_peso_por_minuto: 6000     # limite da Binance por IP
   pausar_acima_de_pct_peso: 80     # pausa as consultas ao chegar a 80% do limite
   recv_window_ms: 5000
+  candles_por_consulta: { 1m: 500, 5m: 1000, 15m: 1000, 1h: 1000, 4h: 1000, 1d: 500 }   # candles pedidos por timeframe na análise ao vivo
+  candles_por_consulta_padrao: 1000   # para timeframes fora da lista acima (máximo da Binance: 1000)
 
 saude_dados:   # acima destes limites o dado é considerado velho -> sinal vira ESPERAR
   preco_max_s: 5
@@ -35,6 +37,9 @@ historico:
   pasta: data/history
   meses: 13                      # meses completos para baixar (mínimo pedido: 12)
   downloads_simultaneos: 4
+  timeout_download_s: 60           # tempo máximo de cada download de arquivo histórico
+  tentativas_download: 3           # quantas vezes tenta baixar cada arquivo
+  espera_entre_tentativas_s: 1.5   # espera = este valor × número da tentativa
   intervalos:
     ETHUSDT: [1m, 5m, 15m, 1h, 4h, 1d]
     ETHBRL: [1m, 5m, 15m, 1h]
@@ -141,6 +146,7 @@ estrategia:   # reversão à média intraday, só spot (sem short)
 
   # Filtro de tendência (1h/4h): em queda forte e sustentada, NÃO comprar
   adx_queda_forte_1h: 30       # ADX(1h) >= 30 com −DI > +DI = queda forte
+  adx_vies_baixa_1h: 20        # ADX(1h) >= 20 com −DI > +DI = 1h "contra" (só reduz a confiança)
   # queda sustentada = EMA50(4h) < EMA200(4h) com EMA50 caindo E estrutura de baixa no 1h abaixo da EMA50
   confirmacao_ambos_favoraveis: 1.0
   confirmacao_um_neutro: 0.85
@@ -150,6 +156,7 @@ estrategia:   # reversão à média intraday, só spot (sem short)
   stop_fundo_barras_5m: 12     # stop abaixo do menor fundo dos últimos 12 candles de 5m...
   stop_atr_5m: 0.5             # ...menos 0,5 ATR(5m)
   stop_min_atr_5m: 0.5         # stop nunca mais perto que 0,5 ATR(5m)
+  stop_posicao_sem_sinal_atr_5m: 2.0   # posição sem sinal associado: stop 2 ATR(5m) abaixo do custo médio
   rr_minimo: 1.0               # risco/retorno mínimo JÁ DESCONTADAS as taxas
   distancia_alvo_min_custo: 2.5   # trava: distância até o alvo 1 >= 2,5 × custo de ida e volta
   tempo_max_min: 180           # sem chegar ao alvo em 3 h: sair
@@ -160,6 +167,7 @@ estrategia:   # reversão à média intraday, só spot (sem short)
   vender_vwap_atr: 2.0         # ...e preço >= 2 ATR acima do VWAP
 
   qualidade_min_dados: 0.9     # incerteza: qualidade dos dados abaixo disso = ESPERAR
+  penalidade_por_aviso_dados: 0.05   # cada aviso não crítico tira 0,05 da qualidade dos dados
 
 backtest:
   pares: [ETHUSDT, ETHBRL]        # par de operação simulado (os sinais vêm sempre do simbolo_analise)
@@ -197,6 +205,8 @@ painel:   # cryptoagent painel -> abre http://127.0.0.1:8765 (só no seu computa
   analise_extra_a_cada_s: 60      # além disso, reanalisa a cada 60 s (acompanha posição, conta e saúde); 0 = desliga
   ws_silencio_max_s: 30           # WebSocket sem mensagens por mais que isso: usa a API REST (fallback)
   candles_grafico: 300
+  buffer_candles: 1100            # candles guardados em memória por timeframe (WebSocket)
+  min_candles_ws: 300             # com menos que isso no buffer, o timeframe é buscado pela API REST
 
 alertas:   # avisos quando a decisão mudar
   terminal: true
@@ -206,3 +216,6 @@ alertas:   # avisos quando a decisão mudar
 logs:
   pasta: logs
   nivel: INFO
+  formato: texto                  # texto = uma linha legível; json = um objeto JSON por linha (log estruturado)
+  tamanho_max_mb: 5               # ao passar disso, o arquivo é rotacionado
+  arquivos_antigos: 5             # quantos arquivos rotacionados manter

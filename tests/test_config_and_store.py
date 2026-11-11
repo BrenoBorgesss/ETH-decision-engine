@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from cryptoagent.config import Config, Mercado, Secrets, load_config
+from cryptoagent.config import Binance, Config, Mercado, Painel, Secrets, load_config, load_secrets
 from cryptoagent.costs.recorder import BookState, build_sample, quote_sizes
 from cryptoagent.data.market_store import CandleBuffer
 
@@ -43,6 +43,51 @@ def test_segredos_nao_aparecem_em_repr():
     s = Secrets(binance_api_key=SecretStr("chave-super-secreta"), binance_api_secret=SecretStr("segredo-super-secreto"))
     assert "chave-super-secreta" not in repr(s) and "segredo-super-secreto" not in str(s)
     assert s.has_binance
+
+
+def test_segredos_sao_so_os_da_binance(tmp_path, monkeypatch):
+    """Nenhuma outra chave é pedida nem carregada (a da Anthropic foi removida: nada a usava)."""
+    assert set(Secrets.model_fields) == {"binance_api_key", "binance_api_secret"}
+    example = (ROOT / ".env.example").read_text(encoding="utf-8")
+    names = [line.split("=")[0] for line in example.splitlines() if line and not line.startswith("#")]
+    assert names == ["BINANCE_API_KEY", "BINANCE_API_SECRET"]
+    assert all(line.endswith("=") for line in example.splitlines() if line and not line.startswith("#"))  # sem valores
+
+    (tmp_path / ".env").write_text("BINANCE_API_KEY=chave-de-teste-123\nBINANCE_API_SECRET=segredo-de-teste-456\n", encoding="utf-8")
+    monkeypatch.delenv("BINANCE_API_KEY", raising=False)
+    monkeypatch.delenv("BINANCE_API_SECRET", raising=False)
+    s = load_secrets(tmp_path)
+    assert s.has_binance and s.raw_values() == ["chave-de-teste-123", "segredo-de-teste-456"]
+    monkeypatch.delenv("BINANCE_API_KEY", raising=False)  # load_dotenv gravou no ambiente do processo
+    monkeypatch.delenv("BINANCE_API_SECRET", raising=False)
+
+
+def test_sem_env_o_agente_roda_sem_chave(tmp_path, monkeypatch):
+    monkeypatch.delenv("BINANCE_API_KEY", raising=False)
+    monkeypatch.delenv("BINANCE_API_SECRET", raising=False)
+    s = load_secrets(tmp_path)
+    assert not s.has_binance and s.raw_values() == []
+
+
+def test_constantes_que_viraram_config_mantem_os_valores_antigos():
+    """Etapa 2.3: números que estavam fixos no código. Os padrões são os valores de antes."""
+    for cfg in (Config(), load_config(ROOT / "config" / "config.yaml")):
+        assert cfg.binance.candles_por_consulta == {"1m": 500, "5m": 1000, "15m": 1000, "1h": 1000, "4h": 1000, "1d": 500}
+        assert cfg.binance.candles_por_consulta_padrao == 1000
+        assert (cfg.historico.timeout_download_s, cfg.historico.tentativas_download, cfg.historico.espera_entre_tentativas_s) == (60, 3, 1.5)
+        e = cfg.estrategia
+        assert (e.stop_posicao_sem_sinal_atr_5m, e.adx_vies_baixa_1h, e.penalidade_por_aviso_dados) == (2.0, 20, 0.05)
+        assert (cfg.painel.buffer_candles, cfg.painel.min_candles_ws) == (1100, 300)
+        assert (cfg.logs.formato, cfg.logs.tamanho_max_mb, cfg.logs.arquivos_antigos) == ("texto", 5, 5)
+
+
+def test_validacao_dos_campos_novos():
+    with pytest.raises(ValidationError):
+        Binance(candles_por_consulta={"7m": 500})  # intervalo que não existe
+    with pytest.raises(ValidationError):
+        Binance(candles_por_consulta={"1m": 5000})  # acima do máximo da Binance
+    with pytest.raises(ValidationError):
+        Painel(buffer_candles=300, min_candles_ws=500)
 
 
 def kline(t, close, closed):

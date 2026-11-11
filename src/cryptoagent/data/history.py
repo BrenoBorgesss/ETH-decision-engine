@@ -138,8 +138,11 @@ class DownloadStats:
         return sum(g.missing for g in self.gaps)
 
 
-async def _fetch(http: httpx.AsyncClient, url: str, sem: asyncio.Semaphore, attempts: int = 3) -> bytes | None:
-    """Baixa um arquivo. Retorna None se não existir (404/403)."""
+async def _fetch(http: httpx.AsyncClient, url: str, sem: asyncio.Semaphore, attempts: int = 3, wait_s: float = 1.5) -> bytes | None:
+    """Baixa um arquivo. Retorna None se não existir (404/403).
+
+    Repete até `attempts` vezes, esperando `wait_s` × número da tentativa entre uma e outra.
+    """
     error: Exception | None = None
     for attempt in range(attempts):
         async with sem:
@@ -153,7 +156,7 @@ async def _fetch(http: httpx.AsyncClient, url: str, sem: asyncio.Semaphore, atte
                 if resp.status_code == 200:
                     return resp.content
                 error = RuntimeError(f"HTTP {resp.status_code}")
-        await asyncio.sleep(1.5 * (attempt + 1))
+        await asyncio.sleep(wait_s * (attempt + 1))
     raise HistoryDownloadError(f"Falha ao baixar {url}: {error}")
 
 
@@ -167,6 +170,8 @@ async def download_history(
     *,
     today_utc: date | None = None,
     concurrency: int = 4,
+    attempts: int = 3,
+    retry_wait_s: float = 1.5,
 ) -> DownloadStats:
     today_utc = today_utc or datetime.now(UTC).date()
     stats = DownloadStats(symbol, interval)
@@ -179,7 +184,7 @@ async def download_history(
 
     async def get_period(period: Period) -> list[tuple[str, pd.DataFrame]]:
         url = period.url(base_url, symbol, interval)
-        content = await _fetch(http, url, sem)
+        content = await _fetch(http, url, sem, attempts, retry_wait_s)
         if content is None:
             if period == latest_monthly:
                 # O arquivo do mês anterior às vezes só sai alguns dias depois: usa os diários.
@@ -187,7 +192,7 @@ async def download_history(
                 return [item for part in parts for item in part]
             stats.missing.append(period.label)
             return []
-        checksum = await _fetch(http, url + ".CHECKSUM", sem)
+        checksum = await _fetch(http, url + ".CHECKSUM", sem, attempts, retry_wait_s)
         if checksum is None or not verify_checksum(content, checksum.decode("utf-8", "replace")):
             stats.checksum_failures.append(period.label)
             log.warning("Checksum não confere para %s %s %s; arquivo descartado", symbol, interval, period.label)

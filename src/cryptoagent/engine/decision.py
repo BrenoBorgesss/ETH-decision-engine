@@ -75,9 +75,9 @@ def _confidence(parts: list[ConfidencePart]) -> float:
 
 
 def _general_blocks(ctx: DecisionContext, p: Estrategia, problems: list[str]) -> tuple[list[str], float]:
-    """Travas que valem com ou sem posição. Qualidade dos dados = 1 − 0,05 por aviso não crítico."""
+    """Travas que valem com ou sem posição. Qualidade dos dados = 1 − `penalidade_por_aviso_dados` por aviso não crítico."""
     blocks = list(ctx.risk.blocked_reasons) + problems
-    quality = max(0.0, 1.0 - 0.05 * len(ctx.risk.data_warnings))
+    quality = max(0.0, 1.0 - p.penalidade_por_aviso_dados * len(ctx.risk.data_warnings))
     if quality < p.qualidade_min_dados:
         blocks.append(f"incerteza alta: qualidade dos dados {num(quality, 2)} < {num(p.qualidade_min_dados, 2)} ({'; '.join(ctx.risk.data_warnings)})")
     return blocks, quality

@@ -56,7 +56,7 @@ class LiveService:
         self.cfg, self.secrets, self.console = cfg, secrets, console
         p = cfg.estrategia
         self.sym = cfg.mercado.simbolo_analise
-        self.buffers = {tf: CandleBuffer(self.sym, tf, maxlen=1100) for tf in p.timeframes}
+        self.buffers = {tf: CandleBuffer(self.sym, tf, maxlen=cfg.painel.buffer_candles) for tf in p.timeframes}
         self.tickers: dict[str, tuple[float, float, int]] = {}
         streams = [f"{self.sym.lower()}@kline_{tf}" for tf in self.buffers] + [f"{s.lower()}@bookTicker" for s in cfg.mercado.simbolos_monitorados]
         self.stream = BinanceStream(cfg.binance.ws_url, streams, self.on_message, name="painel")
@@ -95,7 +95,7 @@ class LiveService:
     async def backfill(self, tfs: set[str]) -> None:
         assert self.client is not None
         for tf in sorted(tfs):
-            df, _ = await self.client.klines(self.sym, tf, limit=1000)
+            df, _ = await self.client.klines(self.sym, tf, limit=self.cfg.binance.candles_por_consulta_padrao)
             self.buffers[tf].load_frame(df, self.client.server_now_ms())
         self.needs_backfill -= tfs
 
@@ -105,7 +105,7 @@ class LiveService:
             return None
         out = {}
         for tf, buf in self.buffers.items():
-            if tf in self.needs_backfill or len(buf) < 300:
+            if tf in self.needs_backfill or len(buf) < self.cfg.painel.min_candles_ws:
                 continue
             if buf.gaps():
                 self.needs_backfill.add(tf)

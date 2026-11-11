@@ -71,7 +71,7 @@ def higher_timeframes(ctx: DecisionContext, p: Estrategia) -> TrendView:
         return "favoravel" if h4["ema_50"] > h4["ema_200"] else "neutro"
 
     def state_1h() -> str:
-        if h1["minus_di"] > h1["plus_di"] and h1["adx"] >= 20:
+        if h1["minus_di"] > h1["plus_di"] and h1["adx"] >= p.adx_vies_baixa_1h:
             return "contra"
         if h1["regime"] in ("lateral", "tendencia_alta"):
             return "favoravel"
@@ -176,19 +176,17 @@ def exit_check(ctx: DecisionContext, p: Estrategia, *, ratio: float = 1.0) -> tu
     return None
 
 
-POSITION_STOP_ATR_5M = 2.0  # posição sem sinal associado: stop 2 ATR(5m) abaixo do custo médio
-
-
 def rules_levels_for_position(ctx: DecisionContext, p: Estrategia) -> tuple[float, float, float]:
     """Stop e alvos para uma posição SEM sinal associado, calculados pelas regras a partir do custo médio.
 
+    Stop = custo médio menos `stop_posicao_sem_sinal_atr_5m` × ATR(5m).
     Alvo 1 = média (VWAP/meio das bandas) acima do custo; se não houver, custo + 2 × custo de ida e volta.
     """
     pos = ctx.position
     assert pos is not None
     s15 = ctx.market.frames[p.tf_setup].iloc[-1]
     atr5 = float(ctx.market.frames[p.tf_gatilho]["atr"].iloc[-1])
-    stop = pos.avg_cost - POSITION_STOP_ATR_5M * atr5
+    stop = pos.avg_cost - p.stop_posicao_sem_sinal_atr_5m * atr5
     above = [m for m in (float(s15["vwap"]), float(s15["bb_mid"])) if m > pos.avg_cost]
     t1 = min(above) if above else pos.avg_cost * (1 + 2 * ctx.cost_pct / 100)
     t2 = max(float(s15["bb_upper"]), t1)

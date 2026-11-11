@@ -18,6 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, field
 from cryptoagent.timeutils import INTERVAL_MS, parse_hhmm
 
 CONFIG_RELATIVE = Path("config") / "config.yaml"
+# Únicas variáveis de ambiente tratadas como segredo. Só este módulo as lê.
+SECRET_ENV_VARS = ("BINANCE_API_KEY", "BINANCE_API_SECRET")
 
 
 def _check_interval(value: str) -> str:
@@ -94,6 +96,20 @@ class Binance(_Section):
     limite_peso_por_minuto: int = Field(6000, gt=0)
     pausar_acima_de_pct_peso: float = Field(80, gt=0, le=100)
     recv_window_ms: int = Field(5000, gt=0, le=60000)
+    # Quantos candles pedir por timeframe na análise ao vivo (a Binance aceita no máximo 1000).
+    candles_por_consulta: dict[str, int] = Field(
+        default_factory=lambda: {"1m": 500, "5m": 1000, "15m": 1000, "1h": 1000, "4h": 1000, "1d": 500}
+    )
+    candles_por_consulta_padrao: int = Field(1000, ge=50, le=1000)
+
+    @field_validator("candles_por_consulta")
+    @classmethod
+    def _candles(cls, v: dict[str, int]) -> dict[str, int]:
+        for tf, n in v.items():
+            _check_interval(tf)
+            if not 50 <= n <= 1000:
+                raise ValueError(f"candles_por_consulta[{tf}] precisa estar entre 50 e 1000 (recebido {n})")
+        return v
 
 
 class SaudeDados(_Section):
@@ -109,6 +125,9 @@ class Historico(_Section):
     pasta: str = "data/history"
     meses: int = Field(13, ge=1, le=120)
     downloads_simultaneos: int = Field(4, ge=1, le=16)
+    timeout_download_s: float = Field(60, gt=0)
+    tentativas_download: int = Field(3, ge=1, le=10)
+    espera_entre_tentativas_s: float = Field(1.5, ge=0)
     intervalos: dict[str, list[str]] = Field(
         default_factory=lambda: {"ETHUSDT": ["1m", "5m", "15m", "1h", "4h", "1d"]}
     )
@@ -263,12 +282,14 @@ class Estrategia(_Section):
     gatilho_janela_5m: int = Field(3, ge=1)
     gatilho_fundo_mais_alto_1m: bool = True
     adx_queda_forte_1h: float = Field(30, gt=0)
+    adx_vies_baixa_1h: float = Field(20, gt=0)
     confirmacao_ambos_favoraveis: float = Field(1.0, gt=0, le=1)
     confirmacao_um_neutro: float = Field(0.85, gt=0, le=1)
     confirmacao_um_contra: float = Field(0.65, gt=0, le=1)
     stop_fundo_barras_5m: int = Field(12, ge=2)
     stop_atr_5m: float = Field(0.5, ge=0)
     stop_min_atr_5m: float = Field(0.5, gt=0)
+    stop_posicao_sem_sinal_atr_5m: float = Field(2.0, gt=0)
     rr_minimo: float = Field(1.0, gt=0)
     distancia_alvo_min_custo: float = Field(2.5, ge=0)
     tempo_max_min: float = Field(180, gt=0)
@@ -276,6 +297,7 @@ class Estrategia(_Section):
     vender_rsi_5m: float = 70
     vender_vwap_atr: float = 2.0
     qualidade_min_dados: float = Field(0.9, gt=0, le=1)
+    penalidade_por_aviso_dados: float = Field(0.05, ge=0, le=1)
 
     @field_validator("tf_contexto", "tf_confirmacao", "tf_setup", "tf_gatilho", "tf_timing")
     @classmethod
@@ -364,6 +386,14 @@ class Painel(_Section):
     analise_extra_a_cada_s: float = Field(60, ge=0)
     ws_silencio_max_s: float = Field(30, gt=0)
     candles_grafico: int = Field(300, ge=50, le=1000)
+    buffer_candles: int = Field(1100, ge=300, le=5000)
+    min_candles_ws: int = Field(300, ge=50)
+
+    @model_validator(mode="after")
+    def _buffer_coerente(self) -> Painel:
+        if self.min_candles_ws > self.buffer_candles:
+            raise ValueError("painel: min_candles_ws precisa ser <= buffer_candles")
+        return self
 
     @field_validator("recalcular_ao_fechar")
     @classmethod
@@ -380,6 +410,9 @@ class Alertas(_Section):
 class Logs(_Section):
     pasta: str = "logs"
     nivel: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    formato: Literal["texto", "json"] = "texto"
+    tamanho_max_mb: float = Field(5, gt=0, le=1000)
+    arquivos_antigos: int = Field(5, ge=0, le=100)
 
 
 class Config(_Section):
@@ -418,7 +451,6 @@ class Secrets(BaseModel):
 
     binance_api_key: SecretStr | None = None
     binance_api_secret: SecretStr | None = None
-    anthropic_api_key: SecretStr | None = None
 
     @property
     def has_binance(self) -> bool:
@@ -426,7 +458,7 @@ class Secrets(BaseModel):
 
     def raw_values(self) -> list[str]:
         """Valores reais, usados SÓ para registrar no filtro de logs."""
-        return [s.get_secret_value() for s in (self.binance_api_key, self.binance_api_secret, self.anthropic_api_key) if s]
+        return [s.get_secret_value() for s in (self.binance_api_key, self.binance_api_secret) if s]
 
 
 def find_root(start: Path | None = None) -> Path:
@@ -464,6 +496,7 @@ def load_config(path: Path | None = None, overlay: Path | None = None) -> Config
 
 
 def load_secrets(root: Path) -> Secrets:
+    """Lê as chaves do `.env` (ou das variáveis de ambiente). Sem chave, devolve Secrets vazio."""
     load_dotenv(root / ".env", override=False)
 
     def read(name: str) -> SecretStr | None:
@@ -473,5 +506,4 @@ def load_secrets(root: Path) -> Secrets:
     return Secrets(
         binance_api_key=read("BINANCE_API_KEY"),
         binance_api_secret=read("BINANCE_API_SECRET"),
-        anthropic_api_key=read("ANTHROPIC_API_KEY"),
     )

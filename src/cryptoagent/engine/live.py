@@ -30,9 +30,6 @@ from cryptoagent.seasonality.profiles import add_buckets
 from cryptoagent.security.redact import redact
 from cryptoagent.timeutils import now_ms
 
-KLINE_LIMITS = {"1m": 500, "5m": 1000, "15m": 1000, "1h": 1000, "4h": 1000, "1d": 500}
-
-
 @dataclass(frozen=True)
 class PaperView:
     """Carteira VIRTUAL do paper trading, usada no lugar da conta real."""
@@ -106,7 +103,8 @@ async def analyze_live(
     server_now = client.server_now_ms()
     candles = candles or {}
     rest_tfs = [tf for tf in p.timeframes if tf not in candles]
-    fetched = await asyncio.gather(*(client.klines(sym, tf, limit=KLINE_LIMITS.get(tf, 1000)) for tf in rest_tfs))
+    limits, default_limit = cfg.binance.candles_por_consulta, cfg.binance.candles_por_consulta_padrao
+    fetched = await asyncio.gather(*(client.klines(sym, tf, limit=limits.get(tf, default_limit)) for tf in rest_tfs))
     sources = {tf: (df, r.source) for tf, (df, r) in zip(rest_tfs, fetched)}
     sources.update({tf: (df, "binance-ws:kline") for tf, df in candles.items() if tf in p.timeframes})
     for tf in p.timeframes:
