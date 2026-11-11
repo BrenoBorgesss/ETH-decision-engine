@@ -45,7 +45,7 @@ from cryptoagent.data.health import Check, HealthReport, check_age, check_candle
 from cryptoagent.data.market_store import CandleBuffer
 from cryptoagent.data.rest import BinanceError, BinanceReadOnlyClient
 from cryptoagent.data.websocket import BinanceStream
-from cryptoagent.logging_setup import setup_logging
+from cryptoagent.logging_setup import LOG_FILE, setup_logging
 from cryptoagent.security.redact import redact
 from cryptoagent.storage import db
 from cryptoagent.timeutils import INTERVAL_MS, format_local, local_trading_day_series, now_ms, trading_day_bounds
@@ -266,13 +266,15 @@ async def cmd_history_download(cfg: Config, secrets: Secrets, args: argparse.Nam
     table = Table(title=f"Histórico ({months} meses + mês atual)")
     for col in ("Par", "Intervalo", "Arquivos novos", "Já tinha", "Via REST", "Linhas", "De (UTC)", "Até (UTC)", "Candles faltando", "Problemas"):
         table.add_column(col)
-    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as http, BinanceReadOnlyClient(cfg.binance, secrets) as client:
+    h = cfg.historico
+    async with httpx.AsyncClient(timeout=h.timeout_download_s, follow_redirects=True) as http, BinanceReadOnlyClient(cfg.binance, secrets) as client:
         await client.sync_time()
         for symbol, intervals in plan.items():
             for interval in intervals:
                 console.print(f"Baixando {symbol} {interval}...")
                 stats = await history.download_history(
-                    store, http, cfg.binance.dados_historicos_url, symbol, interval, months, concurrency=cfg.historico.downloads_simultaneos
+                    store, http, cfg.binance.dados_historicos_url, symbol, interval, months, concurrency=h.downloads_simultaneos,
+                    attempts=h.tentativas_download, retry_wait_s=h.espera_entre_tentativas_s,
                 )
                 stats.rows_from_rest = await history.update_from_rest(
                     store, client, symbol, interval, months=months, now=client.server_now_ms()
@@ -1321,7 +1323,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         log.exception("Erro não tratado")
         console.print(f"[red]Erro:[/] {escape(redact(exc))}")
-        console.print(f"[dim]Detalhes técnicos em {cfg.path(cfg.logs.pasta) / 'agente.log'}[/]")
+        console.print(f"[dim]Detalhes técnicos em {cfg.path(cfg.logs.pasta) / LOG_FILE}[/]")
         return 1
     finally:
         if args.func is not cmd_analyze:  # a decisão já imprime o aviso junto com o sinal
