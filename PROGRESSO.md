@@ -518,10 +518,48 @@ Backup antes da etapa: tag git `backup-antes-etapa-8` (aponta para `a088e4e`). P
 
 ## ETAPA 9 — CONTROLE DE RISCO E SINAIS
 
-- [ ] **9.1** Capital inicial e perda máxima do dia informados pelo usuário no início do dia.
-- [ ] **9.2** Bloqueio de novos sinais ao atingir o limite (simulação e sinais reais).
-- [ ] **9.3** Posição lida pelo saldo de ETH (chave somente leitura); VENDER = sair da posição.
-- [ ] **9.4** Testes automatizados dessas regras.
+Backup antes da etapa: tag git `backup-antes-etapa-9` (aponta para `82338b8`).
+
+- [x] **9.1** Capital inicial e perda máxima do dia informados pelo usuário no início do dia.
+  - Já existia e foi confirmado: `cryptoagent sessao iniciar` pergunta o capital de hoje e o máximo que você aceita perder hoje (em R$), ou recebe por `--capital` e `--perda-max`; o painel tem o mesmo formulário. No meio do dia a perda máxima só pode ser reduzida, nunca aumentada (teste existente).
+  - Sem as respostas do dia, o agente fica em ESPERAR. Teste novo de ponta a ponta, na análise ao vivo completa: "Sessão do dia não respondida".
+  - Com a sessão respondida e um setup de compra, o risco por operação é a perda máxima ÷ 3 (R$ 10 para R$ 30) e o tamanho nunca passa do capital efetivo. Teste novo de ponta a ponta.
+  - Na simulação: capital e perda máxima em R$ por `paper rodar --capital --perda-max` (Etapa 7).
+- [x] **9.2** Bloqueio de novos sinais ao atingir o limite (simulação e sinais reais).
+  - **Conta real** (teste de ponta a ponta): com prejuízo de R$ 50 no dia e limite de R$ 30, o setup que seria COMPRAR vira ESPERAR com "PERDA MÁXIMA DO DIA ATINGIDA". A leitura técnica (níveis) continua visível.
+  - **Com posição aberta e limite atingido:** a saída que reduz o risco (stop) continua como VENDER. Teste novo de ponta a ponta.
+  - **Simulação** (teste de ponta a ponta no replay de 08/09): com risco por operação = perda máxima (R$ 3), o stop da 1ª compra consome o limite. A 2ª compra (10:45, que sem o limite sairia no alvo) não acontece, e os sinais seguintes ficam travados pela perda máxima virtual.
+- [x] **9.3** Posição lida pelo saldo de ETH (chave somente leitura); VENDER = sair da posição.
+  - **Como funciona** (proposta do diagnóstico, mantida): a posição da operação vem das operações executadas, lidas da Binance pela chave somente leitura (FIFO, com o teto `capital_operacao`). O ETH que você já tinha não vira posição.
+  - **Novo:** essa posição agora é conferida com o saldo de ETH lido da conta (livre + travado em ordens):
+    - se o histórico diz que há mais ETH do que existe na conta (venda em outro par, saque, transferência), o agente bloqueia com o motivo;
+    - o ETH de fora da operação aparece como aviso.
+  - **Testes:**
+    - unitários em `tests/test_account_status.py`;
+    - de ponta a ponta em `tests/test_risco.py` (posição que não existe no saldo bloqueia; 3 ETH já existentes não viram posição).
+  - Os 2 testes antigos do ETHUSDT tinham um saldo impossível: compravam 0,1 ETH sem ETH na conta. Eles passaram a ter o ETH comprado no saldo.
+  - **VENDER = sair da posição:** sem posição, o motor nunca decide VENDER (teste com 300 cenários aleatórios); com posição, VENDER informa a quantidade da posição da operação (teste de ponta a ponta: "0,050000 ETH").
+  - A chave real continua recusada (−2015); tudo isto foi testado com respostas simuladas (decisão D3). A conferência com a sua conta de verdade fica com você.
+- [x] **9.4** Testes automatizados dessas regras.
+  - `tests/test_risco.py`: 8 testes que rodam a análise ao vivo completa (caminho da conta real) contra uma Binance e uma conta simuladas, somente leitura, mais o replay da simulação.
+  - `tests/test_account_status.py`: +3 (posição x saldo, ETH travado em ordem conta como saldo, saldo velho bloqueia).
+- [x] **B7 do diagnóstico:** `conta.saldo_max_s` agora é aplicado: uma leitura de saldo mais velha que o limite bloqueia (teste).
+- [x] **Pendências de divisão de funções da Etapa 3:**
+  - `AccountMonitor.refresh` (148 linhas) virou 5 etapas: chave, preços, operações, resultado do dia e capital/limites. Os 12 testes antigos passaram sem mudança de regra.
+  - `analyze_live` caiu de 108 para 89 linhas (posição e risco da conta real e do paper em funções próprias). A foto do teste ao vivo continua igual.
+  - `simulate` e `decide` ficam para a Etapa 11, como combinado.
+
+### Verificação final da Etapa 9
+- `python -m pytest -q` → `344 passed, 1 warning in 58.18s` (eram 333; +11).
+- `ruff check --select F,E9`: sem erros.
+- Backtest de referência: não mudou (nenhum arquivo do backtest foi alterado nesta etapa).
+
+### Problemas durante a Etapa 9
+- Três premissas erradas nos meus primeiros testes, corrigidas antes do commit:
+  - o tamanho da posição era limitado pelo capital, não pelo risco;
+  - a taxa paga em BRL não reduz o ETH recebido;
+  - com o divisor 3, um único stop nunca consome a perda máxima do dia, por construção. Isso é a regra funcionando.
+- Um script de edição em heredoc falhou por causa das aspas; nada foi aplicado pela metade (`git status` vazio) e refiz com arquivo.
 
 ## ETAPA 10 — DASHBOARD E APARÊNCIA
 
@@ -618,3 +656,9 @@ Backup antes da etapa: tag git `backup-antes-etapa-8` (aponta para `a088e4e`). P
 - Removidos: nenhum
 - Não tocados: `.env`, `data/` real (os ciclos da demonstração gravaram no scratchpad; `data/learning` não foi criado), `logs/`, `README.md`
 - Criados pelo programa no modo demo: `data/demo/learning/` (ignorado pelo git)
+
+### Etapa 9
+- Criados: `tests/test_risco.py`
+- Alterados: `src/cryptoagent/account/status.py`, `src/cryptoagent/engine/live.py`, `tests/fake_binance.py`, `tests/test_account_status.py`, `PROGRESSO.md`
+- Removidos: nenhum
+- Não tocados: `.env`, `data/`, `logs/`, `config/`, `README.md`
