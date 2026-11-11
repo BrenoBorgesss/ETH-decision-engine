@@ -27,7 +27,7 @@ COLS = [
 ]
 
 
-def _fmt(key: str, value) -> str:
+def _fmt(key: str, value: object) -> str:
     for k, _, f in COLS:
         if k == key:
             if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
@@ -36,7 +36,7 @@ def _fmt(key: str, value) -> str:
     return str(value)
 
 
-def _clean(obj):
+def _clean(obj: object) -> object:
     if isinstance(obj, float):
         return None if math.isnan(obj) or math.isinf(obj) else obj
     if isinstance(obj, dict):
@@ -48,7 +48,7 @@ def _clean(obj):
 
 def to_dict(r: PairReport) -> dict:
     """Relatório de um par como dicionário só com tipos de JSON."""
-    def v(x):
+    def v(x: Variant | None) -> dict | None:
         return {"nome": x.name, "metricas": x.metrics, "nota": x.note} if x else None
     return _clean(
         {
@@ -127,9 +127,9 @@ def _equity_svg(r: PairReport, capital: float) -> str:
     w, h, pad = 900, 220, 30
     x0, x1 = r.oos_start, r.oos_end
     y0, y1 = min(ys + [capital]) * 0.995, max(ys + [capital]) * 1.005
-    def sx(x):
+    def sx(x: float) -> float:
         return pad + (x - x0) / (x1 - x0) * (w - 2 * pad)
-    def sy(y):
+    def sy(y: float) -> float:
         return h - pad - (y - y0) / (y1 - y0) * (h - 2 * pad)
     pts = " ".join(f"{sx(x):.1f},{sy(y):.1f}" for x, y in zip(xs, ys))
     base = sy(capital)

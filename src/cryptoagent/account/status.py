@@ -69,7 +69,7 @@ class AccountStatus:
 
 class AccountMonitor:
     """Lê a conta (ou o diário manual) e monta o AccountStatus. Guarda em memória a última checagem de permissões."""
-    def __init__(self, cfg: Config, secrets: Secrets, client: BinanceReadOnlyClient, conn: sqlite3.Connection):
+    def __init__(self, cfg: Config, secrets: Secrets, client: BinanceReadOnlyClient, conn: sqlite3.Connection) -> None:
         self.cfg = cfg
         self.secrets = secrets
         self.client = client

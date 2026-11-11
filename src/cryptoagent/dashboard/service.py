@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Iterable
 from dataclasses import asdict
 from datetime import date
 
@@ -36,7 +37,7 @@ from cryptoagent.timeutils import format_local, now_ms, zone
 log = logging.getLogger(__name__)
 
 
-def _clean(obj):
+def _clean(obj: object) -> object:
     """Tudo que vai para a página passa pelo filtro de segredos e vira JSON simples."""
     if isinstance(obj, str):
         return redact(obj)
@@ -53,7 +54,7 @@ def _clean(obj):
 
 class LiveService:
     """Serviço ao vivo do painel: mantém os candles do WebSocket, roda a análise, dispara os avisos e monta o estado mostrado na página."""
-    def __init__(self, cfg: Config, secrets: Secrets, console: Console):
+    def __init__(self, cfg: Config, secrets: Secrets, console: Console) -> None:
         self.cfg, self.secrets, self.console = cfg, secrets, console
         p = cfg.estrategia
         self.sym = cfg.mercado.simbolo_analise
@@ -166,7 +167,7 @@ class LiveService:
             self.trigger.clear()
             await asyncio.sleep(1.5)  # dá tempo de os outros timeframes fecharem o mesmo candle
 
-    async def run(self, extra_tasks=()) -> None:
+    async def run(self, extra_tasks: Iterable[asyncio.Task] = ()) -> None:
         """Liga o cliente, o WebSocket e o laço de análise, e espera o serviço parar. `extra_tasks` são tarefas encerradas junto (ex.: o servidor web)."""
         async with BinanceReadOnlyClient(self.cfg.binance, self.secrets) as client:
             self.client = client

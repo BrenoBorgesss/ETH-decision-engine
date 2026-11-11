@@ -79,7 +79,7 @@ ERROR_HINTS: dict[int, str] = {
 
 class BinanceError(Exception):
     """Erro numa consulta à Binance. A mensagem traz só o caminho do endpoint (nunca a URL assinada) e, quando há, uma dica em português."""
-    def __init__(self, message: str, *, path: str, status: int | None = None, code: int | None = None):
+    def __init__(self, message: str, *, path: str, status: int | None = None, code: int | None = None) -> None:
         self.path = path
         self.status = status
         self.code = code
@@ -125,7 +125,7 @@ class BinanceReadOnlyClient:
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         clock: Callable[[], int] = now_ms,
-    ):
+    ) -> None:
         self._cfg = cfg
         self._secrets = secrets
         self._http = httpx.AsyncClient(

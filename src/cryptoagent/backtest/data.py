@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from cryptoagent.backtest.season_pit import SeasonPIT
-from cryptoagent.config import Config
+from cryptoagent.config import Config, Estrategia
 from cryptoagent.data.history import HistoryStore
 from cryptoagent.indicators.compute import compute_indicators
 from cryptoagent.timeutils import local_hour_weekday_series
@@ -53,7 +53,7 @@ def _prev_day_table(s15: pd.DataFrame) -> np.ndarray:
     return prev.loc[s15["trading_day"]].to_numpy(dtype=float)
 
 
-def _first_valid(frames: dict[str, pd.DataFrame], p) -> int:
+def _first_valid(frames: dict[str, pd.DataFrame], p: Estrategia) -> int:
     first = 0
     for role, cols in REQUIRED.items():
         f = frames[getattr(p, role)]

@@ -117,7 +117,7 @@ def build_sample(book: BookState, now: int, sizes: dict[str, float | None], fx_u
 
 class CostRecorder:
     """Coletor de custos: recebe o livro pelo WebSocket (com a API REST como reserva) e grava amostras de spread, profundidade e slippage no SQLite."""
-    def __init__(self, cfg: Config, client: BinanceReadOnlyClient, conn: sqlite3.Connection, *, console: Console | None = None):
+    def __init__(self, cfg: Config, client: BinanceReadOnlyClient, conn: sqlite3.Connection, *, console: Console | None = None) -> None:
         self.cfg = cfg
         self.client = client
         self.conn = conn

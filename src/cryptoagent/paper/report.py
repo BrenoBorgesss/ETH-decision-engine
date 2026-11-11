@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -42,7 +43,7 @@ class SignalOutcome:
 OUTCOMES = ("alvo com lucro", "alvo sem lucro", "stop primeiro", "nenhum", "aguardando")
 
 
-def signal_cost_pct(s) -> float | None:
+def signal_cost_pct(s: object) -> float | None:
     """Custo de ida e volta (%) usado nos níveis do sinal. Sinais antigos não o guardavam: deduz do risco/retorno
     gravado (rr = (alvo − custo) / (stop + custo), com alvo e stop em % da entrada)."""
     raw = getattr(s, "details_json", None)
@@ -182,6 +183,6 @@ def variant_report(conn: sqlite3.Connection, variant: str, capital: float, bars_
     return rep
 
 
-def load_backtest_json(path) -> dict | None:
+def load_backtest_json(path: Path) -> dict | None:
     """Lê o relatório JSON do backtest, ou None se o arquivo não existe."""
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None

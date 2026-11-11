@@ -61,7 +61,7 @@ def analyze_symbol(df: pd.DataFrame, symbol: str, cfg: Config, cost: CostModel) 
 def to_dict(a: SymbolAnalysis) -> dict:
     """Análise de um par como dicionário só com tipos de JSON."""
     v = a.validation
-    def grid(col):
+    def grid(col: str) -> list[list[float]]:
         return [[float(a.heat[col].get((d, h), float("nan"))) for h in range(24)] for d in range(7)]
     return {
         "symbol": a.symbol,

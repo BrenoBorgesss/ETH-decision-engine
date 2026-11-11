@@ -97,7 +97,7 @@ def verify_checksum(content: bytes, checksum_text: str) -> bool:
 
 class HistoryStore:
     """Histórico de candles em disco: um Parquet e um manifesto por par e intervalo."""
-    def __init__(self, folder: Path):
+    def __init__(self, folder: Path) -> None:
         self.folder = folder
 
     def path(self, symbol: str, interval: str) -> Path:

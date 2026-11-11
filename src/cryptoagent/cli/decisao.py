@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from typing import TYPE_CHECKING
 
 from rich.markup import escape
 from rich.table import Table
@@ -14,12 +15,15 @@ from cryptoagent.data.rest import BinanceReadOnlyClient
 from cryptoagent.storage import agent_db
 from cryptoagent.timeutils import format_local
 
+if TYPE_CHECKING:  # só para as anotações: importar de verdade aqui deixaria a inicialização mais lenta
+    from cryptoagent.engine.live import LiveResult
+
 # -------------------------------------------------------- motor de decisão
 
 ACTION_STYLE = {"COMPRAR": "bold white on green", "VENDER": "bold white on red", "ESPERAR": "bold black on yellow"}
 
 
-def print_decision(res, cfg: Config) -> None:
+def print_decision(res: LiveResult, cfg: Config) -> None:
     """Imprime no terminal a decisão completa: ação, confiança, parcelas, motivos, travas, níveis e saúde dos dados."""
     from cryptoagent.fmt import brl, num, pct
 
@@ -27,7 +31,7 @@ def print_decision(res, cfg: Config) -> None:
     ratio = res.ratio
     tz = cfg.fuso.local
     tq = split_symbol(d.trade_symbol)[1]
-    def tp(x):
+    def tp(x: float) -> str:
         return num(x * ratio, 2) + f" {tq}"
     console.print()
     from cryptoagent.engine.decision import REGIME_PT as ENGINE_REGIME_PT

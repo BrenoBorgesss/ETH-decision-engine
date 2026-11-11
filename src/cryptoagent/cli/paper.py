@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from typing import TYPE_CHECKING
 
 from rich.markup import escape
 from rich.table import Table
@@ -13,6 +14,9 @@ from cryptoagent.data import history
 from cryptoagent.data.rest import BinanceReadOnlyClient
 from cryptoagent.storage import agent_db
 from cryptoagent.timeutils import format_local
+
+if TYPE_CHECKING:  # só para as anotações: importar de verdade aqui deixaria a inicialização mais lenta
+    from cryptoagent.paper.report import VariantReport
 
 # ----------------------------------------------------------- paper trading
 
@@ -28,7 +32,7 @@ async def cmd_paper_run(cfg: Config, secrets: Secrets, args: argparse.Namespace)
     return 0
 
 
-def _print_gate_study(rep, min_trades: int) -> None:
+def _print_gate_study(rep: VariantReport, min_trades: int) -> None:
     from cryptoagent.fmt import pct
     from cryptoagent.paper.report import GATE_PT
 
@@ -42,7 +46,7 @@ def _print_gate_study(rep, min_trades: int) -> None:
     t = Table(title="Cada trava: operações que ela teria BARRADO x as que deixaria passar (% líquido, com taxas)")
     for col in ("Trava", "Barradas: n", "acerto", "média", "Liberadas: n", "acerto", "média"):
         t.add_column(col)
-    def f(v, s=False):
+    def f(v: float | None, s: bool = False) -> str:
         return "-" if v is None else pct(v, 3 if s else 0, sign=s)
     for g in rep.gates:
         t.add_row(GATE_PT[g.gate], str(g.n_blocked), f(g.win_blocked_pct), f(g.avg_blocked_pct, True), str(g.n_passed), f(g.win_passed_pct), f(g.avg_passed_pct, True))

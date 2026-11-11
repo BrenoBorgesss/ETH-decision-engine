@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -16,6 +17,9 @@ from cryptoagent.backtest.execution import buy_fill, close_pnl, oco_check, sell_
 from cryptoagent.engine.decision import Decision
 from cryptoagent.engine.live import PaperView
 from cryptoagent.timeutils import local_trading_day, now_ms
+
+if TYPE_CHECKING:  # só para as anotações (evita importação circular com o backtest)
+    from cryptoagent.backtest.simulator import Trade
 
 LIMIT_TEXT = "PERDA MÁXIMA DO DIA ATINGIDA (carteira virtual)"
 
@@ -31,7 +35,7 @@ class PaperCosts:
 class PaperBook:
     """Carteira virtual de uma variante, guardada no SQLite (tabelas paper_state e paper_trades). Nunca lê nem usa o saldo real."""
     def __init__(self, conn: sqlite3.Connection, variant: str, symbol: str, *, capital: float, loss_pct: float, divisor: float,
-                 costs: PaperCosts, tz: str, day_start: str):
+                 costs: PaperCosts, tz: str, day_start: str) -> None:
         self.conn, self.variant, self.symbol = conn, variant, symbol
         self.capital, self.loss_pct, self.divisor = capital, loss_pct, divisor
         self.costs, self.tz, self.day_start = costs, tz, day_start
@@ -180,7 +184,7 @@ class PaperBook:
         return self.conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL ORDER BY entry_ms", (self.variant,)).fetchall()
 
 
-def to_backtest_trades(rows: list[sqlite3.Row]):
+def to_backtest_trades(rows: list[sqlite3.Row]) -> list[Trade]:
     """Converte para o formato do backtest, para usar as mesmas métricas."""
     from cryptoagent.backtest.simulator import Trade
 

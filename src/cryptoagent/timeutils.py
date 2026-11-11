@@ -13,7 +13,7 @@ Regras do projeto:
 from __future__ import annotations
 
 import time as _time
-from datetime import UTC, date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 

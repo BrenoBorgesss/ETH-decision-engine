@@ -84,7 +84,7 @@ def _month_starts(first_ms: int, last_ms: int) -> list[pd.Timestamp]:
 def make_folds(open_times: pd.Series, train_months: int, test_months: int) -> list[Fold]:
     """Janelas por mês-calendário (UTC). O teste vem sempre DEPOIS do treino, sem sobreposição."""
     months = _month_starts(int(open_times.min()), int(open_times.max()))
-    def to_ms(ts):
+    def to_ms(ts: pd.Timestamp) -> int:
         return int(ts.value // 1_000_000)
     folds = []
     i = 0

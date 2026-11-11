@@ -10,7 +10,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Callable
+import sqlite3
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,7 +50,8 @@ def load_variants(cfg: Config, overlay_paths: list[str]) -> list[tuple[str, Conf
 
 
 async def run_paper(
-    cfg: Config, secrets: Secrets, *, fee: float, max_cycles: int | None = None, say: Callable[[str], None] = print, sleep=asyncio.sleep
+    cfg: Config, secrets: Secrets, *, fee: float, max_cycles: int | None = None, say: Callable[[str], None] = print,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> None:
     """Laço do paper trading: a cada minuto confere a OCO virtual e, a cada fechamento do candle de gatilho, decide e registra. `max_cycles` limita os ciclos (testes)."""
     pc = cfg.paper
@@ -88,7 +90,7 @@ async def run_paper(
         conn.close()
 
 
-async def _cycle(v: Variant, cfg: Config, secrets: Secrets, client: BinanceReadOnlyClient, conn, now: int, bid: float, ask: float, half: float, say) -> None:
+async def _cycle(v: Variant, cfg: Config, secrets: Secrets, client: BinanceReadOnlyClient, conn: sqlite3.Connection, now: int, bid: float, ask: float, half: float, say: Callable[[str], None]) -> None:
     pc, book, tz = cfg.paper, v.book, cfg.fuso.local
     # 1) OCO virtual nos candles de 1m fechados desde a última verificação
     pos = book.open_trade()

@@ -63,7 +63,7 @@ class Attribution:
 
 class OperationLedger:
     """Livro da posição da operação: lotes em ordem de compra (FIFO), limitados por um teto em ETH ou em moeda. O que passa do teto é ignorado."""
-    def __init__(self, cap_base: float | None = None, cap_quote: float | None = None):
+    def __init__(self, cap_base: float | None = None, cap_quote: float | None = None) -> None:
         if cap_base is not None and cap_base <= 0:
             raise ValueError("teto em ETH precisa ser positivo")
         if cap_quote is not None and cap_quote <= 0:

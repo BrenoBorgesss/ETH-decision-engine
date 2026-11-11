@@ -154,7 +154,7 @@ def exit_check(ctx: DecisionContext, p: Estrategia, *, ratio: float = 1.0) -> tu
     if pos is None:
         return None
     price = ctx.market.price
-    def tp(x):
+    def tp(x: float) -> str:
         return num(x * ratio)
     s15 = ctx.market.frames[p.tf_setup].iloc[-1]
     g5 = ctx.market.frames[p.tf_gatilho].iloc[-1]

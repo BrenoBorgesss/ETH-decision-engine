@@ -26,7 +26,7 @@ def save_signal(
 ) -> int:
     """Grava a decisão. Preços e níveis vão no par de OPERAÇÃO (multiplicados por `ratio`)."""
     lv = d.levels
-    def t(x):
+    def t(x: float | None) -> float | None:
         return x * ratio if x is not None else None
     details = {
         "parts": [asdict(p) for p in d.parts],

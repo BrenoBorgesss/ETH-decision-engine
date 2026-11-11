@@ -31,7 +31,7 @@ class BinanceStream:
     MAX_CONNECTION_S = 23 * 3600
     SILENCE_TIMEOUT_S = 30
 
-    def __init__(self, ws_url: str, streams: list[str], handler: Handler, *, name: str = "ws", max_backoff_s: float = 60):
+    def __init__(self, ws_url: str, streams: list[str], handler: Handler, *, name: str = "ws", max_backoff_s: float = 60) -> None:
         if not streams:
             raise ValueError("nenhum stream informado")
         self.url = f"{ws_url}/stream?streams=" + "/".join(streams)

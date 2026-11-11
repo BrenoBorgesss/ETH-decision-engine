@@ -78,7 +78,7 @@ def run_pair(cfg: Config, data: BacktestData, costs: CostSchedule, *, quick: boo
     if not folds:
         raise ValueError("histórico curto demais para o walk-forward (precisa de treino + pelo menos 1 mês de teste)")
     oos_a, oos_b = folds[0].test_start_ms, folds[-1].test_end_ms
-    def metrics_oos(trades):
+    def metrics_oos(trades: list[Trade]) -> dict:
         return compute_metrics(_in_window(trades, oos_a, oos_b), oos_a, oos_b, bt.capital, tz)
 
     progress(f"{data.trade}: estratégia padrão (todo o histórico)...")
