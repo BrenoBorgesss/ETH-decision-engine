@@ -31,10 +31,14 @@ def run_analysis(monkeypatch, when: datetime, *, paper: PaperView | None = None,
         async def no_sleep(_s):
             return None
 
-        async with BinanceReadOnlyClient(
-            cfg.binance, Secrets(), transport=server.transport(), sleep=no_sleep, clock=clock
-        ) as client:
-            return await analyze_live(cfg, Secrets(), client, sqlite3.connect(":memory:"), paper=paper)
+        conn = sqlite3.connect(":memory:")
+        try:
+            async with BinanceReadOnlyClient(
+                cfg.binance, Secrets(), transport=server.transport(), sleep=no_sleep, clock=clock
+            ) as client:
+                return await analyze_live(cfg, Secrets(), client, conn, paper=paper)
+        finally:
+            conn.close()
 
     return asyncio.run(go()), server, cfg
 
