@@ -37,6 +37,7 @@ DEMO_COMMANDS = {
     "indicadores:cmd_indicators_validate": "indicadores validar",
     "backtest:cmd_backtest": "backtest --rapido",
     "modelo:cmd_model_train": "modelo treinar",
+    "paper:cmd_paper_replay": "paper replay",
 }
 DEMO_COSTS_RELATIVE = Path("exemplos") / "custos_demo.json"
 
@@ -100,9 +101,23 @@ def build_parser() -> argparse.ArgumentParser:
     paper = sub.add_parser("paper", help="paper trading: sinais ao vivo com carteira virtual").add_subparsers(dest="acao")
     p = paper.add_parser("rodar", help="roda o paper trading (deixe aberto)")
     p.add_argument("--ciclos", type=int, default=None, help="para depois de N minutos (teste)")
+    p.add_argument("--capital", type=float, default=None, help="capital virtual inicial em R$ (padrão: paper.capital)")
+    p.add_argument("--perda-max", dest="perda_max", type=float, default=None, help="perda máxima virtual por dia em R$ (padrão: paper.perda_max_dia_brl)")
     p.set_defaults(func="paper:cmd_paper_run")
     p = paper.add_parser("relatorio", help="sinais registrados x o que o mercado fez")
     p.set_defaults(func="paper:cmd_paper_report")
+    p = paper.add_parser("replay", help="paper trading sobre o histórico, com o relógio acelerado (sem internet)")
+    p.add_argument("--inicio", default=None, help="primeiro dia (AAAA-MM-DD, horário local); padrão: os últimos dias completos do histórico")
+    p.add_argument("--dias", type=int, default=2, help="quantos dias simular (padrão: 2)")
+    p.add_argument("--variantes", nargs="*", default=None, help="variantes a simular (padrão: paper.variantes do config)")
+    p.add_argument("--capital", type=float, default=None, help="capital virtual inicial em R$")
+    p.add_argument("--perda-max", dest="perda_max", type=float, default=None, help="perda máxima virtual por dia em R$")
+    p.add_argument("--custos-arquivo", default=None, metavar="ARQUIVO.json", help="custos congelados (os mesmos do backtest)")
+    p.add_argument("--detalhes", action="store_true", help="mostra todas as decisões, não só compras, vendas e avisos")
+    p.set_defaults(func="paper:cmd_paper_replay")
+    p = paper.add_parser("resetar", help="guarda uma cópia do banco da simulação e recomeça a carteira virtual do zero")
+    p.add_argument("--confirmar", action="store_true", help="sem isto, só mostra o que seria feito")
+    p.set_defaults(func="paper:cmd_paper_reset")
 
     p = sub.add_parser("backtest", help="testa a estratégia no histórico (walk-forward, ablação, comparações)")
     p.add_argument("--pares", nargs="*", default=None, help="pares de operação (padrão: backtest.pares do config)")
@@ -208,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.demo:
         secrets = config.Secrets()  # o modo demonstração nem lê o .env
-        if args.func in ("backtest:cmd_backtest", "modelo:cmd_model_train") and args.custos_arquivo is None:
+        if args.func in ("backtest:cmd_backtest", "modelo:cmd_model_train", "paper:cmd_paper_replay") and args.custos_arquivo is None:
             args.custos_arquivo = str(cfg.path(DEMO_COSTS_RELATIVE))
         console.print("[bold cyan]MODO DEMONSTRAÇÃO[/]: candles de exemplo do repositório, sem internet e sem chave da Binance.")
     else:

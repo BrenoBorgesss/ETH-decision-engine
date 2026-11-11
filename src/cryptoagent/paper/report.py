@@ -6,7 +6,7 @@
    Alvo que não paga o custo de ida e volta conta à parte ("alvo sem lucro"): tocar nele não dá dinheiro.
    Isso mostra se as travas estão evitando operações ruins (ou boas).
 3. Calibração da confiança: a % de "alvo com lucro" sobe junto com a confiança?
-4. Comparação com a expectativa do backtest.
+4. Comparação com a expectativa do backtest e com comprar e segurar no mesmo período (mesmos custos).
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from cryptoagent.backtest.execution import oco_check
-from cryptoagent.backtest.metrics import compute_metrics
+from cryptoagent.backtest.metrics import buy_and_hold, compute_metrics
 from cryptoagent.engine.decision import COST_GATES
 from cryptoagent.paper.book import to_backtest_trades
 from cryptoagent.timeutils import now_ms
@@ -104,6 +104,10 @@ class VariantReport:
     backtest_trades: int = 0
     enough: bool = False
     gates: list[GateStat] = field(default_factory=list)  # só na variante de estudo
+    initial_capital: float = 0.0
+    end_ms: int = 0
+    buy_hold: dict = field(default_factory=dict)  # comprar e segurar do início da carteira até agora, com os mesmos custos
+    rejected_orders: int = 0  # ordens virtuais recusadas pelas regras de tamanho do par
 
 
 GATE_PT = {
@@ -151,20 +155,36 @@ def gate_stats(rows: list[sqlite3.Row]) -> list[GateStat]:
 
 
 def variant_report(conn: sqlite3.Connection, variant: str, capital: float, bars_1m: pd.DataFrame, horizon_h: float, min_trades: int,
-                   backtest_json: dict | None, trade_symbol: str) -> VariantReport:
-    """Monta o relatório de uma variante a partir do banco e dos candles de 1m do par de operação."""
+                   backtest_json: dict | None, trade_symbol: str, *, now: int | None = None, costs: tuple[float, float, float] | None = None,
+                   tz: str = "America/Sao_Paulo") -> VariantReport:
+    """Monta o relatório de uma variante a partir do banco e dos candles de 1m do par de operação.
+
+    `now`: fim do período (o replay passa o fim simulado). `costs` = (taxa, meio spread, slippage %) para comparar
+    com comprar e segurar no mesmo período.
+    """
+    now = now or now_ms()
     st = conn.execute("SELECT * FROM paper_state WHERE variant = ?", (variant,)).fetchone()
-    started = int(st["started_ms"]) if st else now_ms()
+    started = int(st["started_ms"]) if st else now
+    if st is not None and "initial_capital" in st.keys():
+        capital = float(st["initial_capital"])
     rows = conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL ORDER BY entry_ms", (variant,)).fetchall()
     open_row = conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NULL", (variant,)).fetchone()
     trades = to_backtest_trades(rows)
-    metrics = compute_metrics(trades, started, now_ms(), capital)
+    metrics = compute_metrics(trades, started, now, capital, tz)
     sig = pd.read_sql_query("SELECT * FROM signals WHERE mode = 'paper' AND variant = ? ORDER BY time_ms", conn, params=(variant,))
     rep = VariantReport(
         variant, started, float(st["equity"]) if st else capital, dict(open_row) if open_row else None, metrics,
         sig["action"].value_counts().to_dict() if not sig.empty else {},
     )
-    outs = evaluate_signals(sig, bars_1m, horizon_h)
+    rep.initial_capital, rep.end_ms = capital, now
+    if costs is not None and not bars_1m.empty:
+        fee, half, slip = costs
+        rep.buy_hold = buy_and_hold(bars_1m["open_time"].to_numpy(), bars_1m["close"].to_numpy(), started, now, fee=fee, half_spread=half, slip_pct=slip)
+    has_events = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'paper_events'").fetchone()
+    if has_events:
+        rep.rejected_orders = int(conn.execute(
+            "SELECT COUNT(*) FROM paper_events WHERE variant = ? AND kind = 'ordem_recusada'", (variant,)).fetchone()[0])
+    outs = evaluate_signals(sig, bars_1m, horizon_h, now=now)
     for o in outs:
         key = o.action if o.action != "ESPERAR" else "ESPERAR (com níveis)"
         rep.outcomes.setdefault(key, {}).setdefault(o.outcome, 0)

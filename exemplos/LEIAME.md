@@ -7,7 +7,13 @@ cryptoagent --demo historico verificar
 cryptoagent --demo indicadores validar
 cryptoagent --demo backtest --rapido
 cryptoagent --demo modelo treinar
+cryptoagent --demo paper replay --inicio 2026-09-08 --dias 1
 ```
+
+O `paper replay` roda a carteira virtual (R$ 1.000, perda máxima de R$ 30 por dia) sobre a amostra,
+com o mesmo laço e o mesmo motor do paper trading ao vivo e o relógio acelerado. No dia 08/09/2026,
+por exemplo, ele faz duas compras virtuais, uma que sai no stop e outra no alvo. Os limites de ordem
+da corretora vêm de `filtros_binance.json`, uma cópia da consulta pública `exchangeInfo` do ETHBRL.
 
 No demo, o modelo aceita treinar com 20 exemplos (no uso normal, 200), porque a amostra só tem
 um mês de treino. É para ver o fluxo funcionando, não para avaliar o modelo.
