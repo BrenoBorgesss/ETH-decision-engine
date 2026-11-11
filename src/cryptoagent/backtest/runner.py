@@ -131,6 +131,16 @@ def run_pair(cfg: Config, data: BacktestData, costs: CostSchedule, *, quick: boo
         if best is None:
             rep.wf_choices.append({"teste_inicio": f.test_start_ms, "escolha": "nenhuma combinação com operações suficientes no treino: mês sem operar", "treino_ops": 0})
             continue
+        if best_score <= bt.expectativa_min_treino_pct:
+            # Até a melhor combinação perdeu dinheiro no treino: operar seria apostar contra a evidência.
+            rep.wf_choices.append({
+                "teste_inicio": f.test_start_ms,
+                "escolha": f"nenhuma combinação ganhou no treino (melhor: {best_score:+.3f}% por operação em {best_n}): mês sem operar",
+                "treino_ops": best_n, "treino_expectativa_pct": best_score,
+                "treino_expectativa_ic95_pct": list(mean_ci95([t.pnl_pct for t in _in_window(best[1].trades, f.train_start_ms, f.train_end_ms)])),
+                "teste_ops": 0,
+            })
+            continue
         chosen = _in_window(best[1].trades, f.test_start_ms, f.test_end_ms)
         test_trades += chosen
         tm = compute_metrics(chosen, f.test_start_ms, f.test_end_ms, bt.capital, tz)

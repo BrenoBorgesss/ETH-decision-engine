@@ -186,6 +186,7 @@ backtest:
   meses_treino: 6
   meses_teste: 1
   operacoes_min_treino: 20        # combinação com menos operações no treino não pode ser escolhida
+  expectativa_min_treino_pct: 0.0 # walk-forward: se nem a melhor combinação ganhou no treino (média <= isto), o mês não opera
   grade:                          # combinações testadas no walk-forward. Pequena e definida ANTES dos resultados.
     distancia_alvo_min_custo: [1.5, 2.5]
     stop_atr_5m: [0.5, 1.0]

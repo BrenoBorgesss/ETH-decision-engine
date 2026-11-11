@@ -367,6 +367,8 @@ class Backtest(_Section):
     meses_treino: int = Field(6, ge=1)
     meses_teste: int = Field(1, ge=1)
     operacoes_min_treino: int = Field(20, ge=1)
+    # Walk-forward: o mês de teste só opera se a melhor combinação do treino tiver média por operação ACIMA disto.
+    expectativa_min_treino_pct: float = 0.0
     grade: dict[str, list[float]] = Field(
         default_factory=lambda: {"distancia_alvo_min_custo": [1.5, 2.5], "stop_atr_5m": [0.5, 1.0], "tempo_max_min": [120, 240]}
     )
