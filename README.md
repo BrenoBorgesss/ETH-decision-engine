@@ -1,5 +1,7 @@
 # Agente de decisão cripto (ETH em R$, somente leitura)
 
+[![CI](https://github.com/BrenoBorgesss/eth-decision-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/BrenoBorgesss/eth-decision-engine/actions/workflows/ci.yml) [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
+
 Assistente que acompanha o ETH na Binance e diz, a cada 5 minutos, **COMPRAR, VENDER (sair da posição) ou ESPERAR**, com os motivos, uma confiança calculada às claras, os níveis de entrada, stop e alvo, e tudo o que invalidaria a leitura. **Ele nunca envia ordens:** só lê dados, gera sinais e simula com dinheiro virtual. Quem decide e executa é você.
 
 > **Ferramenta educacional, não é recomendação financeira. Resultados simulados não garantem resultados reais.**
@@ -123,8 +125,8 @@ Requisitos: **Python 3.11 ou mais novo** e **git**. Testado no Windows 11 com Py
 **1. Baixe e instale** (Windows, PowerShell):
 
 ```powershell
-git clone https://github.com/BrenoBorgesss/<nome-do-repositorio>.git
-cd <nome-do-repositorio>
+git clone https://github.com/BrenoBorgesss/eth-decision-engine.git
+cd eth-decision-engine
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```

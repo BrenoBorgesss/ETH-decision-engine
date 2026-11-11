@@ -1,6 +1,6 @@
 # Textos para o LinkedIn
 
-Todos os números abaixo foram medidos no projeto (ver [README](README.md), [CHANGELOG](CHANGELOG.md) e [PROGRESSO](PROGRESSO.md)). Troque `<link do repositório>` pelo endereço do GitHub antes de publicar.
+Todos os números abaixo foram medidos no projeto (ver [README](README.md), [CHANGELOG](CHANGELOG.md) e [PROGRESSO](PROGRESSO.md)). Repositório: https://github.com/BrenoBorgesss/eth-decision-engine
 
 ---
 
@@ -12,7 +12,7 @@ O resultado mais importante foi um "não": no teste fora da amostra (mai–set/2
 
 O que aprendi construindo: backtest walk-forward, auditoria contra "olhar o futuro", carteira virtual em R$, campeão x desafiante com um modelo de ML (que também não superou as regras), e 381 testes automatizados.
 
-Código aberto: <link do repositório>
+Código aberto: https://github.com/BrenoBorgesss/eth-decision-engine
 
 Ferramenta educacional, não é recomendação financeira.
 
@@ -44,7 +44,7 @@ Também revisei a engenharia: backtest completo de 250 s para 67 s, 213 para 381
 
 Para mim, o maior ganho foi construir um sistema que impede a estratégia de parecer melhor do que é.
 
-Código e documentação: <link do repositório>
+Código e documentação: https://github.com/BrenoBorgesss/eth-decision-engine
 
 Ferramenta educacional, não é recomendação financeira. Resultados simulados não garantem resultados reais.
 
@@ -76,7 +76,7 @@ Qualidade: 381 testes, 79% de cobertura do pacote e 89,9% a 98,8% nas 9 áreas c
 
 Conclusão: a estratégia de reversão à média no 15m não paga os custos neste período, e o projeto está construído para mostrar isso. O próximo passo é testar um timeframe maior, hipótese que já está registrada antes de rodar.
 
-Repositório: <link do repositório>
+Repositório: https://github.com/BrenoBorgesss/eth-decision-engine
 
 Ferramenta educacional, não é recomendação financeira. Resultados simulados não garantem resultados reais.
 
