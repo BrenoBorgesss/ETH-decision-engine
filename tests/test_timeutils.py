@@ -100,3 +100,27 @@ def test_intervalos():
 def test_datetime_sem_fuso_e_recusado():
     with pytest.raises(ValueError):
         datetime_to_ms(datetime(2026, 1, 1))
+
+
+def test_codigo_nao_usa_horario_sem_fuso():
+    """Todo horário do projeto é UTC em ms ou datetime COM fuso. Estas chamadas devolvem horário
+    sem fuso (o do PC), que mudaria o resultado conforme a máquina: não podem aparecer no código."""
+    import pathlib
+    import re
+
+    proibidos = {
+        "datetime.now() sem fuso": re.compile(r"datetime\.now\(\s*\)"),
+        "datetime.utcnow()": re.compile(r"\butcnow\("),
+        "date.today()": re.compile(r"\bdate\.today\("),
+        "datetime.today()": re.compile(r"\bdatetime\.today\("),
+        "fromtimestamp() sem fuso": re.compile(r"\bfromtimestamp\([^,()]*\)"),
+        "utcfromtimestamp()": re.compile(r"\butcfromtimestamp\("),
+    }
+    src = pathlib.Path(__file__).resolve().parents[1] / "src" / "cryptoagent"
+    achados = []
+    for path in sorted(src.rglob("*.py")):
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for nome, padrao in proibidos.items():
+                if padrao.search(line):
+                    achados.append(f"{path.relative_to(src)}:{n}: {nome}")
+    assert achados == []

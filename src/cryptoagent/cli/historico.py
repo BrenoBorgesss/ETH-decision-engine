@@ -12,6 +12,7 @@ from cryptoagent.config import Config, Secrets
 from cryptoagent.data import history
 from cryptoagent.data.rest import BinanceReadOnlyClient
 from cryptoagent.data.retry import RetryPolicy
+from cryptoagent.fmt import num
 from cryptoagent.timeutils import format_local
 
 # --------------------------------------------------------------- histórico
@@ -66,10 +67,10 @@ async def cmd_history_download(cfg: Config, secrets: Secrets, args: argparse.Nam
                     str(stats.files_ok),
                     str(stats.files_skipped),
                     str(stats.rows_from_rest),
-                    f"{final.rows_total:,}",
+                    num(final.rows_total, 0),
                     format_local(final.first_ms, "UTC", "%Y-%m-%d %H:%M"),
                     format_local(final.last_ms, "UTC", "%Y-%m-%d %H:%M"),
-                    f"{final.missing_candles:,} em {len(final.gaps)} buraco(s)",
+                    f"{num(final.missing_candles, 0)} em {len(final.gaps)} buraco(s)",
                     "; ".join(problems) or "-",
                 )
     console.print(table)
@@ -98,14 +99,14 @@ async def cmd_history_check(cfg: Config, secrets: Secrets, args: argparse.Namesp
         table.add_row(
             s.symbol,
             s.interval,
-            f"{s.rows_total:,}",
+            num(s.rows_total, 0),
             format_local(s.first_ms, "UTC", "%Y-%m-%d %H:%M"),
             format_local(s.last_ms, "UTC", "%Y-%m-%d %H:%M"),
             (f"[red]{q.invalid_rows + q.duplicates + q.out_of_order}[/]" if q.invalid_rows + q.duplicates + q.out_of_order else "0") if q else "-",
             str(len(q.outliers)) if q else "-",
-            f"{s.missing_candles:,} candles em {len(s.gaps)}",
+            f"{num(s.missing_candles, 0)} candles em {len(s.gaps)}",
             ", ".join(f"{format_local(g.start_ms, 'UTC', '%Y-%m-%d %H:%M')} ({g.missing})" for g in biggest) or "-",
-            f"[yellow]{behind:,} candle(s)[/]" if behind else "-",
+            f"[yellow]{num(behind, 0)} candle(s)[/]" if behind else "-",
         )
     console.print(table)
     console.print(
