@@ -205,7 +205,6 @@ def sec_ao_vivo(demo: bool) -> dict:
     async def session(latency_s: float, n: int) -> tuple[list[float], dict]:
         """`n` análises seguidas na mesma sessão, uma a cada 5 minutos simulados (como o painel faz)."""
         clock = FakeClock(start)
-        live.now_ms = clock
         server = FakeBinance(clock, latency_s=latency_s)
         times = []
         async with BinanceReadOnlyClient(cfg.binance, Secrets(), transport=server.transport(), sleep=no_sleep, clock=clock) as client:

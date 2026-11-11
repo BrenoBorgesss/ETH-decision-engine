@@ -412,12 +412,16 @@ class Confiabilidade(_Section):
 
 
 class Paper(_Section):
-    """Seção `paper`: carteira virtual, variantes e avaliação dos sinais."""
+    """Seção `paper`: carteira virtual (em R$, separada da conta real), execução simulada, variantes e replay."""
     par: str = "ETHBRL"
-    capital: float = Field(1000, gt=0)
-    perda_max_dia_pct: float = Field(3, gt=0, lt=100)
+    capital: float = Field(1000, gt=0)  # capital virtual inicial, em R$
+    perda_max_dia_brl: float = Field(30, gt=0)  # perda máxima virtual por dia, em R$
+    banco: str = "data/simulacao.sqlite"  # banco SÓ da simulação (nada da conta real)
     variantes: list[str] = Field(default_factory=lambda: ["padrao"])
     atraso_s: float = Field(5, ge=0, le=60)
+    atraso_execucao_s: float = Field(1, ge=0, le=30)  # entre decidir e a ordem virtual ser executada (preço relido depois disso)
+    filtros_arquivo: str = "exemplos/filtros_binance.json"  # limites de ordem salvos, usados sem internet (replay e demo)
+    replay_pasta: str = "data/replay"
     horizonte_avaliacao_h: float = Field(12, gt=0)
     operacoes_min_conclusao: int = Field(30, ge=1)
     # Variante de ESTUDO: compra virtualmente mesmo quando só travas de estratégia seguraram
@@ -427,7 +431,16 @@ class Paper(_Section):
     @field_validator("par")
     @classmethod
     def _upper(cls, v: str) -> str:
-        return v.upper()
+        v = v.upper()
+        if not v.endswith("BRL"):
+            raise ValueError(f"paper.par precisa ser cotado em reais (ex.: ETHBRL), para a carteira virtual ser em R$; recebido {v}")
+        return v
+
+    @model_validator(mode="after")
+    def _loss_below_capital(self) -> Paper:
+        if self.perda_max_dia_brl >= self.capital:
+            raise ValueError(f"paper.perda_max_dia_brl (R$ {self.perda_max_dia_brl:g}) precisa ser menor que paper.capital (R$ {self.capital:g})")
+        return self
 
 
 class Painel(_Section):
@@ -538,6 +551,16 @@ def _deep_merge(base: dict, extra: dict) -> dict:
     out = dict(base)
     for k, v in extra.items():
         out[k] = _deep_merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
+def apply_overlay(cfg: Config, overlay: Path) -> Config:
+    """Novo config: `cfg` (como está, inclusive com sobreposições já aplicadas) mais os campos do YAML `overlay`."""
+    if not overlay.is_file():
+        raise FileNotFoundError(f"Arquivo de sobreposição não encontrado: {overlay}")
+    data = _deep_merge(cfg.model_dump(mode="json"), yaml.safe_load(overlay.read_text(encoding="utf-8")) or {})
+    out = Config.model_validate(data)
+    out._root = cfg.root
     return out
 
 

@@ -158,6 +158,10 @@ class BinanceReadOnlyClient:
         """Peso da API usado no minuto atual, segundo a última resposta."""
         return self._used_weight
 
+    def local_now_ms(self) -> int:
+        """Agora, pelo relógio deste cliente (o do PC; no replay, o relógio simulado). Use para medir a idade de um dado."""
+        return self._clock()
+
     def server_now_ms(self) -> int:
         """Agora, no relógio da Binance (relógio local corrigido pelo último sync_time).
 

@@ -33,5 +33,10 @@ modelo:
   pasta: data/demo/models
   exemplos_min_treino: 20        # só no demo: a amostra tem 1 mês de treino (no uso normal, 200)
 
+paper:
+  banco: data/demo/simulacao.sqlite
+  replay_pasta: data/demo/replay
+  variantes: [padrao]          # a amostra é curta: só a estratégia padrão
+
 logs:
   pasta: data/demo/logs

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sqlite3
 from collections.abc import Iterable
 from dataclasses import asdict
 from datetime import date
@@ -273,13 +274,27 @@ class LiveService:
         out["sinais_compra"] = [dict(x) for x in self.conn.execute(
             "SELECT id, time_ms, price FROM signals WHERE mode = 'ao_vivo' AND action = 'COMPRAR' ORDER BY id DESC LIMIT 10"
         )]
-        out["paper"] = [dict(x) for x in self.conn.execute(
-            """SELECT s.variant, s.equity, s.started_ms,
-                      (SELECT COUNT(*) FROM paper_trades t WHERE t.variant = s.variant AND t.exit_ms IS NOT NULL) AS fechadas,
-                      (SELECT COUNT(*) FROM paper_trades t WHERE t.variant = s.variant AND t.exit_ms IS NULL) AS abertas
-               FROM paper_state s"""
-        )]
+        out["paper"] = self._paper_summary()
         return _clean(out)
+
+    def _paper_summary(self) -> list[dict]:
+        """Resumo da carteira virtual, lido do banco SÓ da simulação (vazio se a simulação nunca rodou)."""
+        db = self.cfg.path(self.cfg.paper.banco)
+        if not db.is_file():
+            return []
+        conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)  # só leitura
+        conn.row_factory = sqlite3.Row
+        try:
+            return [dict(x) for x in conn.execute(
+                """SELECT s.variant, s.equity, s.started_ms,
+                          (SELECT COUNT(*) FROM paper_trades t WHERE t.variant = s.variant AND t.exit_ms IS NOT NULL) AS fechadas,
+                          (SELECT COUNT(*) FROM paper_trades t WHERE t.variant = s.variant AND t.exit_ms IS NULL) AS abertas
+                   FROM paper_state s"""
+            )]
+        except sqlite3.Error:
+            return []
+        finally:
+            conn.close()
 
     def candles_payload(self, tf: str) -> dict:
         """Candles e indicadores do timeframe para o gráfico, com o horário já deslocado para o fuso local."""

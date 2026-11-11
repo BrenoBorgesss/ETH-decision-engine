@@ -178,3 +178,24 @@ def test_alerta_de_dados_so_depois_de_um_minuto(monkeypatch):
     assert al.recent[0].urgent
     al.on_health(True, [])
     assert al.recent[0].title == "Dados normalizados"
+
+
+def test_resumo_do_paper_vem_do_banco_da_simulacao_em_modo_leitura(tmp_path):
+    """O painel lê a carteira virtual do banco SÓ da simulação, sem nunca gravar nele."""
+    from cryptoagent.config import load_config
+    from cryptoagent.dashboard.service import LiveService
+    from cryptoagent.storage import sim_db
+
+    cfg = load_config()
+    cfg.paper.banco = str(tmp_path / "simulacao.sqlite")
+    fake = LiveService.__new__(LiveService)  # só o método de leitura, sem abrir conexões nem a Binance
+    fake.cfg = cfg
+    assert fake._paper_summary() == []  # simulação nunca rodou
+    conn = sim_db.connect(tmp_path / "simulacao.sqlite")
+    conn.execute("INSERT INTO paper_state (variant, equity, initial_capital, max_loss_day, started_ms) VALUES ('padrao', 1010, 1000, 30, 1)")
+    conn.commit()
+    conn.close()
+    antes = (tmp_path / "simulacao.sqlite").stat().st_mtime_ns
+    resumo = fake._paper_summary()
+    assert resumo == [{"variant": "padrao", "equity": 1010.0, "started_ms": 1, "fechadas": 0, "abertas": 0}]
+    assert (tmp_path / "simulacao.sqlite").stat().st_mtime_ns == antes

@@ -30,7 +30,6 @@ from cryptoagent.seasonality.compare import candle_vs_same_hour, context_multipl
 from cryptoagent.seasonality.cost_model import build_cost_model
 from cryptoagent.seasonality.profiles import add_buckets
 from cryptoagent.security.redact import redact
-from cryptoagent.timeutils import now_ms
 
 
 @dataclass(frozen=True)
@@ -157,13 +156,13 @@ async def _fetch_quotes(
         wanted.append(client.get("/api/v3/ticker/bookTicker", {"symbol": trade_sym}))
     bt, depth, *rest = await asyncio.gather(*wanted)
     a_bid, a_ask = float(bt.data["bidPrice"]), float(bt.data["askPrice"])  # type: ignore[index]
-    health.add(check_age(f"preço {sym}", bt.received_ms, now_ms(), sd.preco_max_s, bt.source))
-    ages["preco_analise_s"] = (now_ms() - bt.received_ms) / 1000
+    health.add(check_age(f"preço {sym}", bt.received_ms, client.local_now_ms(), sd.preco_max_s, bt.source))
+    ages["preco_analise_s"] = (client.local_now_ms() - bt.received_ms) / 1000
     if rest:
         bt2 = rest[0]
         t_bid, t_ask = float(bt2.data["bidPrice"]), float(bt2.data["askPrice"])  # type: ignore[index]
-        health.add(check_age(f"preço {trade_sym}", bt2.received_ms, now_ms(), sd.preco_max_s, bt2.source))
-        ages["preco_operacao_s"] = (now_ms() - bt2.received_ms) / 1000
+        health.add(check_age(f"preço {trade_sym}", bt2.received_ms, client.local_now_ms(), sd.preco_max_s, bt2.source))
+        ages["preco_operacao_s"] = (client.local_now_ms() - bt2.received_ms) / 1000
     else:
         t_bid, t_ask = a_bid, a_ask
     imbalance = book_imbalance([(float(a), float(b)) for a, b in depth.data["bids"]], [(float(a), float(b)) for a, b in depth.data["asks"]])  # type: ignore[index]
@@ -258,7 +257,7 @@ async def analyze_live(
         health.add(Check("derivativos", False, redact(funding_resp), critical=False))
     else:
         funding = float(funding_resp.data["lastFundingRate"]) * 100  # type: ignore[index]
-        health.add(check_age("derivativos", funding_resp.received_ms, now_ms(), sd.derivativos_max_s, funding_resp.source, critical=False))
+        health.add(check_age("derivativos", funding_resp.received_ms, client.local_now_ms(), sd.derivativos_max_s, funding_resp.source, critical=False))
 
     levels = _structure_levels(cfg, frames)
 
@@ -316,10 +315,10 @@ async def analyze_live(
         capital_brl=account.effective_capital_brl,
         data_warnings=health.warnings,
         daily_limit_reason=limit_reason,
-        validation_reason=check_reliability(cfg, trade_sym, now_ms()).block_reason,
+        validation_reason=check_reliability(cfg, trade_sym, client.local_now_ms()).block_reason,
     )
     market = MarketView(server_now, a_mid, frames, levels, spread_pct, imbalance, funding)
     ctx = DecisionContext(sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True)
     decision = decide(ctx, p, spread_max_pct=cfg.custos.spread_max_pct)
-    ages["saldo_s"] = (now_ms() - account.balances_ms) / 1000 if account.balances_ms else -1
+    ages["saldo_s"] = (client.local_now_ms() - account.balances_ms) / 1000 if account.balances_ms else -1
     return LiveResult(decision, ctx, account, health, ratio, ages, (time.perf_counter() - t0) * 1000, hour_note, t_bid, t_ask)

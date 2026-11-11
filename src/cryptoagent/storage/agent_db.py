@@ -1,9 +1,36 @@
-"""Banco local do agente: operações da conta, diário manual e sessões do dia."""
+"""Banco local do agente: operações da conta, diário manual, sessões do dia e sinais ao vivo.
+
+As tabelas `paper_*` continuam aqui só para guardar o histórico antigo do paper trading; a simulação
+agora usa um banco próprio (`storage/sim_db.py`).
+"""
 
 from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+
+SIGNALS_TABLE = """
+-- Cada análise do motor de decisão (também as ESPERAR), com idade dos dados e latência.
+CREATE TABLE IF NOT EXISTS signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    time_ms INTEGER NOT NULL,
+    mode TEXT NOT NULL,              -- ao_vivo / backtest / paper
+    symbol TEXT NOT NULL,            -- par de análise
+    trade_symbol TEXT NOT NULL,      -- par de operação
+    action TEXT NOT NULL,            -- COMPRAR / VENDER / ESPERAR
+    confidence REAL NOT NULL,
+    regime TEXT,
+    price REAL,                      -- preço no par de operação
+    entry REAL, stop REAL, target1 REAL, target2 REAL,   -- no par de operação
+    rr REAL, size_brl REAL,
+    exit_reason TEXT,
+    details_json TEXT NOT NULL,      -- motivos, travas, parcelas da confiança, sinais
+    data_ages_json TEXT,             -- idade de cada dado no momento da análise
+    latency_ms REAL,                 -- tempo total para montar e decidir
+    variant TEXT                     -- variante do paper trading (vazio no modo ao vivo)
+);
+CREATE INDEX IF NOT EXISTS ix_signals_time ON signals(trade_symbol, time_ms);
+"""
 
 AGENT_SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -45,25 +72,7 @@ CREATE TABLE IF NOT EXISTS manual_trades (
     created_ms INTEGER NOT NULL
 );
 
--- Cada análise do motor de decisão (também as ESPERAR), com idade dos dados e latência.
-CREATE TABLE IF NOT EXISTS signals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    time_ms INTEGER NOT NULL,
-    mode TEXT NOT NULL,              -- ao_vivo / backtest / paper
-    symbol TEXT NOT NULL,            -- par de análise
-    trade_symbol TEXT NOT NULL,      -- par de operação
-    action TEXT NOT NULL,            -- COMPRAR / VENDER / ESPERAR
-    confidence REAL NOT NULL,
-    regime TEXT,
-    price REAL,                      -- preço no par de operação
-    entry REAL, stop REAL, target1 REAL, target2 REAL,   -- no par de operação
-    rr REAL, size_brl REAL,
-    exit_reason TEXT,
-    details_json TEXT NOT NULL,      -- motivos, travas, parcelas da confiança, sinais
-    data_ages_json TEXT,             -- idade de cada dado no momento da análise
-    latency_ms REAL                  -- tempo total para montar e decidir
-);
-CREATE INDEX IF NOT EXISTS ix_signals_time ON signals(trade_symbol, time_ms);
+""" + SIGNALS_TABLE + """
 
 -- Paper trading: operações VIRTUAIS (sem dinheiro real), por variante da estratégia.
 CREATE TABLE IF NOT EXISTS paper_trades (

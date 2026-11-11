@@ -210,14 +210,18 @@ confiabilidade:   # compra FIRME só se o último backtest do par (fora da amost
   idade_max_relatorio_dias: 45    # backtest mais velho que isto não vale (rode de novo)
 
 paper:   # paper trading: sinais ao vivo com carteira VIRTUAL, sem dinheiro real
-  par: ETHBRL                     # par simulado
-  capital: 1000                   # capital virtual (moeda do par)
-  perda_max_dia_pct: 3            # perda máxima virtual por dia (% do capital do início do dia)
+  par: ETHBRL                     # par simulado (cotado em R$)
+  capital: 1000                   # capital virtual inicial em R$ (também: paper rodar --capital)
+  perda_max_dia_brl: 30           # perda máxima virtual por dia em R$ (também: paper rodar --perda-max)
+  banco: data/simulacao.sqlite    # banco SÓ da simulação, separado do banco da conta real
   variantes:                      # roda lado a lado; "padrao" = este config, as outras são sobreposições
     - padrao
     - config/hipotese_setup_1h.yaml
     - config/estudo_travas.yaml   # ESTUDO: compra mesmo com travas de estratégia, para medir cada trava
   atraso_s: 5                     # espera alguns segundos após o fechamento do candle para os dados chegarem
+  atraso_execucao_s: 1            # entre decidir e executar a ordem virtual (o preço é relido depois disso)
+  filtros_arquivo: exemplos/filtros_binance.json   # limites de ordem salvos (usados sem internet: replay e demo)
+  replay_pasta: data/replay       # um banco por execução do replay
   horizonte_avaliacao_h: 12       # no relatório: o que o mercado fez até 12 h depois de cada sinal
   operacoes_min_conclusao: 30     # abaixo disso, o relatório avisa que ainda não dá para concluir
 

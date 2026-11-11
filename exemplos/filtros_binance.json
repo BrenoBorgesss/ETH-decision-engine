@@ -1,0 +1,13 @@
+{
+  "origem": "GET /api/v3/exchangeInfo?symbol=ETHBRL (dado público da Binance), consultado em 11/11/2026. Usado sem internet: replay e modo demo.",
+  "pares": {
+    "ETHBRL": {
+      "symbol": "ETHBRL",
+      "min_qty": 0.0001,
+      "step": 0.0001,
+      "max_market_qty": 10.44144375,
+      "min_notional": 10.0,
+      "tick": 0.01
+    }
+  }
+}

@@ -102,7 +102,7 @@ async def cmd_model_train(cfg: Config, secrets: Secrets, args: argparse.Namespac
     keys = ("operacoes", "retorno_total_pct", "drawdown_max_pct", "taxa_acerto_pct", "expectativa_pct", "sharpe")
     for k in ("Operações", "Retorno", "Drawdown máx.", "Acerto", "Média por operação", "Sharpe", "IC 95% da média"):
         res.add_column(k)
-    for name, m in ((f"regras (campeão atual)", rep.rules), (f"desafiador (prob. >= {num(rep.threshold, 2)})", rep.challenger)):
+    for name, m in (("regras (campeão atual)", rep.rules), (f"desafiador (prob. >= {num(rep.threshold, 2)})", rep.challenger)):
         lo, hi = m.get("expectativa_ic95_pct", [None, None])
         ic = f"{pct(lo, 3, sign=True)} a {pct(hi, 3, sign=True)}" if lo is not None and not math.isnan(lo) else "-"
         res.add_row(name, *(_fmt(k, m.get(k)) for k in keys), ic)
