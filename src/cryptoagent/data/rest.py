@@ -78,6 +78,7 @@ ERROR_HINTS: dict[int, str] = {
 
 
 class BinanceError(Exception):
+    """Erro numa consulta à Binance. A mensagem traz só o caminho do endpoint (nunca a URL assinada) e, quando há, uma dica em português."""
     def __init__(self, message: str, *, path: str, status: int | None = None, code: int | None = None):
         self.path = path
         self.status = status
@@ -101,6 +102,7 @@ class RateLimited(BinanceError):
 
 @dataclass(frozen=True)
 class ApiResponse:
+    """Resposta de uma consulta: dados, caminho, horário de chegada, latência e peso usado no minuto."""
     data: object
     path: str
     received_ms: int
@@ -109,10 +111,12 @@ class ApiResponse:
 
     @property
     def source(self) -> str:
+        """Identificação da fonte, no formato binance-rest:<caminho>."""
         return f"binance-rest:{self.path}"
 
 
 class BinanceReadOnlyClient:
+    """Cliente REST da Binance que só faz GET em caminhos de leitura (ver a descrição do módulo)."""
     def __init__(
         self,
         cfg: BinanceCfg,
@@ -142,10 +146,12 @@ class BinanceReadOnlyClient:
         await self.aclose()
 
     async def aclose(self) -> None:
+        """Fecha a conexão HTTP."""
         await self._http.aclose()
 
     @property
     def used_weight_1m(self) -> int:
+        """Peso da API usado no minuto atual, segundo a última resposta."""
         return self._used_weight
 
     def server_now_ms(self) -> int:
@@ -159,6 +165,7 @@ class BinanceReadOnlyClient:
     # ------------------------------------------------------------------ núcleo
 
     async def get(self, path: str, params: dict | None = None) -> ApiResponse:
+        """Faz um GET num caminho permitido, assinando se for endpoint de conta. Respeita o limite de peso e repete em falha de rede, 429 e erro 5xx; levanta BinanceError nos demais casos."""
         if path not in ALLOWED_PATHS:
             raise ForbiddenEndpoint("Endpoint fora da lista somente leitura; requisição bloqueada", path=path)
         signed = path in SIGNED_READ
@@ -268,6 +275,7 @@ class BinanceReadOnlyClient:
         end_ms: int | None = None,
         limit: int = 500,
     ) -> tuple[pd.DataFrame, ApiResponse]:
+        """Candles do par e intervalo como DataFrame normalizado, junto com a resposta bruta."""
         params: dict[str, object] = {"symbol": symbol, "interval": interval, "limit": limit}
         if start_ms is not None:
             params["startTime"] = start_ms

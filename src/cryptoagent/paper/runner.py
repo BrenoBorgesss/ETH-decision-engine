@@ -30,12 +30,14 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class Variant:
+    """Uma variante do paper trading: nome, configuração e carteira virtual."""
     name: str
     cfg: Config
     book: PaperBook
 
 
 def load_variants(cfg: Config, overlay_paths: list[str]) -> list[tuple[str, Config]]:
+    """Configuração de cada variante: "padrao" é o config atual; as outras são arquivos de sobreposição aplicados sobre ele."""
     out = []
     for item in overlay_paths:
         if item == "padrao":
@@ -49,6 +51,7 @@ def load_variants(cfg: Config, overlay_paths: list[str]) -> list[tuple[str, Conf
 async def run_paper(
     cfg: Config, secrets: Secrets, *, fee: float, max_cycles: int | None = None, say: Callable[[str], None] = print, sleep=asyncio.sleep
 ) -> None:
+    """Laço do paper trading: a cada minuto confere a OCO virtual e, a cada fechamento do candle de gatilho, decide e registra. `max_cycles` limita os ciclos (testes)."""
     pc = cfg.paper
     conn = agent_db.connect(cfg.path(cfg.conta.banco))
     costs = PaperCosts(fee, cfg.backtest.slippage_mercado_pct, cfg.backtest.slippage_stop_pct)

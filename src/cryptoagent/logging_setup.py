@@ -29,6 +29,7 @@ class JsonRedactingFormatter(logging.Formatter):
     converter = time.gmtime
 
     def format(self, record: logging.LogRecord) -> str:
+        """Monta a linha JSON do registro, com os segredos mascarados."""
         payload: dict[str, object] = {
             "ts": self.formatTime(record, DATE_FORMAT),
             "nivel": record.levelname,

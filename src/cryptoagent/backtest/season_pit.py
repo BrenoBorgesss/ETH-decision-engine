@@ -35,6 +35,7 @@ def same_hour_percentiles(b: pd.DataFrame, days: int) -> np.ndarray:
 
 @dataclass
 class SeasonPIT:
+    """Análise por horário "ponto no tempo": para cada mês, o perfil que se conhecia até ali, para o backtest não usar informação do futuro."""
     month_starts: np.ndarray  # ms
     hour_info: list[dict[int, tuple[str, bool]]]  # por mês: hora -> (classe, padrão validado até ali)
     candle_close: np.ndarray  # close_time dos candles do perfil
@@ -44,6 +45,7 @@ class SeasonPIT:
 
     @classmethod
     def build(cls, trade_df: pd.DataFrame, cost_pct: float, s: Sazonalidade, tz: str, atr_n: int) -> SeasonPIT:
+        """Constrói os perfis mês a mês, cada um só com os candles anteriores ao início do mês."""
         b = add_buckets(trade_df, tz, atr_n)
         first = pd.Timestamp(int(b["open_time"].iloc[0]), unit="ms", tz="UTC")
         last = pd.Timestamp(int(b["open_time"].iloc[-1]), unit="ms", tz="UTC")

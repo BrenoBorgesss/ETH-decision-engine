@@ -40,6 +40,7 @@ INTERVAL_MS: dict[str, int] = {
 
 
 def interval_ms(interval: str) -> int:
+    """Duração do intervalo em milissegundos. Levanta ValueError para intervalo desconhecido."""
     try:
         return INTERVAL_MS[interval]
     except KeyError:
@@ -47,6 +48,7 @@ def interval_ms(interval: str) -> int:
 
 
 def now_ms() -> int:
+    """Agora em milissegundos desde 1970 (UTC), pelo relógio local."""
     return _time.time_ns() // 1_000_000
 
 
@@ -79,10 +81,12 @@ def normalize_epoch_ms_array(values: np.ndarray | pd.Series) -> np.ndarray:
 
 
 def ms_to_utc(ms: int) -> datetime:
+    """Converte milissegundos desde 1970 em datetime UTC."""
     return _EPOCH + timedelta(milliseconds=int(ms))
 
 
 def datetime_to_ms(dt: datetime) -> int:
+    """Converte um datetime com fuso em milissegundos desde 1970."""
     if dt.tzinfo is None:
         raise ValueError("datetime sem fuso horário: use um datetime com tzinfo")
     return (dt - _EPOCH) // timedelta(milliseconds=1)
@@ -90,10 +94,12 @@ def datetime_to_ms(dt: datetime) -> int:
 
 @lru_cache(maxsize=16)
 def zone(name: str) -> ZoneInfo:
+    """Fuso horário pelo nome (ex.: America/Sao_Paulo)."""
     return ZoneInfo(name)
 
 
 def parse_hhmm(value: str) -> time:
+    """Converte "HH:MM" em horário. Levanta ValueError se o formato estiver errado."""
     try:
         hh, mm = value.split(":")
         return time(int(hh), int(mm))
@@ -102,6 +108,7 @@ def parse_hhmm(value: str) -> time:
 
 
 def ms_to_local(ms: int, tz_name: str) -> datetime:
+    """Converte milissegundos desde 1970 em datetime no fuso dado."""
     return ms_to_utc(ms).astimezone(zone(tz_name))
 
 
@@ -155,6 +162,7 @@ def floor_to_interval(ts_ms: int, interval: str) -> int:
 
 
 def format_local(ms: int | None, tz_name: str = "America/Sao_Paulo", fmt: str = "%d/%m %H:%M:%S") -> str:
+    """Formata o instante no fuso dado; "-" para None."""
     if ms is None:
         return "-"
     return ms_to_local(ms, tz_name).strftime(fmt)

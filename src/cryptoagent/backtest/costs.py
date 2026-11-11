@@ -24,6 +24,7 @@ from cryptoagent.timeutils import local_hour_weekday_series
 
 @dataclass(frozen=True)
 class CostSchedule:
+    """Custos usados num backtest: taxa por lado, spread por hora do dia e slippage."""
     symbol: str
     fee: float  # fração por lado
     spread_by_hour: dict[int, float]  # spread total em % por hora local
@@ -33,14 +34,17 @@ class CostSchedule:
     fee_source: str = ""
 
     def half_spread(self, hour: int) -> float:
+        """Metade do spread da hora, como fração do preço."""
         return self.spread_by_hour[hour] / 200  # fração
 
     def roundtrip_pct(self, hour: int) -> float:
+        """Quanto o preço precisa andar (%) para empatar uma compra e uma venda naquela hora."""
         leg = LegCosts(fee=self.fee, half_spread=self.half_spread(hour), slippage=self.slip_market_pct / 100)
         return round_trip(leg, leg).breakeven_pct
 
     @property
     def mean_roundtrip_pct(self) -> float:
+        """Média do custo de ida e volta nas 24 horas."""
         return sum(self.roundtrip_pct(h) for h in range(24)) / 24
 
     def to_dict(self) -> dict:
@@ -92,6 +96,7 @@ def load_schedules(path: Path) -> dict[str, CostSchedule]:
 
 
 def hourly_spreads(db_path: Path | None, symbol: str, tz: str, min_samples: int) -> dict[int, float]:
+    """Mediana do spread medido pelo coletor em cada hora local, só para as horas com pelo menos `min_samples` amostras. Vazio se não houver banco."""
     if db_path is None or not db_path.is_file():
         return {}
     conn = sqlite3.connect(db_path)
@@ -112,6 +117,7 @@ def hourly_spreads(db_path: Path | None, symbol: str, tz: str, min_samples: int)
 def build_schedule(
     symbol: str, fee: float, default_spread: float, db_path: Path | None, tz: str, *, min_samples: int, slip_market: float, slip_stop: float, fee_source: str
 ) -> CostSchedule:
+    """Monta os custos de um par: spread medido nas horas com amostras suficientes e o valor padrão nas demais."""
     measured = hourly_spreads(db_path, symbol, tz, min_samples)
     spreads = {h: measured.get(h, default_spread) for h in range(24)}
     return CostSchedule(symbol, fee, spreads, sorted(measured), slip_market, slip_stop, fee_source)

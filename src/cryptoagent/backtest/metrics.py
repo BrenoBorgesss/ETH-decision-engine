@@ -25,6 +25,7 @@ def equity_curve(trades: list[Trade], capital: float) -> pd.DataFrame:
 
 
 def max_drawdown_pct(equity: pd.Series, capital: float) -> float:
+    """Maior queda (%) do patrimônio em relação ao pico anterior, partindo do capital inicial. Valor negativo ou zero."""
     if equity.empty:
         return 0.0
     series = pd.concat([pd.Series([capital]), equity.reset_index(drop=True)])
@@ -33,6 +34,7 @@ def max_drawdown_pct(equity: pd.Series, capital: float) -> float:
 
 
 def compute_metrics(trades: list[Trade], start_ms: int, end_ms: int, capital: float, tz: str = "America/Sao_Paulo") -> dict:
+    """Métricas de um conjunto de operações no período: retorno, drawdown, acerto, fator de lucro, expectativa, Sharpe diário anualizado, taxas e motivos de saída."""
     days = max(1.0, (end_ms - start_ms) / DAY_MS)
     n = len(trades)
     base = {

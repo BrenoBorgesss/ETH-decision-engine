@@ -33,6 +33,7 @@ from cryptoagent.timeutils import INTERVAL_MS
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Monta o analisador de argumentos com todos os comandos e subcomandos."""
     parser = argparse.ArgumentParser(prog="cryptoagent", description="Assistente de decisão cripto (somente leitura).")
     parser.add_argument("--config", type=Path, default=None, help="caminho do config.yaml")
     parser.add_argument("--sobrepor", type=Path, default=None, help="YAML com campos que substituem os do config (ex.: uma hipótese)")
@@ -152,6 +153,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Ponto de entrada do programa: lê os argumentos, o config e as chaves, liga o log e executa o comando. Devolve o código de saída."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]

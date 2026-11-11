@@ -30,6 +30,7 @@ def _journal_symbol(cfg: Config, conn: sqlite3.Connection, override: str | None)
 
 
 async def cmd_journal_add(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `diario adicionar`: registra no diário manual uma operação feita pelo usuário. Devolve o código de saída do processo."""
     conn = agent_db.connect(cfg.path(cfg.conta.banco))
     try:
         symbol = _journal_symbol(cfg, conn, args.par)
@@ -46,6 +47,7 @@ async def cmd_journal_add(cfg: Config, secrets: Secrets, args: argparse.Namespac
 
 
 async def cmd_journal_list(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `diario listar`: lista o diário manual do par. Devolve o código de saída do processo."""
     conn = agent_db.connect(cfg.path(cfg.conta.banco))
     try:
         symbol = _journal_symbol(cfg, conn, args.par)
@@ -62,6 +64,7 @@ async def cmd_journal_list(cfg: Config, secrets: Secrets, args: argparse.Namespa
 
 
 async def cmd_journal_remove(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `diario remover`: apaga um registro do diário manual. Devolve o código de saída do processo."""
     conn = agent_db.connect(cfg.path(cfg.conta.banco))
     try:
         ok = journal.remove_manual_trade(conn, args.id)

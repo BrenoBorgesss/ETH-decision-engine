@@ -29,6 +29,7 @@ BINS = [(0, 40), (40, 60), (60, 80), (80, 101)]
 
 @dataclass
 class SignalOutcome:
+    """O que o mercado fez depois de um sinal: desfecho (ver OUTCOMES) e os movimentos máximos a favor e contra."""
     signal_id: int
     action: str
     confidence: float
@@ -89,6 +90,7 @@ def evaluate_signals(signals: pd.DataFrame, bars_1m: pd.DataFrame, horizon_h: fl
 
 @dataclass
 class VariantReport:
+    """Relatório de uma variante do paper trading: patrimônio, métricas, desfecho dos sinais e calibração."""
     variant: str
     started_ms: int
     equity: float
@@ -149,6 +151,7 @@ def gate_stats(rows: list[sqlite3.Row]) -> list[GateStat]:
 
 def variant_report(conn: sqlite3.Connection, variant: str, capital: float, bars_1m: pd.DataFrame, horizon_h: float, min_trades: int,
                    backtest_json: dict | None, trade_symbol: str) -> VariantReport:
+    """Monta o relatório de uma variante a partir do banco e dos candles de 1m do par de operação."""
     st = conn.execute("SELECT * FROM paper_state WHERE variant = ?", (variant,)).fetchone()
     started = int(st["started_ms"]) if st else now_ms()
     rows = conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL ORDER BY entry_ms", (variant,)).fetchall()
@@ -180,4 +183,5 @@ def variant_report(conn: sqlite3.Connection, variant: str, capital: float, bars_
 
 
 def load_backtest_json(path) -> dict | None:
+    """Lê o relatório JSON do backtest, ou None se o arquivo não existe."""
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None

@@ -19,11 +19,13 @@ from cryptoagent.timeutils import local_trading_day, now_ms
 
 
 class SessionError(ValueError):
+    """Resposta inválida nas perguntas do dia."""
     pass
 
 
 @dataclass(frozen=True)
 class DailySession:
+    """Sessão de um dia de operação: capital, perda máxima, par e moeda do saldo."""
     day: date
     capital_brl: float
     max_loss_brl: float
@@ -34,6 +36,7 @@ class DailySession:
 
 
 def validate(capital_brl: float, max_loss_brl: float, par_operacao: str, saldo_em: str, candidates: list[str]) -> None:
+    """Confere as respostas do dia; levanta SessionError com o motivo se algo estiver errado."""
     if capital_brl <= 0:
         raise SessionError("o capital precisa ser maior que zero")
     if max_loss_brl <= 0:
@@ -61,15 +64,18 @@ def _row_to_session(row: sqlite3.Row) -> DailySession:
 
 
 def today(tz_name: str, day_start: str, now: int | None = None) -> date:
+    """Dia de operação atual (ou do instante `now`) no fuso local."""
     return local_trading_day(now if now is not None else now_ms(), tz_name, day_start)
 
 
 def get_session(conn: sqlite3.Connection, day: date) -> DailySession | None:
+    """Sessão gravada para o dia, ou None."""
     row = conn.execute("SELECT * FROM daily_sessions WHERE day = ?", (day.isoformat(),)).fetchone()
     return _row_to_session(row) if row else None
 
 
 def last_session(conn: sqlite3.Connection) -> DailySession | None:
+    """Sessão mais recente gravada, ou None."""
     row = conn.execute("SELECT * FROM daily_sessions ORDER BY day DESC LIMIT 1").fetchone()
     return _row_to_session(row) if row else None
 
@@ -85,6 +91,7 @@ def save_session(
     candidates: list[str],
     now: int | None = None,
 ) -> DailySession:
+    """Grava ou atualiza a sessão do dia. No mesmo dia, não deixa aumentar a perda máxima nem trocar o par."""
     validate(capital_brl, max_loss_brl, par_operacao, saldo_em, candidates)
     now = now if now is not None else now_ms()
     existing = get_session(conn, day)

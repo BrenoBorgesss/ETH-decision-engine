@@ -22,12 +22,14 @@ LIMIT_TEXT = "PERDA MÁXIMA DO DIA ATINGIDA (carteira virtual)"
 
 @dataclass
 class PaperCosts:
+    """Custos da carteira virtual: taxa por lado e slippage de mercado e de stop."""
     fee: float  # fração por lado
     slip_market_pct: float
     slip_stop_pct: float
 
 
 class PaperBook:
+    """Carteira virtual de uma variante, guardada no SQLite (tabelas paper_state e paper_trades). Nunca lê nem usa o saldo real."""
     def __init__(self, conn: sqlite3.Connection, variant: str, symbol: str, *, capital: float, loss_pct: float, divisor: float,
                  costs: PaperCosts, tz: str, day_start: str):
         self.conn, self.variant, self.symbol = conn, variant, symbol
@@ -47,17 +49,21 @@ class PaperBook:
 
     @property
     def equity(self) -> float:
+        """Patrimônio virtual atual."""
         return float(self._state()["equity"])
 
     @property
     def last_decision_close_ms(self) -> int:
+        """Fechamento do último candle de gatilho já analisado (0 se nenhum)."""
         return int(self._state()["last_decision_close_ms"] or 0)
 
     def mark_decided(self, candle_close_ms: int) -> None:
+        """Registra que o candle de gatilho com este fechamento já foi analisado."""
         self.conn.execute("UPDATE paper_state SET last_decision_close_ms = ? WHERE variant = ?", (candle_close_ms, self.variant))
         self.conn.commit()
 
     def open_trade(self) -> sqlite3.Row | None:
+        """Operação virtual aberta desta variante, ou None."""
         return self.conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NULL ORDER BY id DESC LIMIT 1", (self.variant,)).fetchone()
 
     def _roll_day(self, t_ms: int) -> sqlite3.Row:
@@ -90,6 +96,7 @@ class PaperBook:
         return trading_day_start_ms(date.fromisoformat(day_iso), self.tz, self.day_start)
 
     def view(self, t_ms: int, mark_mid: float | None, half_spread: float) -> PaperView:
+        """Foto da carteira virtual para o motor de decisão: capital, risco por operação, limite do dia e posição aberta."""
         st = self._roll_day(t_ms)
         max_loss = float(st["day_start_equity"]) * self.loss_pct / 100
         limit = LIMIT_TEXT if self.day_pnl(t_ms, mark_mid, half_spread) <= -max_loss else None
@@ -113,6 +120,7 @@ class PaperBook:
 
     def open(self, d: Decision, *, ratio: float, bid: float, ask: float, t_ms: int, signal_id: int | None,
              bypassed: dict[str, str] | None = None) -> int | None:
+        """Abre uma compra virtual a mercado com os níveis da decisão. Devolve o id, ou None se não há níveis ou tamanho, ou se já existe posição aberta."""
         if d.levels is None or not d.levels.size_brl or self.open_trade() is not None:
             return None
         mid, half = (bid + ask) / 2, (ask - bid) / (ask + bid)
@@ -129,6 +137,7 @@ class PaperBook:
         return int(cur.lastrowid)
 
     def close(self, *, fill: float, t_ms: int, reason: str) -> float:
+        """Fecha a posição virtual ao preço dado, grava o resultado e atualiza o patrimônio. Devolve o resultado líquido."""
         pos = self.open_trade()
         assert pos is not None
         pnl, fee_out = close_pnl(pos["qty"], pos["size"], pos["fee_in"], fill, self.costs.fee)
@@ -142,6 +151,7 @@ class PaperBook:
         return pnl
 
     def close_market(self, *, bid: float, ask: float, t_ms: int, reason: str) -> float:
+        """Fecha a posição virtual a mercado, com meio spread e slippage. Devolve o resultado líquido."""
         mid, half = (bid + ask) / 2, (ask - bid) / (ask + bid)
         return self.close(fill=sell_fill(mid, half, self.costs.slip_market_pct), t_ms=t_ms, reason=reason)
 
@@ -166,6 +176,7 @@ class PaperBook:
         return None
 
     def closed_trades(self) -> list[sqlite3.Row]:
+        """Operações virtuais fechadas desta variante, em ordem de entrada."""
         return self.conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL ORDER BY entry_ms", (self.variant,)).fetchall()
 
 

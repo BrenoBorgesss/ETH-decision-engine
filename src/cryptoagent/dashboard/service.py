@@ -52,6 +52,7 @@ def _clean(obj):
 
 
 class LiveService:
+    """Serviço ao vivo do painel: mantém os candles do WebSocket, roda a análise, dispara os avisos e monta o estado mostrado na página."""
     def __init__(self, cfg: Config, secrets: Secrets, console: Console):
         self.cfg, self.secrets, self.console = cfg, secrets, console
         p = cfg.estrategia
@@ -77,6 +78,7 @@ class LiveService:
     # --------------------------------------------------------------- WebSocket
 
     def on_message(self, stream: str, data: dict, received: int) -> None:
+        """Recebe uma mensagem do WebSocket: atualiza candles ou preços e pede nova análise quando fecha um candle dos timeframes configurados."""
         name = stream.split("@")[0].upper()
         if "@kline_" in stream:
             k = data["k"]
@@ -89,10 +91,12 @@ class LiveService:
             self.tickers[name] = (float(data["b"]), float(data["a"]), received)
 
     def ws_fresh(self) -> bool:
+        """True se o WebSocket está conectado e recebeu mensagem dentro do limite de silêncio."""
         last = self.stream.last_message_ms
         return self.stream.connected and last is not None and now_ms() - last <= self.cfg.painel.ws_silencio_max_s * 1000
 
     async def backfill(self, tfs: set[str]) -> None:
+        """Recarrega pela API REST os candles dos timeframes dados."""
         assert self.client is not None
         for tf in sorted(tfs):
             df, _ = await self.client.klines(self.sym, tf, limit=self.cfg.binance.candles_por_consulta_padrao)
@@ -116,6 +120,7 @@ class LiveService:
     # ------------------------------------------------------------------ análise
 
     async def analyze(self) -> None:
+        """Roda uma análise ao vivo, grava o sinal e dispara os avisos. Se a chave tiver permissão além de leitura, o serviço para; erro da Binance vira mensagem no painel."""
         assert self.client is not None
         if self.needs_backfill:
             await self.backfill(set(self.needs_backfill))
@@ -146,6 +151,7 @@ class LiveService:
         self.analyses += 1
 
     async def analysis_loop(self) -> None:
+        """Repete a análise a cada pedido (fechamento de candle) ou a cada `analise_extra_a_cada_s`, até o serviço parar."""
         extra = self.cfg.painel.analise_extra_a_cada_s or None
         while not self.stop.is_set():
             try:
@@ -161,6 +167,7 @@ class LiveService:
             await asyncio.sleep(1.5)  # dá tempo de os outros timeframes fecharem o mesmo candle
 
     async def run(self, extra_tasks=()) -> None:
+        """Liga o cliente, o WebSocket e o laço de análise, e espera o serviço parar. `extra_tasks` são tarefas encerradas junto (ex.: o servidor web)."""
         async with BinanceReadOnlyClient(self.cfg.binance, self.secrets) as client:
             self.client = client
             await client.sync_time()
@@ -176,11 +183,13 @@ class LiveService:
                 self.conn.close()
 
     def request_analysis(self) -> None:
+        """Pede uma análise imediata."""
         self.trigger.set()
 
     # -------------------------------------------------------- dados para a página
 
     def snapshot(self) -> dict:
+        """Estado completo para a página (decisão, saúde, custos, conta, sinais, paper), já sem segredos e em JSON simples."""
         now = now_ms()
         cfg = self.cfg
         res = self.last
@@ -272,6 +281,7 @@ class LiveService:
         return _clean(out)
 
     def candles_payload(self, tf: str) -> dict:
+        """Candles e indicadores do timeframe para o gráfico, com o horário já deslocado para o fuso local."""
         res = self.last
         if res is None or res.ctx is None or tf not in res.ctx.market.frames:
             return {"tf": tf, "candles": []}
@@ -290,6 +300,7 @@ class LiveService:
                        "suportes": [{"preco": x.price, "origem": x.source} for x in (res.ctx.market.levels if res.ctx else [])]})
 
     def season_payload(self) -> dict:
+        """Mapa de calor e perfil por hora do par em uso, se a análise por horário já foi gerada."""
         profiles = load_profiles(self.cfg.path(self.cfg.sazonalidade.relatorio_pasta) / "sazonalidade.json")
         sym = self.last.decision.trade_symbol if self.last else (self.cfg.mercado.par_operacao or self.cfg.paper.par)
         prof = profiles.get(sym)
@@ -298,6 +309,7 @@ class LiveService:
         return _clean({"simbolo": sym, "disponivel": True, "heatmap": prof["heatmap"], "horas": prof["hours"], "custo": prof["cost"]})
 
     def save_session(self, data: dict) -> dict:
+        """Grava a sessão do dia vinda do formulário do painel e pede nova análise. Devolve a sessão gravada."""
         day = daily.today(self.cfg.fuso.local, self.cfg.fuso.inicio_dia_local)
         par = str(data.get("par") or self.cfg.mercado.par_operacao or self.cfg.mercado.pares_candidatos[0]).upper()
         saldo = "BRL" if par.endswith("BRL") else str(data.get("saldo") or "USDT").upper()
@@ -309,5 +321,6 @@ class LiveService:
         return _clean(asdict(s))
 
     def associate(self, data: dict) -> None:
+        """Liga uma compra a um sinal (ou a nenhum), a pedido do painel."""
         sig = data.get("sinal")
         set_association(self.conn, str(data["par"]).upper(), int(data["operacao"]), int(sig) if sig not in (None, "", "nenhum") else None)

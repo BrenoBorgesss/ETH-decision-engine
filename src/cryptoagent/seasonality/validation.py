@@ -25,6 +25,7 @@ from cryptoagent.seasonality.profiles import WEEKDAYS_PT, bucket_stats, classify
 
 @dataclass(frozen=True)
 class Fold:
+    """Uma janela do walk-forward: período de treino e período de teste (fins exclusivos)."""
     train_start_ms: int
     train_end_ms: int  # exclusivo
     test_start_ms: int
@@ -33,6 +34,7 @@ class Fold:
 
 @dataclass
 class PatternResult:
+    """Um padrão de horário e quantas vezes ele se confirmou fora da amostra."""
     kind: str  # "hora", "dia_semana", "hora_dia"
     key: str  # ex.: "14h", "dom", "dom 14h"
     claim: str  # "compensa", "nao_compensa", "mais_volatil", "menos_volatil"
@@ -43,11 +45,13 @@ class PatternResult:
 
     @property
     def hold_rate(self) -> float:
+        """Percentual das vezes em que o padrão se confirmou no teste."""
         return self.held / self.claims * 100 if self.claims else 0.0
 
 
 @dataclass
 class ValidationReport:
+    """Resultado da validação walk-forward dos padrões de horário."""
     folds: list[Fold]
     spearman: list[float]
     patterns: list[PatternResult] = field(default_factory=list)
@@ -61,9 +65,11 @@ class ValidationReport:
         return good / len(self.spearman) >= 0.75
 
     def kept(self, kind: str | None = None) -> list[PatternResult]:
+        """Padrões mantidos (opcionalmente só de um tipo)."""
         return [p for p in self.patterns if p.kept and (kind is None or p.kind == kind)]
 
     def discarded(self, kind: str | None = None) -> list[PatternResult]:
+        """Padrões descartados (opcionalmente só de um tipo)."""
         return [p for p in self.patterns if not p.kept and (kind is None or p.kind == kind)]
 
 

@@ -28,6 +28,7 @@ def _history_plan(cfg: Config, symbols: list[str] | None) -> dict[str, list[str]
 
 
 async def cmd_history_download(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `historico baixar`: baixa ou atualiza o histórico de candles e mostra a cobertura. Devolve o código de saída do processo."""
     store = history.HistoryStore(cfg.path(cfg.historico.pasta))
     months = args.meses or cfg.historico.meses
     plan = _history_plan(cfg, args.simbolos)
@@ -71,6 +72,7 @@ async def cmd_history_download(cfg: Config, secrets: Secrets, args: argparse.Nam
 
 
 async def cmd_history_check(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `historico verificar`: mostra a cobertura e os buracos do histórico já baixado. Devolve o código de saída do processo."""
     store = history.HistoryStore(cfg.path(cfg.historico.pasta))
     table = Table(title="Cobertura do histórico")
     for col in ("Par", "Intervalo", "Linhas", "De (UTC)", "Até (UTC)", "Buracos", "Maiores buracos (UTC)"):

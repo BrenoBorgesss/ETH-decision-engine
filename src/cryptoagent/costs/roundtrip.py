@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class LegCosts:
+    """Custos de uma perna (compra ou venda), todos como fração: taxa, meio spread e slippage."""
     fee: float = 0.0  # fração (0,001 = 0,1%)
     half_spread: float = 0.0  # fração do preço médio
     slippage: float = 0.0  # fração
@@ -32,15 +33,18 @@ class LegCosts:
 
 
 def buy_factor(leg: LegCosts) -> float:
+    """Quanto do valor aplicado vira ativo numa compra, depois de taxa, meio spread e slippage."""
     return (1 - leg.fee) / ((1 + leg.half_spread) * (1 + leg.slippage))
 
 
 def sell_factor(leg: LegCosts) -> float:
+    """Quanto do valor do ativo vira dinheiro numa venda, depois de taxa, meio spread e slippage."""
     return (1 - leg.fee) * (1 - leg.half_spread) * (1 - leg.slippage)
 
 
 @dataclass(frozen=True)
 class FxConversion:
+    """Conversão de câmbio em volta da operação (ex.: BRL para USDT e de volta), diluída por `trades_per_conversion` operações."""
     to_quote: LegCosts  # ex.: BRL -> USDT (compra de USDT no USDTBRL)
     back: LegCosts | None = None  # USDT -> BRL; None = mantém em USDT
     trades_per_conversion: int = 1  # 1 = converte a cada operação
@@ -52,16 +56,19 @@ class FxConversion:
 
 @dataclass(frozen=True)
 class RoundTrip:
+    """Custo de uma ida e volta: fator que sobra, custo, quanto o preço precisa andar para empatar e a parcela de cada componente."""
     factor: float  # K: quanto sobra de cada 1 aplicado, com o preço parado
     cost_pct: float  # (1 − K) × 100
     breakeven_pct: float  # (1/K − 1) × 100
     components_pct: dict[str, float]  # custo de cada parte isolada, em %
 
     def cost_brl(self, capital_brl: float) -> float:
+        """Custo em R$ da ida e volta para o capital dado."""
         return capital_brl * (1 - self.factor)
 
 
 def round_trip(buy: LegCosts, sell: LegCosts, fx: FxConversion | None = None) -> RoundTrip:
+    """Custo de comprar e vender com os custos de cada perna e, opcionalmente, com a conversão de câmbio."""
     k = buy_factor(buy) * sell_factor(sell)
     components = {
         "taxas": (1 - (1 - buy.fee) * (1 - sell.fee)) * 100,

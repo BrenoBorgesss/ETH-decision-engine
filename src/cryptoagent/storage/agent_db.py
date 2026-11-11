@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS daily_sessions (
 
 
 def connect(path: Path) -> sqlite3.Connection:
+    """Abre (criando se preciso) o banco do agente, com as tabelas e colunas atualizadas."""
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
@@ -125,10 +126,12 @@ def _ensure_column(conn: sqlite3.Connection, table: str, column: str, decl: str)
 
 
 def get_meta(conn: sqlite3.Connection, key: str) -> str | None:
+    """Valor guardado na tabela `meta` para a chave, ou None."""
     row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
     return row["value"] if row else None
 
 
 def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
+    """Grava ou atualiza um valor na tabela `meta`."""
     conn.execute("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
     conn.commit()

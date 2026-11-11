@@ -15,6 +15,7 @@ from cryptoagent.timeutils import now_ms
 
 
 async def cmd_panel(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `painel`: sobe o painel local em 127.0.0.1 e o serviço de análise ao vivo. Devolve o código de saída do processo."""
     import webbrowser
 
     import uvicorn
@@ -43,6 +44,7 @@ async def cmd_panel(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> 
 
 
 async def cmd_alert_test(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `alertas testar`: envia um aviso de teste. Devolve o código de saída do processo."""
     from cryptoagent.alerts.notify import Alert, Alerter
 
     Alerter(cfg.alertas, console, cfg.fuso.local).send(Alert(now_ms(), "Teste de alerta do agente", "Se você está vendo isto, as notificações funcionam."))

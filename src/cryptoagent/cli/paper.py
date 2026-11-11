@@ -18,6 +18,7 @@ from cryptoagent.timeutils import format_local
 
 
 async def cmd_paper_run(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `paper rodar`: roda o paper trading com a carteira virtual até ser interrompido. Devolve o código de saída do processo."""
     from cryptoagent.paper.runner import run_paper
 
     fees = await _account_taker_fees(cfg, secrets, [cfg.paper.par])
@@ -53,6 +54,7 @@ def _print_gate_study(rep, min_trades: int) -> None:
 
 
 async def cmd_paper_report(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `paper relatorio`: mostra o resultado de cada variante e o que o mercado fez depois de cada sinal. Devolve o código de saída do processo."""
     from cryptoagent.fmt import num, pct
     from cryptoagent.paper.report import OUTCOMES, load_backtest_json, variant_report
     from cryptoagent.paper.runner import load_variants

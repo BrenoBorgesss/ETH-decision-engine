@@ -15,6 +15,7 @@ from cryptoagent.timeutils import format_local
 
 
 async def cmd_backtest(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `backtest`: roda o backtest dos pares e grava os relatórios JSON e HTML. Devolve o código de saída do processo."""
     from cryptoagent.backtest.costs import build_schedule, load_schedules, save_schedules
     from cryptoagent.backtest.data import load_backtest_data
     from cryptoagent.backtest.report import COLS, _fmt, render_html, save_json

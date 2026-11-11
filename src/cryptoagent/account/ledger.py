@@ -25,6 +25,7 @@ EPS = 1e-12
 
 @dataclass(frozen=True)
 class LedgerTrade:
+    """Uma operação (compra ou venda) no formato usado para calcular posição e resultado, venha da Binance ou do diário manual."""
     trade_id: str
     time_ms: int
     side: Literal["buy", "sell"]
@@ -44,6 +45,7 @@ class LedgerTrade:
 
 @dataclass
 class Lot:
+    """Lote de compra ainda aberto: quantidade restante e custo por unidade já com a taxa."""
     qty: float
     cost: float  # custo por ETH em moeda de cotação, já com a taxa da compra
     trade_id: str
@@ -52,6 +54,7 @@ class Lot:
 
 @dataclass
 class Attribution:
+    """Quanto de uma operação entrou na posição da operação e quanto foi ignorado, com o resultado realizado."""
     trade_id: str
     op_qty: float  # quanto entrou/saiu da operação
     ignored_qty: float  # quanto ficou fora (teto atingido ou ETH de fora da operação)
@@ -59,6 +62,7 @@ class Attribution:
 
 
 class OperationLedger:
+    """Livro da posição da operação: lotes em ordem de compra (FIFO), limitados por um teto em ETH ou em moeda. O que passa do teto é ignorado."""
     def __init__(self, cap_base: float | None = None, cap_quote: float | None = None):
         if cap_base is not None and cap_base <= 0:
             raise ValueError("teto em ETH precisa ser positivo")
@@ -76,14 +80,17 @@ class OperationLedger:
 
     @property
     def open_qty(self) -> float:
+        """Quantidade aberta (soma dos lotes)."""
         return sum(l.qty for l in self.lots)
 
     @property
     def open_cost(self) -> float:
+        """Custo total da posição aberta, em moeda de cotação."""
         return sum(l.qty * l.cost for l in self.lots)
 
     @property
     def avg_cost(self) -> float | None:
+        """Custo médio por unidade da posição aberta, ou None sem posição."""
         q = self.open_qty
         return self.open_cost / q if q > EPS else None
 
@@ -96,6 +103,7 @@ class OperationLedger:
         return max(0.0, room)
 
     def apply(self, t: LedgerTrade) -> Attribution:
+        """Aplica uma operação. Compra: abre um lote até o teto. Venda: baixa os lotes mais antigos primeiro e soma o resultado realizado. Devolve o que foi atribuído e o que foi ignorado."""
         self.trades += 1
         self.estimated_fees |= t.fee_estimated
         if t.side == "buy":
@@ -135,6 +143,7 @@ class OperationLedger:
             lot.cost = price
 
     def reset_period(self) -> None:
+        """Zera os acumulados do período (realizado, taxas, ignorados, contagem), mantendo os lotes abertos."""
         self.realized = 0.0
         self.fees = 0.0
         self.ignored_buy_qty = 0.0
@@ -143,6 +152,7 @@ class OperationLedger:
         self.estimated_fees = False
 
     def unrealized(self, exit_price: float, exit_fee_rate: float) -> float:
+        """Resultado não realizado da posição aberta se fosse vendida a `exit_price`, já descontada a taxa de saída."""
         net_exit = exit_price * (1 - exit_fee_rate)
         return sum(l.qty * (net_exit - l.cost) for l in self.lots)
 
@@ -153,6 +163,7 @@ class MissingDayStartPrice(Exception):
 
 @dataclass(frozen=True)
 class DayResult:
+    """Resultado do dia de operação: realizado, não realizado, taxas, posição aberta e o que ficou fora do teto."""
     realized_quote: float
     unrealized_quote: float
     fees_quote: float
@@ -175,6 +186,7 @@ class DayResult:
 
     @property
     def pnl_quote(self) -> float:
+        """Resultado do dia em moeda de cotação: realizado + não realizado."""
         return self.realized_quote + self.unrealized_quote
 
 
@@ -189,6 +201,7 @@ def compute_day(
     cap_base: float | None = None,
     cap_quote: float | None = None,
 ) -> DayResult:
+    """Resultado do dia a partir das operações. A posição que veio de ontem é reavaliada pelo preço do início do dia (`day_start_price`), para o resultado de ontem não contar hoje."""
     ordered = sorted(trades, key=lambda t: (t.time_ms, t.trade_id))
     before = [t for t in ordered if t.time_ms < day_start_ms]
     today = [t for t in ordered if day_start_ms <= t.time_ms < day_end_ms]

@@ -23,6 +23,7 @@ def add_manual_trade(
     time_ms: int | None = None,
     note: str = "",
 ) -> int:
+    """Registra no diário manual uma operação feita pelo usuário (lado "buy" ou "sell"). Valida os números e devolve o id do registro."""
     if side not in ("buy", "sell"):
         raise ValueError("lado deve ser compra ou venda")
     LedgerTrade("check", time_ms or 0, side, qty, price, fee_quote)  # type: ignore[arg-type]  # valida os números
@@ -35,16 +36,19 @@ def add_manual_trade(
 
 
 def remove_manual_trade(conn: sqlite3.Connection, trade_id: int) -> bool:
+    """Apaga um registro do diário manual. Devolve True se ele existia."""
     cur = conn.execute("DELETE FROM manual_trades WHERE id = ?", (trade_id,))
     conn.commit()
     return cur.rowcount > 0
 
 
 def list_manual_trades(conn: sqlite3.Connection, symbol: str, since_ms: int = 0) -> list[sqlite3.Row]:
+    """Registros do diário manual do par a partir de `since_ms`, em ordem de horário."""
     return conn.execute("SELECT * FROM manual_trades WHERE symbol = ? AND time_ms >= ? ORDER BY time_ms, id", (symbol, since_ms)).fetchall()
 
 
 def manual_ledger_trades(conn: sqlite3.Connection, symbol: str) -> list[LedgerTrade]:
+    """Diário manual do par no formato LedgerTrade, para o cálculo do resultado do dia."""
     return [
         LedgerTrade(f"m{r['id']}", r["time_ms"], r["side"], r["qty"], r["price"], r["fee_quote"], source="manual")
         for r in list_manual_trades(conn, symbol)

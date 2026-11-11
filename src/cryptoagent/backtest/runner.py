@@ -31,6 +31,7 @@ EXTRAS_UNTESTABLE = {"order_book": "não existe histórico do order book: só d�
 
 @dataclass
 class Variant:
+    """Uma variante testada: nome, métricas e observação."""
     name: str
     metrics: dict
     note: str = ""
@@ -38,6 +39,7 @@ class Variant:
 
 @dataclass
 class PairReport:
+    """Resultado completo do backtest de um par: variante padrão, walk-forward, travas de distância, ablação e comparações."""
     pair: str
     costs: CostSchedule
     folds: list[Fold]
@@ -63,6 +65,7 @@ def _in_window(trades: list[Trade], a: int, b: int) -> list[Trade]:
 
 
 def run_pair(cfg: Config, data: BacktestData, costs: CostSchedule, *, quick: bool = False, progress: Callable[[str], None] = print) -> PairReport:
+    """Roda o pacote de testes de um par (ver a descrição do módulo). Com `quick=True`, pula a grade do walk-forward e a ablação."""
     t0 = time.perf_counter()
     bt, p0, tz = cfg.backtest, cfg.estrategia, cfg.fuso.local
     common = dict(

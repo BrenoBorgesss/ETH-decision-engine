@@ -60,6 +60,7 @@ _SAMPLE_COLUMNS = [
 
 
 def connect(path: Path) -> sqlite3.Connection:
+    """Abre (criando se preciso) o banco do coletor de custos."""
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -69,6 +70,7 @@ def connect(path: Path) -> sqlite3.Connection:
 
 
 def insert_samples(conn: sqlite3.Connection, rows: Iterable[dict]) -> int:
+    """Grava as amostras do livro. Devolve quantas foram gravadas."""
     values = [
         tuple(json.dumps(r[c]) if c == "slippage_json" else r.get(c) for c in _SAMPLE_COLUMNS) for r in rows
     ]
@@ -80,6 +82,7 @@ def insert_samples(conn: sqlite3.Connection, rows: Iterable[dict]) -> int:
 
 
 def insert_snapshot(conn: sqlite3.Connection, ts_ms: int, symbol: str, source: str, bids: list, asks: list) -> None:
+    """Grava uma foto completa do livro de um par."""
     conn.execute(
         "INSERT INTO book_snapshots (ts_ms, symbol, source, bids_json, asks_json) VALUES (?,?,?,?,?)",
         (ts_ms, symbol, source, json.dumps(bids), json.dumps(asks)),
@@ -88,5 +91,6 @@ def insert_snapshot(conn: sqlite3.Connection, ts_ms: int, symbol: str, source: s
 
 
 def log_event(conn: sqlite3.Connection, ts_ms: int, kind: str, detail: str = "") -> None:
+    """Registra um evento do coletor (início, uso da REST, erro)."""
     conn.execute("INSERT INTO collector_events (ts_ms, kind, detail) VALUES (?,?,?)", (ts_ms, kind, detail[:500]))
     conn.commit()

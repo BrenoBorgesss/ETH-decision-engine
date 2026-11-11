@@ -24,6 +24,7 @@ def rsi(close: pd.Series, n: int = 14) -> pd.Series:
 
 
 def macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+    """MACD: linha (EMA rápida − EMA lenta), sinal (EMA da linha) e histograma."""
     line = ema(close, fast) - ema(close, slow)
     sig = ema(line, signal)
     return pd.DataFrame({"macd": line, "macd_signal": sig, "macd_hist": line - sig}, index=close.index)

@@ -13,6 +13,7 @@ from cryptoagent.timeutils import interval_ms
 
 @dataclass(frozen=True)
 class Check:
+    """Uma verificação de saúde dos dados: nome, se passou, detalhe, idade e se é crítica."""
     name: str
     ok: bool
     detail: str
@@ -24,9 +25,11 @@ class Check:
 
 @dataclass
 class HealthReport:
+    """Conjunto de verificações de saúde dos dados."""
     checks: list[Check] = field(default_factory=list)
 
     def add(self, check: Check) -> None:
+        """Acrescenta uma verificação."""
         self.checks.append(check)
 
     @property
@@ -36,14 +39,17 @@ class HealthReport:
 
     @property
     def problems(self) -> list[str]:
+        """Textos das verificações críticas que falharam (levam a ESPERAR)."""
         return [f"{c.name}: {c.detail}" for c in self.checks if not c.ok and c.critical]
 
     @property
     def warnings(self) -> list[str]:
+        """Textos das verificações não críticas que falharam (só reduzem a qualidade dos dados)."""
         return [f"{c.name}: {c.detail}" for c in self.checks if not c.ok and not c.critical]
 
 
 def check_age(name: str, received_ms: int | None, now_ms: int, max_age_s: float, source: str | None = None, *, critical: bool = True) -> Check:
+    """Verifica a idade de um dado: falha se estiver ausente ou mais velho que `max_age_s`."""
     if received_ms is None:
         return Check(name, False, "dado ausente", None, max_age_s, source, critical)
     age = (now_ms - received_ms) / 1000

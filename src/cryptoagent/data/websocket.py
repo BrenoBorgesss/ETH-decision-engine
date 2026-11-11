@@ -27,6 +27,7 @@ Handler = Callable[[str, dict, int], Awaitable[None] | None]
 
 
 class BinanceStream:
+    """Conexão WebSocket com a Binance para vários streams, com reconexão automática. Só recebe dados; nunca envia ordens."""
     MAX_CONNECTION_S = 23 * 3600
     SILENCE_TIMEOUT_S = 30
 
@@ -43,6 +44,7 @@ class BinanceStream:
         self.last_error: str | None = None
 
     async def run(self, stop: asyncio.Event) -> None:
+        """Mantém a conexão até `stop` ser acionado, entregando cada mensagem ao handler e reconectando com espera crescente quando cai."""
         backoff = 1.0
         while not stop.is_set():
             try:

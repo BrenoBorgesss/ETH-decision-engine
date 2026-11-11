@@ -26,6 +26,7 @@ def percentile_of(value: float, sample: np.ndarray | pd.Series) -> float:
 
 
 def activity_label(pct: float, low: float, high: float) -> str:
+    """Rótulo do percentil: abaixo, dentro ou acima do normal (ou sem histórico)."""
     if np.isnan(pct):
         return "sem histórico"
     if pct < low:
@@ -37,6 +38,7 @@ def activity_label(pct: float, low: float, high: float) -> str:
 
 @dataclass(frozen=True)
 class Comparison:
+    """Comparação de um valor de agora com o histórico: valor, percentil, rótulo e tamanho da amostra."""
     name: str
     value_pct: float
     percentile: float
@@ -77,6 +79,7 @@ def day_range_vs_history(df_b: pd.DataFrame, trading_day: pd.Series, days: int, 
 
 @dataclass
 class ContextFactor:
+    """Fator que multiplica a confiança por causa do horário, com os motivos."""
     factor: float
     reasons: list[str] = field(default_factory=list)
 

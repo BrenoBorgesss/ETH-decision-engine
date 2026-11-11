@@ -23,6 +23,7 @@ REQUIRED = {  # por papel do timeframe na estratégia
 
 @dataclass
 class BacktestData:
+    """Tudo que a simulação precisa, preparado uma vez: candles com indicadores do par de análise, candles de 1m do par de operação e tabelas auxiliares."""
     analysis: str
     trade: str
     frames: dict[str, pd.DataFrame]  # par de análise, com indicadores (o 1m fica sem indicadores)
@@ -42,6 +43,7 @@ class BacktestData:
 
     @property
     def last_ms(self) -> int:
+        """Instante logo após o fechamento do último candle de decisão."""
         return int(self.close_times[self.decision_tf][-1]) + 1
 
 
@@ -62,6 +64,7 @@ def _first_valid(frames: dict[str, pd.DataFrame], p) -> int:
 
 
 def load_backtest_data(cfg: Config, trade_symbol: str, *, season_cost_pct: float | None = None) -> BacktestData:
+    """Carrega o histórico do disco, calcula os indicadores e monta o BacktestData do par de operação. Levanta FileNotFoundError se faltar histórico."""
     p, tz, day_start = cfg.estrategia, cfg.fuso.local, cfg.fuso.inicio_dia_local
     store = HistoryStore(cfg.path(cfg.historico.pasta))
     sym = cfg.mercado.simbolo_analise

@@ -33,11 +33,13 @@ log = logging.getLogger(__name__)
 
 
 class HistoryDownloadError(Exception):
+    """Falha ao baixar ou ler um arquivo de histórico."""
     pass
 
 
 @dataclass(frozen=True)
 class Period:
+    """Um arquivo de histórico da Binance: mensal (ano e mês) ou diário (ano, mês e dia)."""
     kind: str  # "monthly" | "daily"
     year: int
     month: int
@@ -45,13 +47,16 @@ class Period:
 
     @property
     def label(self) -> str:
+        """Rótulo do período: AAAA-MM ou AAAA-MM-DD."""
         base = f"{self.year}-{self.month:02d}"
         return base if self.day is None else f"{base}-{self.day:02d}"
 
     def url(self, base_url: str, symbol: str, interval: str) -> str:
+        """Endereço do arquivo ZIP deste período para o par e o intervalo."""
         return f"{base_url}/data/spot/{self.kind}/klines/{symbol}/{interval}/{symbol}-{interval}-{self.label}.zip"
 
     def days(self) -> list[Period]:
+        """Os dias do mês deste período, como períodos diários."""
         n = calendar.monthrange(self.year, self.month)[1]
         return [Period("daily", self.year, self.month, d) for d in range(1, n + 1)]
 
@@ -76,6 +81,7 @@ def parse_kline_csv(raw: bytes) -> pd.DataFrame:
 
 
 def read_zip_csv(content: bytes) -> pd.DataFrame:
+    """Lê em memória o único CSV de um ZIP de klines. Levanta HistoryDownloadError se o ZIP não tiver exatamente um CSV."""
     with zipfile.ZipFile(io.BytesIO(content)) as zf:
         names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
         if len(names) != 1:
@@ -84,25 +90,30 @@ def read_zip_csv(content: bytes) -> pd.DataFrame:
 
 
 def verify_checksum(content: bytes, checksum_text: str) -> bool:
+    """True se o SHA-256 do conteúdo confere com o do arquivo .CHECKSUM."""
     parts = checksum_text.split()
     return bool(parts) and hashlib.sha256(content).hexdigest() == parts[0].strip().lower()
 
 
 class HistoryStore:
+    """Histórico de candles em disco: um Parquet e um manifesto por par e intervalo."""
     def __init__(self, folder: Path):
         self.folder = folder
 
     def path(self, symbol: str, interval: str) -> Path:
+        """Caminho do Parquet do par e intervalo."""
         return self.folder / symbol / f"{interval}.parquet"
 
     def _manifest_path(self, symbol: str, interval: str) -> Path:
         return self.folder / symbol / f"{interval}.manifest.json"
 
     def load(self, symbol: str, interval: str) -> pd.DataFrame:
+        """Candles gravados, ou uma tabela vazia se o arquivo não existe."""
         p = self.path(symbol, interval)
         return pd.read_parquet(p) if p.is_file() else empty_klines()
 
     def save(self, symbol: str, interval: str, df: pd.DataFrame) -> None:
+        """Grava os candles com troca atômica (escreve num temporário e renomeia)."""
         p = self.path(symbol, interval)
         p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(".tmp")
@@ -110,10 +121,12 @@ class HistoryStore:
         tmp.replace(p)  # troca atômica: nunca fica um arquivo pela metade
 
     def read_manifest(self, symbol: str, interval: str) -> set[str]:
+        """Rótulos dos períodos já baixados."""
         p = self._manifest_path(symbol, interval)
         return set(json.loads(p.read_text("utf-8"))) if p.is_file() else set()
 
     def write_manifest(self, symbol: str, interval: str, labels: set[str]) -> None:
+        """Grava os rótulos dos períodos já baixados."""
         p = self._manifest_path(symbol, interval)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(sorted(labels)), encoding="utf-8")
@@ -121,6 +134,7 @@ class HistoryStore:
 
 @dataclass
 class DownloadStats:
+    """Resultado de um download ou verificação: arquivos, linhas, período coberto e buracos."""
     symbol: str
     interval: str
     files_ok: int = 0
@@ -135,6 +149,7 @@ class DownloadStats:
 
     @property
     def missing_candles(self) -> int:
+        """Total de candles faltando, somando todos os buracos."""
         return sum(g.missing for g in self.gaps)
 
 
@@ -173,6 +188,7 @@ async def download_history(
     attempts: int = 3,
     retry_wait_s: float = 1.5,
 ) -> DownloadStats:
+    """Baixa do data.binance.vision os períodos que ainda faltam, confere o checksum de cada um, junta com o que já existe e grava. Devolve as estatísticas."""
     today_utc = today_utc or datetime.now(UTC).date()
     stats = DownloadStats(symbol, interval)
     periods = plan_periods(today_utc, months)
@@ -214,6 +230,7 @@ async def download_history(
 
 
 class KlinesSource(Protocol):
+    """Qualquer objeto com o método `klines` do cliente REST (permite usar um falso nos testes)."""
     async def klines(self, symbol: str, interval: str, *, start_ms: int | None = ..., end_ms: int | None = ..., limit: int = ...) -> tuple[pd.DataFrame, object]: ...
 
 
@@ -256,6 +273,7 @@ async def update_from_rest(
 
 
 def summarize(store: HistoryStore, symbol: str, interval: str) -> DownloadStats:
+    """Estatísticas do histórico já gravado, sem baixar nada."""
     stats = DownloadStats(symbol, interval)
     _fill_stats(stats, store.load(symbol, interval), interval)
     return stats

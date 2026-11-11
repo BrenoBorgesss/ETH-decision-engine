@@ -20,6 +20,7 @@ REGIME_PT = {**DECISION_REGIME_PT, "indefinido": "indefinido (aquecendo)"}
 
 
 async def cmd_indicators_show(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `indicadores ver`: mostra os indicadores do último candle fechado e os suportes e resistências. Devolve o código de saída do processo."""
     from cryptoagent.indicators.compute import compute_indicators
     from cryptoagent.indicators.structure import nearest_levels, previous_day_levels, support_resistance
 
@@ -77,6 +78,7 @@ async def cmd_indicators_show(cfg: Config, secrets: Secrets, args: argparse.Name
 
 
 async def cmd_indicators_validate(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `indicadores validar`: confere os indicadores em todo o histórico baixado. Devolve o código de saída do processo."""
     import time as _t
 
     from cryptoagent.indicators.compute import compute_indicators

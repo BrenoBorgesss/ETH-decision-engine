@@ -8,6 +8,7 @@ from cryptoagent.data.models import KLINE_COLUMNS, Gap, find_gaps
 
 
 class CandleBuffer:
+    """Candles recentes de um par e intervalo em memória, alimentados pela API REST e pelo WebSocket, limitados a `maxlen`."""
     def __init__(self, symbol: str, interval: str, maxlen: int = 1500):
         self.symbol = symbol
         self.interval = interval
@@ -50,17 +51,21 @@ class CandleBuffer:
                 del self._rows[key]
 
     def latest(self) -> dict | None:
+        """Candle mais recente (pode estar aberto), ou None."""
         return self._rows[max(self._rows)] if self._rows else None
 
     def latest_closed(self) -> dict | None:
+        """Candle fechado mais recente, ou None."""
         closed = [t for t, r in self._rows.items() if r["closed"]]
         return self._rows[max(closed)] if closed else None
 
     def to_frame(self, closed_only: bool = True) -> pd.DataFrame:
+        """Candles em ordem de horário como DataFrame; por padrão, só os fechados."""
         rows = [self._rows[t] for t in sorted(self._rows) if self._rows[t]["closed"] or not closed_only]
         return pd.DataFrame(rows, columns=[*KLINE_COLUMNS, "closed"])
 
     def gaps(self) -> list[Gap]:
+        """Buracos na sequência de candles fechados."""
         return find_gaps(self.to_frame(), self.interval)
 
     def __len__(self) -> int:

@@ -48,6 +48,7 @@ MIN_SET = {"vwap", "bollinger", "rsi"}
 
 @dataclass
 class Trade:
+    """Uma operação simulada fechada, com preços, tamanho, resultado líquido e motivo de saída."""
     entry_ms: int
     exit_ms: int
     entry_price: float
@@ -67,6 +68,7 @@ class Trade:
 
 @dataclass
 class SimStats:
+    """Contadores de uma simulação: barras de decisão, candidatos, compras e motivos de ESPERAR."""
     decision_bars: int = 0
     candidates: int = 0
     buys: int = 0
@@ -78,6 +80,7 @@ class SimStats:
 
 @dataclass
 class SimResult:
+    """Resultado de uma simulação: operações, estatísticas, período e capital inicial."""
     label: str
     trades: list[Trade]
     stats: SimStats

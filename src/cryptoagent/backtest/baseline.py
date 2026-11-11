@@ -15,6 +15,7 @@ from cryptoagent.backtest.simulator import SimResult, SimStats, Trade
 
 
 def naive_band(data: BacktestData, costs: CostSchedule, *, tf: str, capital: float, loss_pct_day: float, divisor: float, start_ms: int, end_ms: int, hold_min: float = 180) -> SimResult:
+    """Versão ingênua para comparação: compra sempre que o %B fica abaixo de 0, sem nenhum filtro, com stop a 1 ATR e alvo no meio das bandas, por no máximo `hold_min` minutos. Usa os mesmos custos."""
     f = data.frames[tf]
     ct = data.close_times[tf]
     trades: list[Trade] = []

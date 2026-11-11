@@ -52,6 +52,7 @@ class PaperView:
 
 @dataclass
 class LiveResult:
+    """Resultado de uma análise ao vivo: decisão, contexto, conta, saúde dos dados, idades e latência."""
     decision: Decision
     ctx: DecisionContext | None
     account: AccountStatus | None
@@ -65,6 +66,7 @@ class LiveResult:
 
     @property
     def market_extras(self) -> dict:
+        """Desequilíbrio do livro, funding e spread do momento, para gravar junto com o sinal."""
         m = self.ctx.market if self.ctx else None
         return {"book_imbalance": m.book_imbalance, "funding_pct": m.funding_rate, "spread_pct": m.spread_pct} if m else {}
 

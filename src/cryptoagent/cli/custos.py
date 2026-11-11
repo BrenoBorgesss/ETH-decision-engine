@@ -21,6 +21,7 @@ from cryptoagent.timeutils import format_local
 
 
 async def cmd_costs_collect(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `custos coletar`: grava spread, profundidade e slippage ao vivo até ser interrompido. Devolve o código de saída do processo."""
     conn = db.connect(cfg.path(cfg.custos.banco))
     console.print(
         f"Coletando custos de {', '.join(cfg.mercado.simbolos_monitorados)} a cada {cfg.custos.amostra_a_cada_s:g} s "
@@ -42,6 +43,7 @@ async def cmd_costs_collect(cfg: Config, secrets: Secrets, args: argparse.Namesp
 
 
 async def cmd_costs_summary(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `custos resumo`: mostra quantos dias e amostras já foram coletados. Devolve o código de saída do processo."""
     path = cfg.path(cfg.custos.banco)
     if not path.is_file():
         console.print("Ainda não há coleta de custos. Rode: cryptoagent custos coletar")

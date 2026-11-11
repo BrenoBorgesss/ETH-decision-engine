@@ -20,6 +20,7 @@ ACTION_STYLE = {"COMPRAR": "bold white on green", "VENDER": "bold white on red",
 
 
 def print_decision(res, cfg: Config) -> None:
+    """Imprime no terminal a decisão completa: ação, confiança, parcelas, motivos, travas, níveis e saúde dos dados."""
     from cryptoagent.fmt import brl, num, pct
 
     d = res.decision
@@ -91,6 +92,7 @@ def print_decision(res, cfg: Config) -> None:
 
 
 async def cmd_analyze(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `analisar`: calcula a decisão agora, grava o sinal e imprime tudo. Devolve o código de saída do processo."""
     from cryptoagent.engine.journal import save_signal
     from cryptoagent.engine.live import analyze_live
 
@@ -109,6 +111,7 @@ async def cmd_analyze(cfg: Config, secrets: Secrets, args: argparse.Namespace) -
 
 
 async def cmd_signals_list(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `sinais listar`: mostra os últimos sinais ao vivo e as compras associadas. Devolve o código de saída do processo."""
     from cryptoagent.fmt import num
 
     conn = agent_db.connect(cfg.path(cfg.conta.banco))
@@ -136,6 +139,7 @@ async def cmd_signals_list(cfg: Config, secrets: Secrets, args: argparse.Namespa
 
 
 async def cmd_signals_associate(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `sinais associar`: liga uma compra a um sinal (ou a nenhum). Devolve o código de saída do processo."""
     from cryptoagent.engine.journal import set_association
 
     conn = agent_db.connect(cfg.path(cfg.conta.banco))

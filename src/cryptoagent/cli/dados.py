@@ -21,6 +21,7 @@ from cryptoagent.timeutils import format_local, now_ms, trading_day_bounds
 
 
 async def cmd_status(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `dados status`: mostra preços, últimos candles, derivativos e a saúde dos dados agora. Devolve o código de saída do processo."""
     tz = cfg.fuso.local
     sd = cfg.saude_dados
     report = HealthReport()
@@ -93,6 +94,7 @@ async def cmd_status(cfg: Config, secrets: Secrets, args: argparse.Namespace) ->
 
 
 async def cmd_live(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `dados ao-vivo`: acompanha preço e candles pelo WebSocket numa tabela que se atualiza. Devolve o código de saída do processo."""
     tz = cfg.fuso.local
     sd = cfg.saude_dados
     sym = cfg.mercado.simbolo_analise

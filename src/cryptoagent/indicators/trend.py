@@ -10,6 +10,7 @@ from cryptoagent.indicators.volatility import true_range
 
 
 def emas(close: pd.Series, periods: list[int]) -> pd.DataFrame:
+    """Uma coluna `ema_<n>` para cada período pedido."""
     return pd.DataFrame({f"ema_{n}": ema(close, n) for n in periods}, index=close.index)
 
 

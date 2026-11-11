@@ -20,6 +20,7 @@ DAY_MS = 86_400_000
 
 @dataclass
 class SymbolAnalysis:
+    """Análise por horário de um par: perfis por hora e por dia, mapa de calor e validação fora da amostra."""
     symbol: str
     timeframe: str
     cost: CostModel
@@ -35,6 +36,7 @@ class SymbolAnalysis:
 
 
 def analyze_symbol(df: pd.DataFrame, symbol: str, cfg: Config, cost: CostModel) -> SymbolAnalysis:
+    """Calcula os perfis por hora e dia da janela recente e valida os padrões em walk-forward."""
     s = cfg.sazonalidade
     df_b = add_buckets(df, cfg.fuso.local, cfg.indicadores.atr)
     report = validate(df_b, cost.breakeven_pct, s)
@@ -57,6 +59,7 @@ def analyze_symbol(df: pd.DataFrame, symbol: str, cfg: Config, cost: CostModel) 
 
 
 def to_dict(a: SymbolAnalysis) -> dict:
+    """Análise de um par como dicionário só com tipos de JSON."""
     v = a.validation
     def grid(col):
         return [[float(a.heat[col].get((d, h), float("nan"))) for h in range(24)] for d in range(7)]
@@ -97,11 +100,13 @@ def to_dict(a: SymbolAnalysis) -> dict:
 
 
 def save_json(analyses: list[SymbolAnalysis], path: Path) -> None:
+    """Grava a análise de todos os pares em JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({a.symbol: to_dict(a) for a in analyses}, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def load_profiles(path: Path) -> dict:
+    """Lê o JSON gravado por `save_json`; dicionário vazio se o arquivo não existe."""
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
 
@@ -145,6 +150,7 @@ def _heat_table(grid: list[list[float]], title: str, fmt_scale: float = 1.0) -> 
 
 
 def render_html(analyses: list[SymbolAnalysis], path: Path, tz: str) -> None:
+    """Gera a página HTML da análise por horário."""
     parts = [
         "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
         f"<title>Análise por horário</title><style>{_CSS}</style></head><body><main>",

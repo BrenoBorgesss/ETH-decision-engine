@@ -24,6 +24,7 @@ def _season_paths(cfg: Config) -> tuple[Path, Path]:
 
 
 async def cmd_season_analyze(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `sazonalidade analisar`: calcula o perfil por hora e dia, valida fora da amostra e grava os relatórios. Devolve o código de saída do processo."""
     from cryptoagent.seasonality.analysis import analyze_symbol, render_html, save_json
     from cryptoagent.seasonality.cost_model import build_cost_model
     from cryptoagent.seasonality.profiles import WEEKDAYS_PT
@@ -89,6 +90,7 @@ async def cmd_season_analyze(cfg: Config, secrets: Secrets, args: argparse.Names
 
 
 async def cmd_season_now(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `sazonalidade agora`: compara o movimento de agora com o histórico da mesma hora. Devolve o código de saída do processo."""
     from cryptoagent.seasonality.analysis import load_profiles
     from cryptoagent.seasonality.compare import candle_vs_same_hour, context_multiplier, day_range_vs_history
     from cryptoagent.seasonality.profiles import add_buckets

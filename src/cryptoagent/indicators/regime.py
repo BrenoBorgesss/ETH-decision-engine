@@ -26,6 +26,7 @@ def classify_regime(
     adx_lateral: float = 20,
     atr_percentil_alta_vol: float = 90,
 ) -> pd.Series:
+    """Classifica cada candle em tendência de alta, tendência de baixa, lateral, alta volatilidade, transição ou indefinido, a partir do ADX, dos DI e do percentil do ATR."""
     if adx_lateral > adx_tendencia:
         raise ValueError("adx_lateral precisa ser <= adx_tendencia")
     known = adx.notna() & plus_di.notna() & minus_di.notna() & atr_pctl.notna()

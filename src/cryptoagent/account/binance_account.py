@@ -37,16 +37,19 @@ def split_symbol(symbol: str) -> tuple[str, str]:
 
 @dataclass(frozen=True)
 class Balance:
+    """Saldo de um ativo na conta: livre e travado em ordens."""
     asset: str
     free: float
     locked: float
 
     @property
     def total(self) -> float:
+        """Livre + travado."""
         return self.free + self.locked
 
 
 async def fetch_balances(client: BinanceReadOnlyClient) -> Stamped[dict[str, Balance]]:
+    """Lê os saldos da conta (/api/v3/account, somente leitura), sem os ativos zerados. Devolve {ativo: Balance} com fonte e horário."""
     resp = await client.get("/api/v3/account", {"omitZeroBalances": "true"})
     balances = {
         b["asset"]: Balance(b["asset"], float(b["free"]), float(b["locked"]))
@@ -60,6 +63,7 @@ async def fetch_balances(client: BinanceReadOnlyClient) -> Stamped[dict[str, Bal
 
 @dataclass(frozen=True)
 class CommissionInfo:
+    """Taxas maker/taker de um par e a situação do desconto por pagar taxas em BNB."""
     symbol: str
     maker: float  # fração (0,001 = 0,1%), já somando taxa padrão + especial + imposto
     taker: float
@@ -68,6 +72,7 @@ class CommissionInfo:
     from_account: bool  # False = leitura falhou, valores vieram do config
 
     def effective(self, side: str, *, has_bnb: bool) -> float:
+        """Taxa efetiva (fração) do lado pedido ("taker" ou "maker"), com o desconto de BNB quando ele está ligado e há BNB na conta."""
         rate = self.taker if side == "taker" else self.maker
         if self.bnb_discount_enabled and has_bnb:
             rate *= self.bnb_discount_factor
@@ -75,6 +80,7 @@ class CommissionInfo:
 
 
 def parse_commission(symbol: str, data: dict) -> CommissionInfo:
+    """Converte a resposta de /api/v3/account/commission em CommissionInfo, somando taxa padrão, especial e imposto."""
     def total(kind: str) -> float:
         return sum(float(data.get(group, {}).get(kind, 0) or 0) for group in ("standardCommission", "specialCommission", "taxCommission"))
 
@@ -85,11 +91,13 @@ def parse_commission(symbol: str, data: dict) -> CommissionInfo:
 
 
 async def fetch_commission(client: BinanceReadOnlyClient, symbol: str) -> Stamped[CommissionInfo]:
+    """Lê as taxas da conta para o par (somente leitura)."""
     resp = await client.get("/api/v3/account/commission", {"symbol": symbol})
     return Stamped(parse_commission(symbol, resp.data), resp.source, resp.received_ms)  # type: ignore[arg-type]
 
 
 def fallback_commission(symbol: str, maker: float, taker: float) -> CommissionInfo:
+    """CommissionInfo com as taxas do config, sem desconto de BNB, para quando a leitura da conta falha."""
     return CommissionInfo(symbol, maker, taker, False, 1.0, False)
 
 
@@ -100,6 +108,7 @@ PriceAt = Callable[[str, int], Awaitable[float | None]]
 
 @dataclass(frozen=True)
 class Fill:
+    """Uma execução (negócio) da conta, como a Binance devolve em /api/v3/myTrades."""
     symbol: str
     trade_id: int
     order_id: int
@@ -114,6 +123,7 @@ class Fill:
 
 
 def parse_trade(symbol: str, d: dict) -> Fill:
+    """Converte um item de /api/v3/myTrades em Fill."""
     return Fill(
         symbol=symbol,
         trade_id=int(d["id"]),
@@ -173,6 +183,7 @@ def _synced_until_key(symbol: str) -> str:
 
 
 def ledger_start_ms(conn: sqlite3.Connection, symbol: str) -> int | None:
+    """Instante (ms) a partir do qual as operações do par são acompanhadas, ou None se ainda não foi definido."""
     value = get_meta(conn, _ledger_start_key(symbol))
     return int(value) if value else None
 
@@ -190,6 +201,7 @@ def ensure_ledger_start(conn: sqlite3.Connection, symbol: str, day_start_ms: int
 
 
 def upsert_fill(conn: sqlite3.Connection, fill: Fill, fee_quote: float, estimated: bool) -> None:
+    """Grava a execução em account_trades; se ela já existe, atualiza só a taxa convertida e a marca de taxa estimada."""
     conn.execute(
         """INSERT INTO account_trades (symbol, trade_id, order_id, time_ms, is_buyer, price, qty, quote_qty,
                commission, commission_asset, is_maker, fee_quote, fee_estimated)

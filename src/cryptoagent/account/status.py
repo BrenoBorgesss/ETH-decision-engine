@@ -38,6 +38,7 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class AccountStatus:
+    """Foto da conta para a decisão: sessão do dia, saldos, taxas, resultado do dia, limites e os motivos de bloqueio e avisos."""
     mode: str
     verified: bool  # True = números conferidos pela Binance; False = diário manual
     reasons: list[str] = field(default_factory=list)  # motivos de bloqueio -> ESPERAR
@@ -62,10 +63,12 @@ class AccountStatus:
 
     @property
     def blocked(self) -> bool:
+        """True se há algum motivo de bloqueio (o sinal fica em ESPERAR)."""
         return bool(self.reasons)
 
 
 class AccountMonitor:
+    """Lê a conta (ou o diário manual) e monta o AccountStatus. Guarda em memória a última checagem de permissões."""
     def __init__(self, cfg: Config, secrets: Secrets, client: BinanceReadOnlyClient, conn: sqlite3.Connection):
         self.cfg = cfg
         self.secrets = secrets
@@ -84,6 +87,7 @@ class AccountMonitor:
         return self._permissions
 
     async def refresh(self) -> AccountStatus:
+        """Monta o status agora: permissões, sessão do dia, preços, saldo, operações, resultado e limites. Falha de leitura vira motivo de bloqueio, nunca valor presumido."""
         cfg = self.cfg
         mode = cfg.conta.modo
         st = AccountStatus(mode=mode, verified=mode == "binance", updated_ms=now_ms())

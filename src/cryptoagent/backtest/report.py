@@ -47,6 +47,7 @@ def _clean(obj):
 
 
 def to_dict(r: PairReport) -> dict:
+    """Relatório de um par como dicionário só com tipos de JSON."""
     def v(x):
         return {"nome": x.name, "metricas": x.metrics, "nota": x.note} if x else None
     return _clean(
@@ -79,6 +80,7 @@ def to_dict(r: PairReport) -> dict:
 
 
 def save_json(reports: list[PairReport], path: Path) -> None:
+    """Grava o relatório de todos os pares em JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({r.pair: to_dict(r) for r in reports}, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -142,6 +144,7 @@ def _equity_svg(r: PairReport, capital: float) -> str:
 
 
 def render_html(reports: list[PairReport], path: Path, *, capital: float, tz: str, train_months: int, default_distance: float) -> None:
+    """Gera a página HTML do relatório de backtest."""
     out = [
         "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
         f"<title>Backtest da estratégia</title><style>{_CSS}</style></head><body><main>",

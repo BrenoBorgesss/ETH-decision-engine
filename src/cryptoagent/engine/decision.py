@@ -36,6 +36,7 @@ REGIME_PT = {
 
 @dataclass(frozen=True)
 class ConfidencePart:
+    """Uma parcela da confiança: nome, valor que multiplica e explicação."""
     name: str
     value: float
     explanation: str
@@ -43,6 +44,7 @@ class ConfidencePart:
 
 @dataclass
 class Decision:
+    """Resultado do motor: ação, confiança, parcelas, motivos, travas, sinais, níveis e o que invalida a leitura."""
     action: str  # COMPRAR | VENDER | ESPERAR
     confidence: float  # 0 a 100
     symbol: str
@@ -84,6 +86,7 @@ def _general_blocks(ctx: DecisionContext, p: Estrategia, problems: list[str]) ->
 
 
 def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None = None) -> Decision:
+    """Decide COMPRAR, VENDER ou ESPERAR para o contexto dado, na ordem descrita no topo do módulo. `spread_max_pct` liga a trava de spread."""
     m = ctx.market
     d = Decision("ESPERAR", 0.0, ctx.symbol, ctx.trade_symbol, m.time_ms, m.price)
     problems = data_problems(ctx, p)

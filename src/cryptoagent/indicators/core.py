@@ -12,6 +12,7 @@ def _check_period(n: int) -> None:
 
 
 def sma(values: pd.Series, n: int) -> pd.Series:
+    """Média móvel simples de `n` períodos (indefinida até completar a janela)."""
     _check_period(n)
     return values.rolling(n, min_periods=n).mean()
 

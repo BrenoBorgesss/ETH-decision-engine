@@ -37,6 +37,7 @@ def data_problems(ctx: DecisionContext, p: Estrategia) -> list[str]:
 
 @dataclass
 class TrendView:
+    """Leitura dos timeframes maiores: se bloqueia a compra, o fator de confirmação e as observações."""
     blocks_buy: bool
     factor: float  # fator de confirmação dos timeframes maiores (multiplica a confiança)
     notes_for: list[str] = field(default_factory=list)
@@ -112,6 +113,7 @@ class Levels:
 
 
 def buy_levels(ctx: DecisionContext, p: Estrategia) -> Levels | None:
+    """Entrada, stop e alvos de uma compra agora, com risco e retorno já descontados os custos e o tamanho sugerido. Devolve None se o preço já está acima das médias."""
     s15 = ctx.market.frames[p.tf_setup].iloc[-1]
     g5 = ctx.market.frames[p.tf_gatilho]
     entry = ctx.market.price

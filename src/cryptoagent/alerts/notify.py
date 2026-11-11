@@ -39,6 +39,7 @@ $n = [Windows.UI.Notifications.ToastNotification]::new($t)
 
 @dataclass(frozen=True)
 class Alert:
+    """Um aviso: horário, título, texto e se é urgente."""
     time_ms: int
     title: str
     body: str
@@ -58,6 +59,7 @@ def alert_for_change(prev_action: str | None, d: Decision, trade_price: float) -
 
 @dataclass
 class Alerter:
+    """Envia avisos (terminal, bipe e notificação do Windows, conforme o config) e guarda os 30 mais recentes para o painel."""
     cfg: Alertas
     console: Console
     tz: str = "America/Sao_Paulo"
@@ -67,6 +69,7 @@ class Alerter:
     _data_alerted: bool = False
 
     def send(self, alert: Alert) -> None:
+        """Registra o aviso, grava no log e o mostra nos canais ligados no config."""
         self.recent.appendleft(alert)
         log.info("Alerta: %s | %s", alert.title, alert.body)
         if self.cfg.terminal:
@@ -90,6 +93,7 @@ class Alerter:
             log.warning("Notificação do Windows falhou: %s", exc)
 
     def on_decision(self, prev_action: str | None, d: Decision, trade_price: float) -> None:
+        """Avisa quando a decisão muda e, no máximo uma vez por dia, quando a perda máxima do dia é atingida."""
         a = alert_for_change(prev_action, d, trade_price)
         if a:
             self.send(a)
@@ -100,6 +104,7 @@ class Alerter:
             self.send(Alert(d.time_ms, "Perda máxima do dia atingida", "Só ESPERAR até 00:00 (Brasília). Confira a ordem de stop de posições abertas.", True))
 
     def on_health(self, ok: bool, problems: list[str]) -> None:
+        """Avisa quando os dados ficam ruins por mais de 1 minuto e quando voltam ao normal."""
         now = now_ms()
         if ok:
             if self._data_alerted:

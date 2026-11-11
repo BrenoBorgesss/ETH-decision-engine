@@ -23,6 +23,7 @@ from cryptoagent.indicators.structure import nearest_levels
 
 @dataclass(frozen=True)
 class SignalScore:
+    """Nota de um sinal (0 a 1), seu peso, a explicação e se o dado estava disponível."""
     name: str
     score: float  # 0 a 1
     weight: float
@@ -31,6 +32,7 @@ class SignalScore:
 
     @property
     def contribution(self) -> float:
+        """Nota × peso."""
         return self.score * self.weight
 
 
@@ -48,6 +50,7 @@ def _last(ctx: DecisionContext, tf: str) -> pd.Series:
 
 
 def sig_vwap(ctx: DecisionContext, p: Estrategia) -> SignalScore:
+    """Nota pela distância do preço abaixo do VWAP do dia, em ATR."""
     r = _last(ctx, p.tf_setup)
     d = float(r["dist_vwap_atr"])
     s = ramp(-d, p.vwap_atr_inicio, p.vwap_atr_maximo)
@@ -56,6 +59,7 @@ def sig_vwap(ctx: DecisionContext, p: Estrategia) -> SignalScore:
 
 
 def sig_bollinger(ctx: DecisionContext, p: Estrategia) -> SignalScore:
+    """Nota pelo %B das Bandas de Bollinger (quanto mais abaixo da banda inferior, maior)."""
     r = _last(ctx, p.tf_setup)
     b = float(r["bb_pctb"])
     s = ramp(b, p.pctb_inicio, p.pctb_maximo)
@@ -64,6 +68,7 @@ def sig_bollinger(ctx: DecisionContext, p: Estrategia) -> SignalScore:
 
 
 def sig_rsi(ctx: DecisionContext, p: Estrategia) -> SignalScore:
+    """Nota pelo RSI (quanto mais baixo, maior)."""
     r = _last(ctx, p.tf_setup)
     v = float(r["rsi"])
     s = ramp(v, p.rsi_inicio, p.rsi_maximo)
@@ -71,6 +76,7 @@ def sig_rsi(ctx: DecisionContext, p: Estrategia) -> SignalScore:
 
 
 def sig_stoch_rsi(ctx: DecisionContext, p: Estrategia) -> SignalScore:
+    """Nota 1 se o Stoch RSI cruzou para cima abaixo de 20 no timeframe do gatilho; senão 0."""
     g = ctx.market.frames[p.tf_gatilho].iloc[-2:]
     if len(g) < 2:
         return SignalScore("stoch_rsi", 0.0, p.pesos["stoch_rsi"], "sem candles suficientes", False)
@@ -80,18 +86,21 @@ def sig_stoch_rsi(ctx: DecisionContext, p: Estrategia) -> SignalScore:
 
 
 def sig_divergencia(ctx: DecisionContext, p: Estrategia) -> SignalScore:
+    """Nota 1 se houve divergência altista do RSI nos últimos 8 candles do setup; senão 0."""
     recent = ctx.market.frames[p.tf_setup].iloc[-8:]
     found = bool(recent["bull_div"].any())
     return SignalScore("divergencia", 1.0 if found else 0.0, p.pesos["divergencia"], f"divergência altista do RSI {'recente' if found else 'ausente'} ({p.tf_setup})")
 
 
 def sig_pavio(ctx: DecisionContext, p: Estrategia) -> SignalScore:
+    """Nota 1 se houve pavio de rejeição embaixo nos últimos 2 candles do gatilho; senão 0."""
     recent = ctx.market.frames[p.tf_gatilho].iloc[-2:]
     found = bool(recent["bull_rejection"].any())
     return SignalScore("pavio", 1.0 if found else 0.0, p.pesos["pavio"], f"pavio de rejeição embaixo {'nos últimos 2 candles' if found else 'ausente'} ({p.tf_gatilho})")
 
 
 def sig_fluxo_taker(ctx: DecisionContext, p: Estrategia) -> SignalScore:
+    """Nota pela queda da venda agressiva em relação ao pico recente, só quando o pico foi dominado por vendas."""
     g = ctx.market.frames[p.tf_gatilho].iloc[-6:]
     peak_ratio = float(g["taker_sell_ratio"].max())
     now = float(g["sell_vol_vs_peak"].iloc[-1])
@@ -100,6 +109,7 @@ def sig_fluxo_taker(ctx: DecisionContext, p: Estrategia) -> SignalScore:
 
 
 def sig_suporte(ctx: DecisionContext, p: Estrategia) -> SignalScore:
+    """Nota pela proximidade do suporte mais próximo abaixo do preço, em ATR."""
     r = _last(ctx, p.tf_setup)
     sup, _ = nearest_levels(ctx.market.levels, ctx.market.price * 1.0000001)
     if sup is None or not r["atr"] > 0:
@@ -110,6 +120,7 @@ def sig_suporte(ctx: DecisionContext, p: Estrategia) -> SignalScore:
 
 
 def sig_order_book(ctx: DecisionContext, p: Estrategia) -> SignalScore:
+    """Nota pelo desequilíbrio do livro a favor dos compradores. Indisponível no backtest (não há histórico do livro)."""
     imb = ctx.market.book_imbalance
     if imb is None:
         return SignalScore("order_book", 0.0, p.pesos["order_book"], "order book indisponível (no backtest não existe histórico)", False)
@@ -141,6 +152,7 @@ def score_signals(ctx: DecisionContext, p: Estrategia) -> tuple[float, list[Sign
 
 @dataclass(frozen=True)
 class TriggerResult:
+    """Resultado do gatilho anti-faca caindo: se disparou e a explicação."""
     ok: bool
     detail: str
 

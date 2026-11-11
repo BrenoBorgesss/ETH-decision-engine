@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class LimitStatus:
+    """Situação dos limites do dia: resultado, quanto da perda máxima já foi usado, quanto resta e o risco por operação."""
     capital_brl: float
     max_loss_brl: float
     pnl_brl: float
@@ -18,6 +19,7 @@ class LimitStatus:
 
     @property
     def used_pct(self) -> float:
+        """Percentual da perda máxima já consumido (0 a 100)."""
         return min(100.0, self.loss_used_brl / self.max_loss_brl * 100) if self.max_loss_brl else 100.0
 
 

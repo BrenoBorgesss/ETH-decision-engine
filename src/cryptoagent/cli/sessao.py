@@ -31,6 +31,7 @@ def _session_table(s: daily.DailySession, cfg: Config) -> Table:
 
 
 async def cmd_session_start(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `sessao iniciar`: pergunta (ou recebe por argumento) o capital e a perda máxima de hoje e grava a sessão. Devolve o código de saída do processo."""
     conn = agent_db.connect(cfg.path(cfg.conta.banco))
     try:
         day = daily.today(cfg.fuso.local, cfg.fuso.inicio_dia_local)
@@ -76,6 +77,7 @@ async def cmd_session_start(cfg: Config, secrets: Secrets, args: argparse.Namesp
 
 
 async def cmd_session_show(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `sessao ver`: mostra a sessão de hoje. Devolve o código de saída do processo."""
     conn = agent_db.connect(cfg.path(cfg.conta.banco))
     try:
         session = daily.get_session(conn, daily.today(cfg.fuso.local, cfg.fuso.inicio_dia_local))

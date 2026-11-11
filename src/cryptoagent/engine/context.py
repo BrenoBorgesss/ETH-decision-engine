@@ -22,6 +22,7 @@ def closed_rows(frame: pd.DataFrame, t_ms: int, n: int) -> pd.DataFrame:
 
 @dataclass(frozen=True)
 class MarketView:
+    """O mercado no instante da decisão: preço, candles fechados com indicadores, suportes e resistências, spread e extras."""
     time_ms: int
     price: float  # preço de referência agora (no par de análise)
     frames: dict[str, pd.DataFrame]  # timeframe -> últimos candles fechados, com indicadores
@@ -46,6 +47,7 @@ class PositionView:
 
 @dataclass(frozen=True)
 class RiskView:
+    """O lado de risco da decisão: motivos de bloqueio, risco por operação, capital, avisos de dados e perda máxima do dia."""
     blocked_reasons: list[str]  # conta, sessão, perda do dia, saúde dos dados...
     risk_per_trade_brl: float | None
     capital_brl: float | None
@@ -57,12 +59,14 @@ class RiskView:
 
 @dataclass(frozen=True)
 class SeasonView:
+    """Efeito do horário na confiança: fator multiplicador e os motivos."""
     factor: float = 1.0
     reasons: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class DecisionContext:
+    """Tudo que o motor de decisão recebe. É montado igual no modo ao vivo e no backtest."""
     symbol: str  # par de análise (onde os sinais são calculados)
     trade_symbol: str  # par de operação (onde você executa)
     trade_price_ratio: float  # preço do par de operação ÷ preço do par de análise (para traduzir níveis)

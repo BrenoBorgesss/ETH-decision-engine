@@ -22,6 +22,7 @@ from cryptoagent.timeutils import format_local
 
 
 async def cmd_account_permissions(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `conta permissoes`: mostra as permissões da chave e se ela é somente leitura. Devolve o código de saída do processo."""
     if not secrets.has_binance:
         console.print("[yellow]Chave da Binance ausente no .env (BINANCE_API_KEY e BINANCE_API_SECRET).[/]")
         return 1
@@ -105,6 +106,7 @@ def _print_account(st: AccountStatus, cfg: Config) -> None:
 
 
 async def cmd_account_status(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+    """Comando `conta status`: mostra saldo, taxas, resultado do dia e limites. Devolve o código de saída do processo."""
     conn = agent_db.connect(cfg.path(cfg.conta.banco))
     try:
         async with BinanceReadOnlyClient(cfg.binance, secrets) as client:

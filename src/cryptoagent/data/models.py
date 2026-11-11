@@ -15,6 +15,7 @@ T = TypeVar("T")
 
 @dataclass(frozen=True, slots=True)
 class Stamped(Generic[T]):
+    """Um valor acompanhado da fonte e do horário em que chegou."""
     value: T
     source: str  # ex.: "binance-rest:/api/v3/ticker/bookTicker"
     received_ms: int  # quando chegou aqui (UTC, relógio local)
@@ -22,6 +23,7 @@ class Stamped(Generic[T]):
     latency_ms: float | None = None
 
     def age_s(self, now_ms: int) -> float:
+        """Idade do dado em segundos no instante `now_ms`."""
         return (now_ms - self.received_ms) / 1000
 
 
@@ -43,6 +45,7 @@ _FLOAT_COLUMNS = ["open", "high", "low", "close", "volume", "quote_volume", "tak
 
 
 def empty_klines() -> pd.DataFrame:
+    """Tabela de candles vazia, com as colunas e os tipos certos."""
     df = pd.DataFrame({c: pd.Series(dtype="float64") for c in KLINE_COLUMNS})
     return df.astype({"open_time": "int64", "close_time": "int64", "trades": "int64"})
 
@@ -69,6 +72,7 @@ def klines_to_frame(rows: list[list]) -> pd.DataFrame:
 
 @dataclass(frozen=True, slots=True)
 class Gap:
+    """Um buraco na sequência de candles."""
     start_ms: int  # open_time do primeiro candle que falta
     end_ms: int  # open_time do candle que volta a existir
     missing: int  # quantos candles faltam

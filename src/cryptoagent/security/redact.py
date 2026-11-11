@@ -29,6 +29,7 @@ _registered: set[str] = set()
 
 
 def register_secrets(values: Iterable[str | None]) -> None:
+    """Registra valores secretos para serem mascarados; valores muito curtos são ignorados."""
     for value in values:
         if value and len(value) >= _MIN_SECRET_LEN:
             _registered.add(value)
@@ -40,6 +41,7 @@ def clear_registered_secrets() -> None:
 
 
 def redact(text: object) -> str:
+    """Devolve o texto com os segredos registrados e os padrões conhecidos trocados por "***"."""
     s = str(text)
     for secret in sorted(_registered, key=len, reverse=True):
         s = s.replace(secret, MASK)
@@ -52,4 +54,5 @@ class RedactingFormatter(logging.Formatter):
     """Formatter que mascara segredos na linha final, incluindo tracebacks."""
 
     def format(self, record: logging.LogRecord) -> str:
+        """Formata o registro e mascara os segredos na linha final."""
         return redact(super().format(record))

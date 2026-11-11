@@ -33,6 +33,7 @@ class _Section(BaseModel):
 
 
 class Mercado(_Section):
+    """Seção `mercado`: par de análise, pares onde se pode operar, câmbio e timeframes."""
     simbolo_analise: str = "ETHUSDT"
     pares_candidatos: list[str] = Field(default_factory=lambda: ["ETHUSDT", "ETHBRL"])
     par_operacao: str | None = None
@@ -67,6 +68,7 @@ class Mercado(_Section):
 
 
 class Fuso(_Section):
+    """Seção `fuso`: fuso local e horário em que o dia de operação começa."""
     local: str = "America/Sao_Paulo"
     inicio_dia_local: str = "00:00"
 
@@ -87,6 +89,7 @@ class Fuso(_Section):
 
 
 class Binance(_Section):
+    """Seção `binance`: endereços, tempo limite, tentativas e limite de peso da API."""
     rest_url: str = "https://api.binance.com"
     futures_url: str = "https://fapi.binance.com"
     ws_url: str = "wss://stream.binance.com:9443"
@@ -113,6 +116,7 @@ class Binance(_Section):
 
 
 class SaudeDados(_Section):
+    """Seção `saude_dados`: idade máxima de cada dado antes de o sinal virar ESPERAR."""
     preco_max_s: float = Field(5, gt=0)
     order_book_max_s: float = Field(5, gt=0)
     candle_tolerancia_s: float = Field(30, ge=0)
@@ -122,6 +126,7 @@ class SaudeDados(_Section):
 
 
 class Historico(_Section):
+    """Seção `historico`: pasta, meses e intervalos a baixar, e a política de download."""
     pasta: str = "data/history"
     meses: int = Field(13, ge=1, le=120)
     downloads_simultaneos: int = Field(4, ge=1, le=16)
@@ -139,6 +144,7 @@ class Historico(_Section):
 
 
 class Custos(_Section):
+    """Seção `custos`: coletor de spread e slippage, taxas padrão e spread máximo."""
     banco: str = "data/costs.sqlite"
     amostra_a_cada_s: float = Field(5, ge=1)
     snapshot_completo_a_cada_s: float = Field(300, ge=10)
@@ -157,11 +163,13 @@ class Custos(_Section):
 
 
 class CapitalOperacao(_Section):
+    """Seção `capital_operacao`: teto tratado como posição da operação."""
     modo: Literal["brl", "eth"] = "brl"
     valor: float = Field(1000, gt=0)
 
 
 class Conta(_Section):
+    """Seção `conta`: modo (Binance ou diário manual), banco local e frequência da checagem de permissões."""
     modo: Literal["binance", "diario_manual"] = "binance"
     banco: str = "data/agent.sqlite"
     verificar_permissoes_a_cada_min: float = Field(60, ge=1)
@@ -169,17 +177,20 @@ class Conta(_Section):
 
 
 class Risco(_Section):
+    """Seção `risco`: divisão da perda diária por operação e regras do limite."""
     divisor_perda_diaria: float = Field(3, ge=1)
     lucro_amplia_limite: bool = False
     aviso_perda_max_pct_capital: float = Field(10, gt=0, le=100)
 
 
 class Bollinger(_Section):
+    """Parâmetros das Bandas de Bollinger."""
     periodo: int = Field(20, ge=2)
     desvios: float = Field(2.0, gt=0)
 
 
 class Indicadores(_Section):
+    """Seção `indicadores`: períodos e janelas dos indicadores técnicos."""
     ema: list[int] = Field(default_factory=lambda: [20, 50, 200])
     inclinacao_ema_barras: int = Field(5, ge=1)
     rsi: int = Field(14, ge=2)
@@ -211,6 +222,7 @@ class Indicadores(_Section):
 
 
 class Regime(_Section):
+    """Seção `regime`: limites de ADX e de volatilidade que classificam o regime de mercado."""
     adx_tendencia: float = Field(25, gt=0, lt=100)
     adx_lateral: float = Field(20, gt=0, lt=100)
     atr_percentil_alta_vol: float = Field(90, gt=50, le=100)
@@ -223,6 +235,7 @@ class Regime(_Section):
 
 
 class Sazonalidade(_Section):
+    """Seção `sazonalidade`: análise por horário, sua validação e os multiplicadores de confiança."""
     timeframe: str = "15m"
     meses_treino: int = Field(6, ge=1)
     meses_teste: int = Field(1, ge=1)
@@ -257,6 +270,7 @@ SIGNAL_NAMES = ("vwap", "bollinger", "rsi", "stoch_rsi", "divergencia", "pavio",
 
 
 class Estrategia(_Section):
+    """Seção `estrategia`: timeframes, sinais ativos e pesos, travas, níveis e regras de saída."""
     tf_contexto: str = "4h"
     tf_confirmacao: str = "1h"
     tf_setup: str = "15m"
@@ -325,10 +339,12 @@ class Estrategia(_Section):
 
     @property
     def timeframes(self) -> list[str]:
+        """Timeframes usados pela estratégia, sem repetição."""
         return list(dict.fromkeys([self.tf_contexto, self.tf_confirmacao, self.tf_setup, self.tf_gatilho, self.tf_timing]))
 
 
 class Backtest(_Section):
+    """Seção `backtest`: pares, capital, slippage, walk-forward e grade de parâmetros."""
     pares: list[str] = Field(default_factory=lambda: ["ETHUSDT", "ETHBRL"])
     capital: float = Field(1000, gt=0)
     perda_max_dia_pct: float = Field(3, gt=0, lt=100)
@@ -362,6 +378,7 @@ class Backtest(_Section):
 
 
 class Paper(_Section):
+    """Seção `paper`: carteira virtual, variantes e avaliação dos sinais."""
     par: str = "ETHBRL"
     capital: float = Field(1000, gt=0)
     perda_max_dia_pct: float = Field(3, gt=0, lt=100)
@@ -380,6 +397,7 @@ class Paper(_Section):
 
 
 class Painel(_Section):
+    """Seção `painel`: porta, frequência da análise e tamanho dos buffers."""
     porta: int = Field(8765, ge=1024, le=65535)
     abrir_navegador: bool = True
     recalcular_ao_fechar: list[str] = Field(default_factory=lambda: ["5m"])
@@ -402,12 +420,14 @@ class Painel(_Section):
 
 
 class Alertas(_Section):
+    """Seção `alertas`: canais de aviso ligados."""
     terminal: bool = True
     som: bool = True
     windows: bool = True
 
 
 class Logs(_Section):
+    """Seção `logs`: pasta, nível, formato e rotação do arquivo de log."""
     pasta: str = "logs"
     nivel: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     formato: Literal["texto", "json"] = "texto"
@@ -416,6 +436,7 @@ class Logs(_Section):
 
 
 class Config(_Section):
+    """Configuração completa (config/config.yaml), com uma seção por atributo."""
     mercado: Mercado = Field(default_factory=Mercado)
     fuso: Fuso = Field(default_factory=Fuso)
     binance: Binance = Field(default_factory=Binance)
@@ -439,14 +460,17 @@ class Config(_Section):
 
     @property
     def root(self) -> Path:
+        """Pasta do projeto (a que contém config/config.yaml)."""
         return self._root
 
     def path(self, relative: str | Path) -> Path:
+        """Resolve um caminho do config: absoluto fica como está, relativo parte da pasta do projeto."""
         p = Path(relative)
         return p if p.is_absolute() else self._root / p
 
 
 class Secrets(BaseModel):
+    """Chaves lidas do ambiente, guardadas como SecretStr (não aparecem em print, repr nem log)."""
     model_config = ConfigDict(frozen=True)
 
     binance_api_key: SecretStr | None = None
@@ -454,6 +478,7 @@ class Secrets(BaseModel):
 
     @property
     def has_binance(self) -> bool:
+        """True se a chave e o segredo da Binance estão presentes."""
         return self.binance_api_key is not None and self.binance_api_secret is not None
 
     def raw_values(self) -> list[str]:

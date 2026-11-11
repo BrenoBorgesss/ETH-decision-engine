@@ -116,6 +116,7 @@ def wick_rejection(df: pd.DataFrame, min_wick_ratio: float = 0.5) -> pd.DataFram
 
 @dataclass(frozen=True)
 class Level:
+    """Um nível de suporte ou resistência: preço, número de toques, posição do pivô mais recente e origem."""
     price: float
     touches: int  # quantos pivôs formaram o nível
     last_pos: int  # posição do pivô mais recente do nível

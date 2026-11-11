@@ -33,6 +33,7 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class BookState:
+    """Último estado conhecido do livro de um par: melhor compra e venda, níveis de profundidade e quando cada um chegou."""
     symbol: str
     bid: float | None = None
     ask: float | None = None
@@ -45,6 +46,7 @@ class BookState:
     depth_source: str = "ws"
 
     def mid(self) -> float | None:
+        """Preço médio entre a melhor compra e a melhor venda, ou None sem dados."""
         if self.bid and self.ask:
             return (self.bid + self.ask) / 2
         if self.bids and self.asks:
@@ -114,6 +116,7 @@ def build_sample(book: BookState, now: int, sizes: dict[str, float | None], fx_u
 
 
 class CostRecorder:
+    """Coletor de custos: recebe o livro pelo WebSocket (com a API REST como reserva) e grava amostras de spread, profundidade e slippage no SQLite."""
     def __init__(self, cfg: Config, client: BinanceReadOnlyClient, conn: sqlite3.Connection, *, console: Console | None = None):
         self.cfg = cfg
         self.client = client
@@ -128,6 +131,7 @@ class CostRecorder:
         self._last_rows: dict[str, dict] = {}
 
     def on_message(self, stream: str, data: dict, received_ms: int) -> None:
+        """Recebe uma mensagem do WebSocket (bookTicker ou depth) e atualiza o estado do livro do par."""
         name, _, kind = stream.partition("@")
         book = self.books.get(name.upper())
         if book is None:
@@ -149,6 +153,7 @@ class CostRecorder:
         self.rest_fallbacks += 1
 
     async def sample_once(self, now: int | None = None) -> list[dict]:
+        """Grava uma amostra de cada par com livro fresco; livro velho é buscado pela API REST antes. Devolve as linhas gravadas."""
         max_age_ms = int(self.cfg.saude_dados.order_book_max_s * 1000)
         for book in self.books.values():
             stale = book.depth_ms is None or (now or now_ms()) - book.depth_ms > max_age_ms
@@ -179,6 +184,7 @@ class CostRecorder:
         return rows
 
     def snapshot_once(self, now: int | None = None) -> None:
+        """Grava o livro completo de cada par (níveis de compra e venda)."""
         now = now or now_ms()
         for book in self.books.values():
             if book.bids and book.asks:
@@ -203,6 +209,7 @@ class CostRecorder:
             await _wait(stop, max(0.0, every - (loop.time() - started)))
 
     def print_status(self) -> None:
+        """Imprime uma linha de andamento: amostras gravadas, spread de cada par e estado do WebSocket."""
         tz = self.cfg.fuso.local
         parts = []
         for sym in self.symbols:
@@ -216,6 +223,7 @@ class CostRecorder:
         )
 
     async def run(self, stop: asyncio.Event, duration_s: float | None = None) -> None:
+        """Roda a coleta até `stop` ser acionado ou passarem `duration_s` segundos."""
         db.log_event(self.conn, now_ms(), "start", ",".join(self.symbols))
         tasks = [asyncio.create_task(self.stream.run(stop)), asyncio.create_task(self._sample_loop(stop))]
         if duration_s:
