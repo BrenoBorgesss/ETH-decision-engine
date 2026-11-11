@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import contextlib
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -74,7 +75,8 @@ def test_replay_e_reprodutivel(tmp_path):
     run_replay(cfg, a, ms(2026, 9, 8, 10), ms(2026, 9, 8, 11))
     run_replay(cfg, b, ms(2026, 9, 8, 10), ms(2026, 9, 8, 11))
     q = "SELECT decision_ms, entry_ms, entry_price, qty, exit_ms, exit_price, pnl FROM paper_trades ORDER BY id"
-    assert sqlite3.connect(a).execute(q).fetchall() == sqlite3.connect(b).execute(q).fetchall()
+    with contextlib.closing(sqlite3.connect(a)) as ca, contextlib.closing(sqlite3.connect(b)) as cb:
+        assert ca.execute(q).fetchall() == cb.execute(q).fetchall()
 
 
 def test_cliente_de_replay_so_entrega_o_passado(tmp_path):
@@ -116,7 +118,9 @@ def test_resetar_guarda_copia_e_so_age_com_confirmacao(tmp_path, capsys):
     assert asyncio.run(cmd_paper_reset(cfg, Secrets(), argparse.Namespace(confirmar=True))) == 0
     assert not db.exists()
     backups = list(tmp_path.glob("simulacao_antes_reset_*.sqlite"))
-    assert len(backups) == 1 and sqlite3.connect(backups[0]).execute("SELECT COUNT(*) FROM signals").fetchone()[0] == 12
+    assert len(backups) == 1
+    with contextlib.closing(sqlite3.connect(backups[0])) as c:
+        assert c.execute("SELECT COUNT(*) FROM signals").fetchone()[0] == 12
 
 
 def test_perda_maxima_precisa_ser_menor_que_o_capital(tmp_path):

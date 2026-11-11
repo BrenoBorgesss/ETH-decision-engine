@@ -1,6 +1,7 @@
 """Painel (Etapa 10): aviso exato, biblioteca local conferida, rotas novas, erros amigáveis, abas e demonstração."""
 
 import asyncio
+import contextlib
 import hashlib
 import re
 import sqlite3
@@ -181,9 +182,6 @@ def test_painel_de_demonstracao_roda_sem_rede_e_mostra_a_carteira_virtual(tmp_pa
     assert snap["carteira_virtual"]["capital_inicial"] == 1000
     assert snap["aviso_legal"] == EXACT
     assert any(m["acao"] == "COMPRAR" for m in candles["marcadores"])  # a compra das 10:15 aparece no gráfico
-    rows = (
-        sqlite3.connect(tmp_path / "replay" / "painel-demo.sqlite")
-        .execute("SELECT COUNT(*) FROM signals")
-        .fetchone()[0]
-    )
+    with contextlib.closing(sqlite3.connect(tmp_path / "replay" / "painel-demo.sqlite")) as c:
+        rows = c.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
     assert rows == 10  # um sinal por candle de 5m fechado em 50 minutos

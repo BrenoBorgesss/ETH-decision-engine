@@ -89,12 +89,16 @@ def test_rotas_rodam_na_thread_do_servico(tmp_path):
                 self.conn = sqlite3.connect(tmp_path / "x.sqlite")
                 self.thread = threading.get_ident()
             self.conn.execute("SELECT 1")
+            if getattr(self, "fechar", False):
+                self.conn.close()  # fecha na mesma thread que criou (o SQLite não aceita outra)
             return {"thread": threading.get_ident()}
 
     svc = SqliteService()
     with TestClient(create_app(svc, token=TOKEN), base_url=LOCAL) as c:
         a = c.get("/api/estado").json()["thread"]
         b = c.get("/api/estado").json()["thread"]
+        svc.fechar = True
+        assert c.get("/api/estado").json()["thread"] == b
     assert a == b  # mesma thread em toda chamada (a do loop), nunca um pool de threads
 
 

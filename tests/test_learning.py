@@ -295,6 +295,7 @@ def test_reavaliacao_automatica_dispara_na_virada_do_dia_e_por_operacoes(tmp_pat
         await auto.task
 
     asyncio.run(go())
+    conn.close()
     from cryptoagent.timeutils import local_trading_day
 
     assert started == [
