@@ -1,0 +1,32 @@
+# Checagens rodadas antes de cada commit (instale uma vez com: pre-commit install).
+# Rodar em tudo: pre-commit run --all-files
+exclude: ^src/cryptoagent/dashboard/static/vendor/  # biblioteca de terceiros: bytes exatos (hash conferido nos testes)
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.4  # mesma versão de pyproject.toml ([project.optional-dependencies] dev)
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+        args: [--check]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: check-added-large-files
+        args: [--maxkb=8000]  # a amostra de candles do demo tem arquivos de alguns MB
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: nada-de-segredos-ou-dados-pessoais
+        name: bloqueia .env, bancos SQLite e dados locais
+        language: fail
+        entry: "não commite este arquivo: segredos (.env) e dados pessoais (bancos, data/, logs/) ficam fora do repositório"
+        files: '(^|/)\.env$|\.sqlite3?$|\.db$|^data/|^logs/'

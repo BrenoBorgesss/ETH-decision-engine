@@ -1,0 +1,66 @@
+# Lint e testes a cada push e pull request. Nada aqui usa chave da Binance nem internet além de baixar pacotes:
+# os testes rodam com respostas falsas da corretora e com a amostra de candles do repositório.
+name: CI
+
+on:
+  push:
+    branches: [main, melhorias]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint e formatação (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Instala o ruff (mesma versão do pyproject.toml)
+        run: python -m pip install "ruff==0.17.4"
+      - name: Lint
+        run: ruff check --output-format=github .
+      - name: Formatação
+        run: ruff format --check .
+
+  testes:
+    name: Testes (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.11", "3.14"]  # a menor versão aceita (pyproject.toml) e a usada no desenvolvimento
+        include:
+          - os: windows-latest
+            python: "3.14"
+    env:
+      PYTHONUTF8: "1"
+      COLUMNS: "200"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Instala o projeto e as ferramentas de teste
+        run: python -m pip install -e ".[dev]"
+      - name: Testes com cobertura
+        run: python -m pytest -q --cov --cov-report=json:coverage.json --cov-report=term
+      - name: Cobertura das partes críticas (mínimo de 85% por área)
+        run: python scripts/cobertura_critica.py coverage.json --minimo 85
+      - name: Guarda o relatório de cobertura
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: coverage.json
