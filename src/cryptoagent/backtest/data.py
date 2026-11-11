@@ -10,6 +10,7 @@ import pandas as pd
 from cryptoagent.backtest.season_pit import SeasonPIT
 from cryptoagent.config import Config, Estrategia
 from cryptoagent.data.history import HistoryStore
+from cryptoagent.data.validation import inspect_klines
 from cryptoagent.indicators.compute import compute_indicators
 from cryptoagent.timeutils import local_hour_weekday_series
 
@@ -63,6 +64,13 @@ def _first_valid(frames: dict[str, pd.DataFrame], p: Estrategia) -> int:
     return first
 
 
+def _require_valid(df: pd.DataFrame, symbol: str, tf: str) -> None:
+    """Recusa histórico com candle inválido: o resultado do backtest não seria confiável."""
+    quality = inspect_klines(df, tf)
+    if not quality.ok or quality.duplicates or quality.out_of_order:
+        raise ValueError(f"histórico de {symbol} {tf} com problema ({quality.summary()}): rode cryptoagent historico verificar")
+
+
 def load_backtest_data(cfg: Config, trade_symbol: str, *, season_cost_pct: float | None = None) -> BacktestData:
     """Carrega o histórico do disco, calcula os indicadores e monta o BacktestData do par de operação. Levanta FileNotFoundError se faltar histórico."""
     p, tz, day_start = cfg.estrategia, cfg.fuso.local, cfg.fuso.inicio_dia_local
@@ -73,12 +81,14 @@ def load_backtest_data(cfg: Config, trade_symbol: str, *, season_cost_pct: float
         raw = store.load(sym, tf)
         if raw.empty:
             raise FileNotFoundError(f"sem histórico de {sym} {tf}: rode cryptoagent historico baixar")
+        _require_valid(raw, sym, tf)
         frames[tf] = raw if tf == p.tf_timing else compute_indicators(raw, cfg.indicadores, cfg.regime, tz_name=tz, day_start=day_start)
     close_times = {tf: f["close_time"].to_numpy() for tf, f in frames.items()}
 
     trade_1m = store.load(trade_symbol, "1m")
     if trade_1m.empty:
         raise FileNotFoundError(f"sem histórico de {trade_symbol} 1m: rode cryptoagent historico baixar")
+    _require_valid(trade_1m, trade_symbol, "1m")
     a1 = frames[p.tf_timing][["open_time", "close"]]
     joined = trade_1m[["open_time", "close"]].merge(a1, on="open_time", suffixes=("_t", "_a"))
 

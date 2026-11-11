@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from cryptoagent.data.validation import QualityReport
 from cryptoagent.timeutils import interval_ms
 
 
@@ -94,3 +95,13 @@ def check_divergence(name: str, a: float | None, b: float | None, max_pct: float
     if diff > max_pct:
         return Check(name, False, f"fontes divergem {diff:.3f}% (limite {max_pct:g}%)")
     return Check(name, True, f"fontes batem (diferença {diff:.3f}%)")
+
+
+def check_quality(name: str, quality: QualityReport, source: str | None = None) -> Check:
+    """Falha (crítica) se a validação achou candle inválido: valor ausente, horário fora da grade, preço incoerente ou volume negativo.
+
+    Outliers e lacunas não reprovam: podem ser movimentos e paradas reais da corretora.
+    """
+    if quality.ok:
+        return Check(name, True, f"{quality.rows} candles válidos", source=source)
+    return Check(name, False, f"candles inválidos: {quality.summary()}", source=source)

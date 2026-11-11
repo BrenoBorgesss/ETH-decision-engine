@@ -29,6 +29,7 @@ import pandas as pd
 
 from cryptoagent.data.models import KLINE_COLUMNS, Gap, empty_klines, find_gaps, normalize_klines
 from cryptoagent.data.retry import STATUS_IP_BANNED, STATUS_RATE_LIMITED, RetryPolicy, should_retry_status
+from cryptoagent.data.validation import DEFAULT_OUTLIER_SIGMAS, QualityReport, clean_klines
 from cryptoagent.timeutils import UTC, interval_ms, now_ms
 
 log = logging.getLogger(__name__)
@@ -74,21 +75,31 @@ def plan_periods(today_utc: date, months: int) -> list[Period]:
     return periods
 
 
-def parse_kline_csv(raw: bytes) -> pd.DataFrame:
-    """Lê o CSV de klines (com ou sem cabeçalho; horários em ms ou µs)."""
+def parse_kline_csv_raw(raw: bytes) -> pd.DataFrame:
+    """Lê o CSV de klines como veio (com ou sem cabeçalho), sem validar nem converter horários."""
     has_header = raw[:20].lower().startswith(b"open_time")
     df = pd.read_csv(io.BytesIO(raw), header=0 if has_header else None, usecols=range(11))
     df.columns = KLINE_COLUMNS
-    return normalize_klines(df)
+    return df
 
 
-def read_zip_csv(content: bytes) -> pd.DataFrame:
-    """Lê em memória o único CSV de um ZIP de klines. Levanta HistoryDownloadError se o ZIP não tiver exatamente um CSV."""
+def parse_kline_csv(raw: bytes) -> pd.DataFrame:
+    """Lê o CSV de klines (com ou sem cabeçalho; horários em ms ou µs)."""
+    return normalize_klines(parse_kline_csv_raw(raw))
+
+
+def read_zip_csv_raw(content: bytes) -> pd.DataFrame:
+    """Lê em memória o único CSV de um ZIP de klines, como veio. Levanta HistoryDownloadError se o ZIP não tiver exatamente um CSV."""
     with zipfile.ZipFile(io.BytesIO(content)) as zf:
         names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
         if len(names) != 1:
             raise HistoryDownloadError(f"ZIP inesperado: {len(names)} arquivos CSV")
-        return parse_kline_csv(zf.read(names[0]))
+        return parse_kline_csv_raw(zf.read(names[0]))
+
+
+def read_zip_csv(content: bytes) -> pd.DataFrame:
+    """Como `read_zip_csv_raw`, já com tipos e horários normalizados."""
+    return normalize_klines(read_zip_csv_raw(content))
 
 
 def verify_checksum(content: bytes, checksum_text: str) -> bool:
@@ -145,6 +156,8 @@ class DownloadStats:
     checksum_failures: list[str] = field(default_factory=list)
     rows_total: int = 0
     rows_from_rest: int = 0
+    invalid_rows: int = 0  # linhas descartadas pela validação nos arquivos baixados agora
+    quality: QualityReport | None = None  # validação do histórico gravado
     first_ms: int | None = None
     last_ms: int | None = None
     gaps: list[Gap] = field(default_factory=list)
@@ -214,6 +227,7 @@ async def download_history(
     concurrency: int = 4,
     retry: RetryPolicy = DEFAULT_RETRY,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    outlier_sigmas: float = DEFAULT_OUTLIER_SIGMAS,
 ) -> DownloadStats:
     """Baixa do data.binance.vision os períodos que ainda faltam, confere o checksum de cada um, junta com o que já existe e grava. Devolve as estatísticas."""
     today_utc = today_utc or datetime.now(UTC).date()
@@ -240,8 +254,12 @@ async def download_history(
             stats.checksum_failures.append(period.label)
             log.warning("Checksum não confere para %s %s %s; arquivo descartado", symbol, interval, period.label)
             return []
+        clean, quality = clean_klines(read_zip_csv_raw(content), interval, outlier_sigmas=outlier_sigmas)
+        if not quality.ok:
+            stats.invalid_rows += quality.invalid_rows
+            log.warning("%s %s %s: %d linha(s) inválida(s) descartada(s): %s", symbol, interval, period.label, quality.invalid_rows, quality.summary())
         stats.files_ok += 1
-        return [(period.label, read_zip_csv(content))]
+        return [(period.label, clean)]
 
     results = await asyncio.gather(*(get_period(p) for p in todo))
     new = [item for part in results for item in part]
@@ -252,7 +270,7 @@ async def download_history(
     ) else empty_klines()
     store.save(symbol, interval, combined)
     store.write_manifest(symbol, interval, done | {label for label, _ in new})
-    _fill_stats(stats, combined, interval)
+    _fill_stats(stats, combined, interval, outlier_sigmas)
     return stats
 
 
@@ -290,6 +308,9 @@ async def update_from_rest(
                 break
             frame, _ = await client.klines(symbol, interval, start_ms=start, limit=REST_PAGE)
             frame = frame[frame["close_time"] < now]  # só candles já fechados
+            frame, quality = clean_klines(frame, interval, now_ms=now)
+            if not quality.ok:
+                log.warning("%s %s (REST): %d linha(s) inválida(s) descartada(s): %s", symbol, interval, quality.invalid_rows, quality.summary())
             if frame.empty:
                 break
             new_frames.append(frame)
@@ -303,16 +324,31 @@ async def update_from_rest(
     return sum(len(f) for f in new_frames)
 
 
-def summarize(store: HistoryStore, symbol: str, interval: str) -> DownloadStats:
-    """Estatísticas do histórico já gravado, sem baixar nada."""
+def summarize(store: HistoryStore, symbol: str, interval: str, outlier_sigmas: float = DEFAULT_OUTLIER_SIGMAS) -> DownloadStats:
+    """Estatísticas e validação do histórico já gravado, sem baixar nada."""
     stats = DownloadStats(symbol, interval)
-    _fill_stats(stats, store.load(symbol, interval), interval)
+    _fill_stats(stats, store.load(symbol, interval), interval, outlier_sigmas)
     return stats
 
 
-def _fill_stats(stats: DownloadStats, df: pd.DataFrame, interval: str) -> None:
+def _fill_stats(stats: DownloadStats, df: pd.DataFrame, interval: str, outlier_sigmas: float = DEFAULT_OUTLIER_SIGMAS) -> None:
     stats.rows_total = len(df)
     if not df.empty:
         stats.first_ms = int(df["open_time"].iloc[0])
         stats.last_ms = int(df["open_time"].iloc[-1])
-    stats.gaps = find_gaps(df, interval)
+    stats.quality = clean_klines(df, interval, outlier_sigmas=outlier_sigmas)[1]
+    stats.gaps = stats.quality.gaps if stats.quality.ok else find_gaps(df, interval)
+
+
+def series_lag(stats: list[DownloadStats]) -> dict[tuple[str, str], int]:
+    """Quantos candles cada série está atrás da mais recente, medido pelo fim do último candle.
+
+    Séries do mesmo conjunto deveriam terminar no mesmo instante (a menos de um candle em
+    formação). Devolve {(par, intervalo): candles de atraso} só para as que estão atrasadas.
+    """
+    ends = {(s.symbol, s.interval): s.last_ms + interval_ms(s.interval) for s in stats if s.last_ms is not None}
+    if not ends:
+        return {}
+    latest = max(ends.values())
+    lag = {key: (latest - end) // interval_ms(key[1]) for key, end in ends.items()}
+    return {key: int(n) for key, n in lag.items() if n >= 1}

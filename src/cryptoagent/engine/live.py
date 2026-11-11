@@ -15,8 +15,9 @@ import pandas as pd
 from cryptoagent.account.status import AccountMonitor, AccountStatus
 from cryptoagent.config import Config, Secrets
 from cryptoagent.data import history
-from cryptoagent.data.health import Check, HealthReport, check_age, check_candle, check_clock
+from cryptoagent.data.health import Check, HealthReport, check_age, check_candle, check_clock, check_quality
 from cryptoagent.data.rest import BinanceError, BinanceReadOnlyClient
+from cryptoagent.data.validation import inspect_klines
 from cryptoagent.engine.context import DecisionContext, MarketView, PositionView, RiskView, SeasonView
 from cryptoagent.engine.decision import Decision, decide
 from cryptoagent.engine.journal import auto_associate, levels_for_open_lots
@@ -113,6 +114,9 @@ async def analyze_live(
     for tf in p.timeframes:
         df, source = sources[tf]
         df = df[df["close_time"] < server_now].reset_index(drop=True)
+        quality = inspect_klines(df, tf, now_ms=server_now)
+        if not quality.ok:  # candle inválido é problema crítico: o sinal vira ESPERAR
+            health.add(check_quality(f"qualidade dos candles {tf}", quality, source))
         frames[tf] = compute_indicators(df, cfg.indicadores, cfg.regime, tz_name=tz, day_start=cfg.fuso.inicio_dia_local)
         last_close = int(df["close_time"].iloc[-1]) if not df.empty else None
         c = check_candle(f"candles {tf}", last_close, tf, server_now, sd.candle_tolerancia_s, source)
