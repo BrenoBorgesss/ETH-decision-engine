@@ -99,3 +99,9 @@ def test_limiar_de_confianca_e_configuravel():
 
 def test_riskview_padrao_nao_trava():
     assert RiskView([], None, None).validation_reason is None
+
+
+def test_relatorio_antigo_sem_procedencia_reprova(tmp_path):
+    cfg = cfg_with_report(tmp_path, BOM)
+    (tmp_path / "backtest.meta.json").unlink()
+    assert "procedência" in check_reliability(cfg, "ETHBRL", NOW).reasons[0]

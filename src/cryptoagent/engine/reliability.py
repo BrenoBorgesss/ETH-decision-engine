@@ -56,7 +56,9 @@ def check_reliability(cfg: Config, trade_symbol: str, now_ms: int) -> Reliabilit
     report, meta = _read(folder / "backtest.json"), _read(folder / "backtest.meta.json")
     if not report or trade_symbol not in report:
         return Reliability(False, [f"não há backtest de {trade_symbol} (rode: cryptoagent backtest)"])
-    if not meta or meta.get("parametros_sha256") != params_hash(parameters(cfg)):
+    if not meta:
+        return Reliability(False, ["o último backtest não tem o registro de procedência (feito numa versão anterior; rode de novo: cryptoagent backtest)"])
+    if meta.get("parametros_sha256") != params_hash(parameters(cfg)):
         return Reliability(False, ["o último backtest foi feito com outros parâmetros (rode de novo: cryptoagent backtest)"])
     age_days = (now_ms - int(meta.get("gerado_em_ms", 0))) / DAY_MS
     if age_days > c.idade_max_relatorio_dias:
