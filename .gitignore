@@ -9,6 +9,16 @@ __pycache__/
 *.pyc
 *.egg-info/
 .pytest_cache/
+.ruff_cache/
+
+# Relatórios de cobertura e pacotes gerados
+.coverage
+.coverage.*
+coverage.json
+coverage.xml
+htmlcov/
+build/
+dist/
 
 # Dados locais (histórico, custos, sinais) e logs. A barra inicial limita a regra à RAIZ:
 # sem ela, "data/" também ignorava o pacote de código src/cryptoagent/data/.
