@@ -173,3 +173,154 @@ def test_update_from_rest_so_grava_candles_fechados(tmp_path):
     assert int(df["open_time"].iloc[-1]) == T0 + 2399 * 60_000
     assert (df["close_time"] < now).all()
     assert find_gaps(df, "1m") == []
+
+
+# ------------------------------------------------- falhas de rede simuladas (Etapa 4.1)
+
+from cryptoagent.data.history import HistoryDownloadError, _fetch  # noqa: E402
+from cryptoagent.data.retry import RetryPolicy  # noqa: E402
+
+
+def fetch_with(handler, retry=RetryPolicy(attempts=4, base_s=1.0, max_s=30.0, jitter=False)):
+    sleeps: list[float] = []
+
+    async def fake_sleep(s):
+        sleeps.append(s)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            return await _fetch(http, BASE + "/x.zip", asyncio.Semaphore(1), retry, fake_sleep)
+
+    return go, sleeps
+
+
+def test_politica_de_espera_dobra_ate_o_teto():
+    p = RetryPolicy(attempts=10, base_s=0.5, max_s=30.0, jitter=False)
+    assert [p.delay(n) for n in range(8)] == [0.5, 1, 2, 4, 8, 16, 30, 30]
+    com_sorteio = RetryPolicy(attempts=3, base_s=2.0)
+    assert com_sorteio.delay(1, rnd=lambda: 0.0) == 2.0 and com_sorteio.delay(1, rnd=lambda: 1.0) == 6.0
+
+
+def test_retry_after_usa_o_cabecalho_o_padrao_e_o_teto():
+    p = RetryPolicy(attempts=3, retry_after_default_s=60, retry_after_max_s=300)
+    assert p.retry_after({"retry-after": "7"}) == 7.0
+    assert p.retry_after({}) == 60.0
+    assert p.retry_after({"retry-after": "amanhã"}) == 60.0
+    assert p.retry_after({"retry-after": "99999"}) == 300.0
+
+
+def test_download_repete_em_falha_de_rede_timeout_e_erro_do_servidor_com_espera_crescente():
+    state = {"n": 0}
+
+    def handler(req):
+        state["n"] += 1
+        if state["n"] == 1:
+            raise httpx.ConnectError("sem internet")
+        if state["n"] == 2:
+            raise httpx.ReadTimeout("demorou demais")
+        if state["n"] == 3:
+            return httpx.Response(503, text="indisponível")
+        return httpx.Response(200, content=b"conteudo")
+
+    go, sleeps = fetch_with(handler)
+    assert asyncio.run(go()) == b"conteudo"
+    assert state["n"] == 4
+    assert sleeps == [1.0, 2.0, 4.0]  # 1 s, depois dobra
+
+
+def test_download_desiste_depois_do_maximo_de_tentativas():
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        raise httpx.ConnectError("sem internet")
+
+    go, sleeps = fetch_with(handler, RetryPolicy(attempts=3, base_s=1.0, jitter=False))
+    try:
+        asyncio.run(go())
+        raise AssertionError("deveria ter falhado")
+    except HistoryDownloadError as exc:
+        assert "falha de rede (ConnectError)" in str(exc)
+    assert len(calls) == 3
+    assert sleeps == [1.0, 2.0]  # não espera depois da última tentativa
+
+
+def test_download_429_espera_o_retry_after():
+    responses = iter([httpx.Response(429, headers={"Retry-After": "12"}), httpx.Response(200, content=b"ok")])
+    go, sleeps = fetch_with(lambda req: next(responses))
+    assert asyncio.run(go()) == b"ok"
+    assert sleeps == [12.0]
+
+
+def test_download_418_e_erro_do_cliente_param_na_hora():
+    for status in (418, 400):
+        calls = []
+
+        def handler(req, status=status):
+            calls.append(1)
+            return httpx.Response(status)
+
+        go, sleeps = fetch_with(handler)
+        try:
+            asyncio.run(go())
+            raise AssertionError("deveria ter falhado")
+        except HistoryDownloadError:
+            pass
+        assert len(calls) == 1 and sleeps == []
+
+
+def test_download_404_significa_arquivo_inexistente_sem_repetir():
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        return httpx.Response(404)
+
+    go, sleeps = fetch_with(handler)
+    assert asyncio.run(go()) is None and len(calls) == 1 and sleeps == []
+
+
+class KlinesQueCai(FakeKlines):
+    """Entrega `ok_calls` páginas e depois simula queda de rede."""
+
+    def __init__(self, start, n_available, ok_calls):
+        super().__init__(start, n_available)
+        self.ok_calls = ok_calls
+        self.starts = []
+
+    async def klines(self, symbol, interval, *, start_ms=None, end_ms=None, limit=500):
+        self.starts.append(start_ms)
+        if self.calls >= self.ok_calls:
+            raise ConnectionError("rede caiu no meio da coleta")
+        return await super().klines(symbol, interval, start_ms=start_ms, end_ms=end_ms, limit=limit)
+
+
+def test_coleta_incremental_guarda_o_que_chegou_e_continua_de_onde_parou(tmp_path):
+    store = HistoryStore(tmp_path)
+    store.save("ETHUSDT", "1m", parse_kline_csv(csv_rows(T0, 10)))
+    now = T0 + 3500 * 60_000 + 30_000
+    caiu = KlinesQueCai(T0, 5000, ok_calls=2)
+    try:
+        asyncio.run(update_from_rest(store, caiu, "ETHUSDT", "1m", months=1, now=now))
+        raise AssertionError("deveria ter propagado a falha de rede")
+    except ConnectionError:
+        pass
+    parcial = store.load("ETHUSDT", "1m")
+    assert len(parcial) == 10 + 2000  # as duas páginas que chegaram foram gravadas
+    # segunda execução: começa no candle seguinte ao último gravado, sem pedir nada de novo
+    ok = FakeKlines(T0, 5000)
+    pedidos = []
+    original = ok.klines
+
+    async def espiao(symbol, interval, *, start_ms=None, end_ms=None, limit=500):
+        pedidos.append(start_ms)
+        return await original(symbol, interval, start_ms=start_ms, end_ms=end_ms, limit=limit)
+
+    ok.klines = espiao
+    added = asyncio.run(update_from_rest(store, ok, "ETHUSDT", "1m", months=1, now=now))
+    final = store.load("ETHUSDT", "1m")
+    assert pedidos[0] == T0 + 2010 * 60_000
+    assert added == 3500 - 2010 and len(final) == 3500
+    assert find_gaps(final, "1m") == [] and final["open_time"].is_unique
+    # terceira execução, sem candle novo: nenhuma linha entra
+    assert asyncio.run(update_from_rest(store, FakeKlines(T0, 5000), "ETHUSDT", "1m", months=1, now=now)) == 0

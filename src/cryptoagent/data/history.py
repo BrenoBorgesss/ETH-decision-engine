@@ -18,6 +18,7 @@ import io
 import json
 import logging
 import zipfile
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -27,6 +28,7 @@ import httpx
 import pandas as pd
 
 from cryptoagent.data.models import KLINE_COLUMNS, Gap, empty_klines, find_gaps, normalize_klines
+from cryptoagent.data.retry import STATUS_IP_BANNED, STATUS_RATE_LIMITED, RetryPolicy, should_retry_status
 from cryptoagent.timeutils import UTC, interval_ms, now_ms
 
 log = logging.getLogger(__name__)
@@ -153,25 +155,50 @@ class DownloadStats:
         return sum(g.missing for g in self.gaps)
 
 
-async def _fetch(http: httpx.AsyncClient, url: str, sem: asyncio.Semaphore, attempts: int = 3, wait_s: float = 1.5) -> bytes | None:
+DEFAULT_RETRY = RetryPolicy(attempts=3, base_s=1.5)
+
+
+async def _fetch(
+    http: httpx.AsyncClient,
+    url: str,
+    sem: asyncio.Semaphore,
+    retry: RetryPolicy = DEFAULT_RETRY,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> bytes | None:
     """Baixa um arquivo. Retorna None se não existir (404/403).
 
-    Repete até `attempts` vezes, esperando `wait_s` × número da tentativa entre uma e outra.
+    Mesma política do cliente REST (`data/retry.py`): falha de rede, tempo esgotado e erro 5xx
+    são repetidos com espera crescente; 429 espera o `Retry-After`; 418 (IP bloqueado) e os
+    demais erros 4xx param na hora, porque repetir não resolve.
     """
-    error: Exception | None = None
-    for attempt in range(attempts):
+    name = url.rsplit("/", 1)[-1]
+    error = "sem resposta"
+    for attempt in range(retry.attempts):
         async with sem:
             try:
                 resp = await http.get(url)
             except httpx.TransportError as exc:
-                error = exc
-            else:
-                if resp.status_code in (403, 404):
-                    return None
-                if resp.status_code == 200:
-                    return resp.content
-                error = RuntimeError(f"HTTP {resp.status_code}")
-        await asyncio.sleep(wait_s * (attempt + 1))
+                resp = None
+                error = f"falha de rede ({type(exc).__name__})"
+        if resp is not None:
+            status = resp.status_code
+            if status == 200:
+                return resp.content
+            if status in (403, 404):
+                return None
+            error = f"HTTP {status}"
+            if status == STATUS_IP_BANNED:
+                raise HistoryDownloadError(f"Falha ao baixar {url}: IP bloqueado temporariamente (HTTP 418); não vou insistir")
+            if status == STATUS_RATE_LIMITED:
+                wait = retry.retry_after(resp.headers)
+                log.warning("Limite de requisições ao baixar %s; aguardando %.0f s", name, wait)
+                await sleep(wait)
+                continue
+            if not should_retry_status(status):
+                break
+        log.warning("Download de %s falhou (tentativa %d de %d): %s", name, attempt + 1, retry.attempts, error)
+        if attempt + 1 < retry.attempts:
+            await sleep(retry.delay(attempt))
     raise HistoryDownloadError(f"Falha ao baixar {url}: {error}")
 
 
@@ -185,8 +212,8 @@ async def download_history(
     *,
     today_utc: date | None = None,
     concurrency: int = 4,
-    attempts: int = 3,
-    retry_wait_s: float = 1.5,
+    retry: RetryPolicy = DEFAULT_RETRY,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> DownloadStats:
     """Baixa do data.binance.vision os períodos que ainda faltam, confere o checksum de cada um, junta com o que já existe e grava. Devolve as estatísticas."""
     today_utc = today_utc or datetime.now(UTC).date()
@@ -200,7 +227,7 @@ async def download_history(
 
     async def get_period(period: Period) -> list[tuple[str, pd.DataFrame]]:
         url = period.url(base_url, symbol, interval)
-        content = await _fetch(http, url, sem, attempts, retry_wait_s)
+        content = await _fetch(http, url, sem, retry, sleep)
         if content is None:
             if period == latest_monthly:
                 # O arquivo do mês anterior às vezes só sai alguns dias depois: usa os diários.
@@ -208,7 +235,7 @@ async def download_history(
                 return [item for part in parts for item in part]
             stats.missing.append(period.label)
             return []
-        checksum = await _fetch(http, url + ".CHECKSUM", sem, attempts, retry_wait_s)
+        checksum = await _fetch(http, url + ".CHECKSUM", sem, retry, sleep)
         if checksum is None or not verify_checksum(content, checksum.decode("utf-8", "replace")):
             stats.checksum_failures.append(period.label)
             log.warning("Checksum não confere para %s %s %s; arquivo descartado", symbol, interval, period.label)
@@ -227,6 +254,9 @@ async def download_history(
     store.write_manifest(symbol, interval, done | {label for label, _ in new})
     _fill_stats(stats, combined, interval)
     return stats
+
+
+REST_PAGE = 1000  # máximo de candles por consulta aceito pela Binance
 
 
 class KlinesSource(Protocol):
@@ -254,22 +284,23 @@ async def update_from_rest(
     start = int(df["open_time"].iloc[-1]) + step if not df.empty else now - months * 31 * 86_400_000
     start -= start % step
     new_frames: list[pd.DataFrame] = []
-    for _ in range(max_requests):
-        if start + step > now:
-            break
-        frame, _ = await client.klines(symbol, interval, start_ms=start, limit=1000)
-        frame = frame[frame["close_time"] < now]  # só candles já fechados
-        if frame.empty:
-            break
-        new_frames.append(frame)
-        start = int(frame["open_time"].iloc[-1]) + step
-        if len(frame) < 1000:
-            break
-    if not new_frames:
-        return 0
-    added = sum(len(f) for f in new_frames)
-    store.save(symbol, interval, normalize_klines(pd.concat([df, *new_frames], ignore_index=True)))
-    return added
+    try:
+        for _ in range(max_requests):
+            if start + step > now:
+                break
+            frame, _ = await client.klines(symbol, interval, start_ms=start, limit=REST_PAGE)
+            frame = frame[frame["close_time"] < now]  # só candles já fechados
+            if frame.empty:
+                break
+            new_frames.append(frame)
+            start = int(frame["open_time"].iloc[-1]) + step
+            if len(frame) < REST_PAGE:
+                break
+    finally:
+        # Grava o que já chegou mesmo se a rede cair no meio: a próxima execução continua daqui.
+        if new_frames:
+            store.save(symbol, interval, normalize_klines(pd.concat([df, *new_frames], ignore_index=True)))
+    return sum(len(f) for f in new_frames)
 
 
 def summarize(store: HistoryStore, symbol: str, interval: str) -> DownloadStats:

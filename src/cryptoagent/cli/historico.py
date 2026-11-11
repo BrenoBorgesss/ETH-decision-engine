@@ -11,6 +11,7 @@ from cryptoagent.cli._shared import console
 from cryptoagent.config import Config, Secrets
 from cryptoagent.data import history
 from cryptoagent.data.rest import BinanceReadOnlyClient
+from cryptoagent.data.retry import RetryPolicy
 from cryptoagent.timeutils import format_local
 
 # --------------------------------------------------------------- histórico
@@ -36,17 +37,20 @@ async def cmd_history_download(cfg: Config, secrets: Secrets, args: argparse.Nam
     for col in ("Par", "Intervalo", "Arquivos novos", "Já tinha", "Via REST", "Linhas", "De (UTC)", "Até (UTC)", "Candles faltando", "Problemas"):
         table.add_column(col)
     h = cfg.historico
+    retry = RetryPolicy(
+        attempts=h.tentativas_download, base_s=h.espera_entre_tentativas_s, max_s=h.espera_max_s,
+        retry_after_default_s=cfg.binance.espera_429_padrao_s, retry_after_max_s=cfg.binance.espera_429_max_s,
+    )
     async with httpx.AsyncClient(timeout=h.timeout_download_s, follow_redirects=True) as http, BinanceReadOnlyClient(cfg.binance, secrets) as client:
         await client.sync_time()
         for symbol, intervals in plan.items():
             for interval in intervals:
                 console.print(f"Baixando {symbol} {interval}...")
                 stats = await history.download_history(
-                    store, http, cfg.binance.dados_historicos_url, symbol, interval, months, concurrency=h.downloads_simultaneos,
-                    attempts=h.tentativas_download, retry_wait_s=h.espera_entre_tentativas_s,
+                    store, http, cfg.binance.dados_historicos_url, symbol, interval, months, concurrency=h.downloads_simultaneos, retry=retry,
                 )
                 stats.rows_from_rest = await history.update_from_rest(
-                    store, client, symbol, interval, months=months, now=client.server_now_ms()
+                    store, client, symbol, interval, months=months, now=client.server_now_ms(), max_requests=h.max_consultas_rest
                 )
                 final = history.summarize(store, symbol, interval)
                 problems = []

@@ -96,6 +96,12 @@ class Binance(_Section):
     dados_historicos_url: str = "https://data.binance.vision"
     timeout_s: float = Field(10, gt=0)
     max_tentativas: int = Field(4, ge=1)
+    # Repetição com espera crescente: espera_inicial_s × 2^tentativa, até espera_max_s.
+    espera_inicial_s: float = Field(0.5, ge=0)
+    espera_max_s: float = Field(30, gt=0)
+    # 429 (limite de requisições): espera o Retry-After do servidor; sem ele, espera_429_padrao_s.
+    espera_429_padrao_s: float = Field(60, gt=0)
+    espera_429_max_s: float = Field(300, gt=0)
     limite_peso_por_minuto: int = Field(6000, gt=0)
     pausar_acima_de_pct_peso: float = Field(80, gt=0, le=100)
     recv_window_ms: int = Field(5000, gt=0, le=60000)
@@ -133,6 +139,11 @@ class Historico(_Section):
     timeout_download_s: float = Field(60, gt=0)
     tentativas_download: int = Field(3, ge=1, le=10)
     espera_entre_tentativas_s: float = Field(1.5, ge=0)
+    espera_max_s: float = Field(30, gt=0)
+    # Teto de consultas REST numa atualização (cada uma traz até 1000 candles).
+    max_consultas_rest: int = Field(2000, ge=1)
+    # Candle cujo retorno fica a mais de N desvios (robustos) da mediana é marcado como outlier.
+    outlier_desvios: float = Field(30, gt=0)
     intervalos: dict[str, list[str]] = Field(
         default_factory=lambda: {"ETHUSDT": ["1m", "5m", "15m", "1h", "4h", "1d"]}
     )

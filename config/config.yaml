@@ -19,6 +19,10 @@ binance:
   dados_historicos_url: https://data.binance.vision
   timeout_s: 10
   max_tentativas: 4
+  espera_inicial_s: 0.5            # espera após a 1ª falha; dobra a cada nova falha (backoff exponencial)
+  espera_max_s: 30                 # teto da espera entre tentativas
+  espera_429_padrao_s: 60          # 429 sem cabeçalho Retry-After: espera este tempo
+  espera_429_max_s: 300            # nunca espera mais que isso por um 429
   limite_peso_por_minuto: 6000     # limite da Binance por IP
   pausar_acima_de_pct_peso: 80     # pausa as consultas ao chegar a 80% do limite
   recv_window_ms: 5000
@@ -39,7 +43,10 @@ historico:
   downloads_simultaneos: 4
   timeout_download_s: 60           # tempo máximo de cada download de arquivo histórico
   tentativas_download: 3           # quantas vezes tenta baixar cada arquivo
-  espera_entre_tentativas_s: 1.5   # espera = este valor × número da tentativa
+  espera_entre_tentativas_s: 1.5   # espera após a 1ª falha; dobra a cada nova falha, até espera_max_s
+  espera_max_s: 30
+  max_consultas_rest: 2000         # teto de consultas REST por atualização (cada uma traz até 1000 candles)
+  outlier_desvios: 30              # candle com retorno a mais de N desvios robustos da mediana é marcado como outlier
   intervalos:
     ETHUSDT: [1m, 5m, 15m, 1h, 4h, 1d]
     ETHBRL: [1m, 5m, 15m, 1h]

@@ -16,7 +16,6 @@ import asyncio
 import hashlib
 import hmac
 import logging
-import random
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -28,6 +27,7 @@ import pandas as pd
 from cryptoagent.config import Binance as BinanceCfg
 from cryptoagent.config import Secrets
 from cryptoagent.data.models import klines_to_frame
+from cryptoagent.data.retry import STATUS_IP_BANNED, STATUS_RATE_LIMITED, RetryPolicy, should_retry_status
 from cryptoagent.timeutils import now_ms
 
 log = logging.getLogger(__name__)
@@ -135,6 +135,10 @@ class BinanceReadOnlyClient:
         )
         self._sleep = sleep
         self._clock = clock
+        self._retry = RetryPolicy(
+            attempts=cfg.max_tentativas, base_s=cfg.espera_inicial_s, max_s=cfg.espera_max_s,
+            retry_after_default_s=cfg.espera_429_padrao_s, retry_after_max_s=cfg.espera_429_max_s,
+        )
         self._used_weight = 0
         self._weight_minute = -1
         self.time_offset_ms = 0  # relógio da Binance - relógio local
@@ -176,7 +180,7 @@ class BinanceReadOnlyClient:
 
         last_error: BinanceError | None = None
         resynced = False
-        for attempt in range(self._cfg.max_tentativas):
+        for attempt in range(self._retry.attempts):
             await self._respect_weight(weight)
             url, headers = self._build_request(base, path, params, signed)
             t0 = time.perf_counter()
@@ -195,15 +199,15 @@ class BinanceReadOnlyClient:
                 return ApiResponse(resp.json(), path, received, latency_ms, self._used_weight)
 
             code, msg = _parse_error(resp)
-            if resp.status_code == 418:
-                raise RateLimited("A Binance bloqueou o IP temporariamente por excesso de requisições", path=path, status=418, code=code)
-            if resp.status_code == 429:
-                wait = _retry_after(resp)
+            if resp.status_code == STATUS_IP_BANNED:
+                raise RateLimited("A Binance bloqueou o IP temporariamente por excesso de requisições", path=path, status=STATUS_IP_BANNED, code=code)
+            if resp.status_code == STATUS_RATE_LIMITED:
+                wait = self._retry.retry_after(resp.headers)
                 log.warning("Limite de requisições atingido em %s; aguardando %.0f s", path, wait)
-                last_error = BinanceError("Limite de requisições atingido", path=path, status=429, code=code)
+                last_error = BinanceError("Limite de requisições atingido", path=path, status=STATUS_RATE_LIMITED, code=code)
                 await self._sleep(wait)
                 continue
-            if resp.status_code >= 500:
+            if should_retry_status(resp.status_code):
                 last_error = BinanceError("Erro no servidor da Binance", path=path, status=resp.status_code, code=code)
                 log.warning("Erro %d da Binance em %s (tentativa %d)", resp.status_code, path, attempt + 1)
                 await self._backoff(attempt)
@@ -253,7 +257,7 @@ class BinanceReadOnlyClient:
             self._weight_minute = received_ms // 60_000
 
     async def _backoff(self, attempt: int) -> None:
-        await self._sleep(min(30.0, 0.5 * 2**attempt) * (0.5 + random.random()))
+        await self._sleep(self._retry.delay(attempt))
 
     # ------------------------------------------------------------ utilidades
 
@@ -292,7 +296,3 @@ def _parse_error(resp: httpx.Response) -> tuple[int | None, str]:
     except Exception:
         return None, f"HTTP {resp.status_code}"
 
-
-def _retry_after(resp: httpx.Response) -> float:
-    value = resp.headers.get("retry-after", "")
-    return float(value) if value.replace(".", "", 1).isdigit() else 60.0
