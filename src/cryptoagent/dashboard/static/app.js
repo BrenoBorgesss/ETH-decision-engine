@@ -261,9 +261,9 @@ function renderAlerts(list) {
 }
 
 // ------------------------------------------------------------------ gráficos SVG (simulação)
-function lineSvg(points, { height = 180, baseline = null, color = "var(--sim)" } = {}) {
+function lineSvg(points, { height = 230, baseline = null, color = "var(--sim)" } = {}) {
   if (points.length < 2) return '<p class="muted small">a curva aparece depois da primeira operação fechada</p>';
-  const w = 640, h = height, pad = 70;
+  const w = 1000, h = height, pad = 80;
   const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
   let y0 = Math.min(...ys, baseline ?? Infinity), y1 = Math.max(...ys, baseline ?? -Infinity);

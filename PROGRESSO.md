@@ -563,13 +563,53 @@ Backup antes da etapa: tag git `backup-antes-etapa-9` (aponta para `82338b8`).
 
 ## ETAPA 10 — DASHBOARD E APARÊNCIA
 
-- [ ] **10.1** Visual moderno e responsivo, tema escuro/claro, candles com indicadores, sinais marcados, cards (preço em R$, posição, sinal, confiança).
-- [ ] **10.2** Aba "Simulação": saldo virtual, posição, lucro/prejuízo, curva de capital, lista de operações, métricas, versões do modelo, gráfico de calibração.
-- [ ] **10.3** Registro das operações reais (manual) separado da simulação, com lucro/prejuízo em R$ e resumo diário.
-- [ ] **10.4** Rótulos e cores distintos para SIMULADO vs REAL.
-- [ ] **10.5** Estados de carregamento/erro amigáveis (sem stack trace na tela).
-- [ ] **10.6** Aviso visível: "Ferramenta educacional, não é recomendação financeira. Resultados simulados não garantem resultados reais."
-- [ ] **10.7** Capturas de tela (ou GIF) para o README.
+Backup antes da etapa: tag git `backup-antes-etapa-10` (aponta para `6bb628c`).
+
+- [x] **S3 / U6 do diagnóstico (autorizado por você nesta etapa):** a biblioteca do gráfico (lightweight-charts 4.2.3, licença Apache 2.0) passou a ser servida pelo próprio painel.
+  - **Download e conferência:** baixada do pacote oficial no npm e conferida com o hash publicado (`sha512-5kS/…LQEw==`, "integridade confere: True"). Só o arquivo `dist/lightweight-charts.standalone.production.js` e a licença foram extraídos, para `dashboard/static/vendor/`, com `LEIAME.md` de origem.
+  - **Teste:** confere o SHA-256 (`c7dda807…f23540`) e que a página não carrega nada de site externo.
+  - **`.gitattributes`:** o arquivo é guardado byte a byte. Commit `c53b298`.
+- [x] **10.1** Visual moderno e responsivo, tema escuro/claro, candles com indicadores, sinais marcados, cards.
+  - 4 cartões no topo: preço (em R$; no ETHUSDT, convertido pelo USDTBRL quando houver), sinal, confiança e posição.
+  - Tema automático/claro/escuro, com botão e escolha salva no navegador (U1). Também por `?tema=claro|escuro`.
+  - O gráfico de candles (EMA 20/50/200, Bollinger, VWAP, níveis) agora marca COMPRAR ▲ e VENDER ▼ no candle do sinal (U4).
+  - Cartão "Em momentos parecidos com este" (panorama da Etapa 8).
+  - Quebras responsivas em 960 e 520 px (U7). Conferido no navegador embutido em 390 px: sem rolagem lateral (`scrollWidth` = 390).
+- [x] **10.2** Aba Simulação.
+  - Por carteira virtual: patrimônio, resultado em R$ e %, posição aberta, curva de capital (SVG), operações fechadas, métricas (as mesmas do backtest), versões da estratégia e calibração (SVG, regras e modelo).
+  - Lida do banco da simulação em modo somente leitura (teste confere que o arquivo não muda). Teste com o replay de 08/09: 2 operações, alvo e stop, curva de R$ 1.000 até o patrimônio final.
+- [x] **10.3** Registro das operações reais (manual) separado da simulação, com lucro/prejuízo em R$ e resumo diário.
+  - Aba Operações reais: formulário, lista com apagar (pede confirmação) e resultado realizado por dia (FIFO, já com taxas). Fica no banco da conta, separado do da simulação.
+  - Rotas protegidas pelo token do painel; a guarda de somente leitura passou a aceitar rotas locais com subcaminho (`/api/diario/remover`), sempre só em `server.py`.
+  - Teste de cálculo: dia 10 = 0,05 × (preço líquido − custo FIFO); dia 11 idem.
+  - Conferido na tela, no demo: compra 0,05 a 12.000 e venda a 12.300 deram +R$ 13,78, igual à conta à mão (615 − 0,615 − 600,6); depois os dois registros foram apagados pela própria tela.
+- [x] **10.4** Rótulos e cores distintos para SIMULADO vs REAL (U3).
+  - Selo "SIMULADO" roxo, com textura listrada; "REAL" azul. O texto aparece sempre junto da cor.
+  - Faixas de aviso nas abas Simulação e Operações reais; selo do modo no topo ("DEMONSTRAÇÃO · SIMULADO" ou "REAL · somente leitura").
+- [x] **10.5** Estados de carregamento/erro amigáveis.
+  - Cartões "Carregando…" até a primeira análise.
+  - Faixa "O painel não está conseguindo falar com o agente… tentando de novo a cada 2 s".
+  - Mensagens de erro em português nos formulários.
+  - No servidor, qualquer erro inesperado vira `{"detail": "Erro inesperado no painel. Os detalhes técnicos estão no arquivo de log."}`, sem rastreamento de pilha. O teste usa uma exceção com caminho de arquivo e confere que nada disso aparece na resposta.
+- [x] **10.6** Aviso visível com o texto exato do roteiro (U5).
+  - Faixa fixa logo abaixo do topo e no rodapé; também em `aviso_legal` do estado. Teste confere o texto exato nos dois lugares.
+- [x] **10.7** Capturas de tela para o README (U8), feitas no modo demonstração (nenhum dado seu).
+  - `docs/img/painel-claro.png`, `painel-escuro.png` (momento da compra das 10:45 de 08/09), `painel-estreito.png` (520 px) e `painel-simulacao.png` (fim do dia, com as 2 operações).
+  - Geradas com o Edge sem janela (`--headless --screenshot`). O README em si é da Etapa 12.
+- [x] **Painel no modo demonstração** (pendência das Etapas 4 e 7): `cryptoagent --demo painel [--inicio AAAA-MM-DDTHH:MM] [--velocidade N] [--horas N]`.
+  - Mesmo laço do paper e mesmo motor, com o cliente de replay e um relógio que anda N minutos por segundo. Carteira virtual, sem internet e sem chave, alertas do Windows desligados.
+  - Teste: 50 minutos simulados geram 10 sinais e o marcador da compra das 10:15 aparece no gráfico.
+
+### Verificação final da Etapa 10
+- `python -m pytest -q` → `352 passed, 1 warning in 66.62s` (eram 344; +8 em `tests/test_painel_etapa10.py`).
+- `ruff check --select F,E9`: sem erros. `node --check app.js`: sintaxe ok.
+- Console do navegador sem erros no painel de demonstração.
+
+### Problemas durante a Etapa 10
+- A segunda demonstração falhou ao subir: as duas usavam o mesmo arquivo de banco, e o Windows não deixa apagar arquivo em uso. Corrigido com um banco por porta.
+- A primeira captura de celular saiu cortada à direita. Não era a página: o Edge sem janela não desenha telas abaixo de ~500 px. A página foi conferida em 390 px no navegador embutido, e a captura foi refeita com 520 px.
+- Uma captura saiu com o script antigo por causa do cache do navegador; refeita com perfil novo.
+- A primeira versão da curva de capital juntava, num só rótulo, o menor valor com a data inicial. Corrigido.
 
 ## ETAPA 11 — TESTES, LINT E CI
 
@@ -662,3 +702,11 @@ Backup antes da etapa: tag git `backup-antes-etapa-9` (aponta para `82338b8`).
 - Alterados: `src/cryptoagent/account/status.py`, `src/cryptoagent/engine/live.py`, `tests/fake_binance.py`, `tests/test_account_status.py`, `PROGRESSO.md`
 - Removidos: nenhum
 - Não tocados: `.env`, `data/`, `logs/`, `config/`, `README.md`
+
+### Etapa 10
+- Criados: `src/cryptoagent/dashboard/views.py`, `src/cryptoagent/dashboard/demo.py`, `src/cryptoagent/dashboard/static/vendor/lightweight-charts.standalone.production.js`, `LICENSE-lightweight-charts.txt`, `LEIAME.md`, `docs/img/painel-claro.png`, `painel-escuro.png`, `painel-estreito.png`, `painel-simulacao.png`, `tests/test_painel_etapa10.py`
+- Alterados: `.gitattributes`, `src/cryptoagent/dashboard/static/index.html`, `style.css`, `app.js`, `src/cryptoagent/dashboard/server.py`, `service.py`, `src/cryptoagent/cli/painel.py`, `cli/app.py`, `src/cryptoagent/paper/runner.py`, `tests/test_dashboard.py`, `tests/test_demo.py`, `tests/test_readonly_guard.py`, `PROGRESSO.md`
+- Removidos: nenhum
+- Não tocados: `.env`, `data/` real, `logs/`, `README.md`, `config/`
+- Criados pelo programa no modo demo: `data/demo/replay/painel-demo-*.sqlite`, `data/demo/agent.sqlite` (registros de teste apagados pela tela)
+- Fora do repositório (temporários): pacote do npm baixado e extraído no scratchpad, perfis do Edge sem janela

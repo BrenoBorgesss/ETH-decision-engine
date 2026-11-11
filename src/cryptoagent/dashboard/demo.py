@@ -30,7 +30,10 @@ log = logging.getLogger(__name__)
 class DemoService(LiveService):
     """Serviço do painel que repete o histórico em velocidade acelerada, com carteira virtual."""
 
-    def __init__(self, cfg: Config, console: Console, *, start_ms: int, end_ms: int, costs: CostSchedule, minutes_per_second: float = 4.0) -> None:
+    def __init__(
+        self, cfg: Config, console: Console, *, start_ms: int, end_ms: int, costs: CostSchedule, minutes_per_second: float = 4.0,
+        db_name: str = "painel-demo.sqlite",
+    ) -> None:
         cfg = cfg.model_copy(deep=True)
         folder = cfg.path(cfg.paper.replay_pasta)
         cfg.sazonalidade.relatorio_pasta = str(folder / "sem_perfil_por_horario")  # perfil salvo usa dados posteriores
@@ -39,7 +42,7 @@ class DemoService(LiveService):
         super().__init__(cfg, Secrets(), console)
         self.mode = "demo"
         self.signal_mode = "paper"
-        db = folder / "painel-demo.sqlite"
+        db = folder / db_name
         for p in (db, db.with_name(db.name + "-wal"), db.with_name(db.name + "-shm")):
             if p.exists():
                 p.unlink()  # cada demonstração começa do zero

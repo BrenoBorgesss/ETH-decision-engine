@@ -61,7 +61,9 @@ def _demo_service(cfg: Config, args: argparse.Namespace) -> object:
         f"[bold cyan]Painel de demonstração[/]: carteira VIRTUAL sobre o histórico de exemplo, a partir de {start:%d/%m/%Y %H:%M}, "
         f"{args.velocidade:g} minuto(s) simulado(s) por segundo. Nada é real."
     )
-    return DemoService(cfg, console, start_ms=start_ms, end_ms=start_ms + args.horas * 3_600_000, costs=costs, minutes_per_second=args.velocidade)
+    port = args.porta or cfg.painel.porta
+    return DemoService(cfg, console, start_ms=start_ms, end_ms=start_ms + args.horas * 3_600_000, costs=costs, minutes_per_second=args.velocidade,
+                       db_name=f"painel-demo-{port}.sqlite")  # um banco por porta: duas demonstrações não disputam o mesmo arquivo
 
 
 async def cmd_alert_test(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
