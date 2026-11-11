@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+import httpx
 import pytest
 
 from cryptoagent.config import DEMO_RELATIVE, Secrets, load_config
@@ -108,3 +109,61 @@ FOTO_ESPERADA: dict = {
         ("análise por horário", False),
     ],
 }
+
+
+def test_cache_de_indicadores_reaproveita_so_quando_os_candles_sao_os_mesmos():
+    import pandas as pd
+
+    from cryptoagent.indicators.cache import IndicatorCache
+    from cryptoagent.indicators.compute import compute_indicators
+
+    cfg = load_config(ROOT / "config" / "config.yaml", ROOT / DEMO_RELATIVE)
+    kw = dict(tz_name=cfg.fuso.local, day_start=cfg.fuso.inicio_dia_local)
+    todos = pd.read_parquet(ROOT / "exemplos" / "historico" / "ETHBRL" / "1h.parquet")
+    df = todos.iloc[:600].reset_index(drop=True)
+    cache = IndicatorCache()
+    direto = compute_indicators(df, cfg.indicadores, cfg.regime, **kw)
+    primeiro = cache.compute(("ETHBRL", "1h"), df, cfg.indicadores, cfg.regime, **kw)
+    segundo = cache.compute(("ETHBRL", "1h"), df, cfg.indicadores, cfg.regime, **kw)
+    pd.testing.assert_frame_equal(primeiro, direto)
+    pd.testing.assert_frame_equal(segundo, direto)
+    assert (cache.hits, cache.misses) == (1, 1)
+    segundo.loc[0, "close"] = -1.0  # quem recebe pode mexer na sua cópia sem estragar o cache
+    pd.testing.assert_frame_equal(cache.compute(("ETHBRL", "1h"), df, cfg.indicadores, cfg.regime, **kw), direto)
+
+    mais_um = todos.iloc[1:601].reset_index(drop=True)  # chegou um candle novo: recalcula
+    pd.testing.assert_frame_equal(
+        cache.compute(("ETHBRL", "1h"), mais_um, cfg.indicadores, cfg.regime, **kw), compute_indicators(mais_um, cfg.indicadores, cfg.regime, **kw)
+    )
+    alterado = df.copy()
+    alterado.loc[300, "close"] += 0.01  # mesmo tamanho e mesmos horários, um valor diferente: recalcula
+    cache.compute(("ETHBRL", "1h"), alterado, cfg.indicadores, cfg.regime, **kw)
+    outro_parametro = cfg.indicadores.model_copy(update={"rsi": cfg.indicadores.rsi + 1})
+    cache.compute(("ETHBRL", "1h"), alterado, outro_parametro, cfg.regime, **kw)  # parâmetro diferente: recalcula
+    assert cache.misses == 4
+
+
+def test_segunda_analise_seguida_da_o_mesmo_resultado_usando_o_cache(monkeypatch):
+    live.INDICATOR_CACHE.clear()
+    primeira, _, _ = run_analysis(monkeypatch, QUANDO_COMPRA)
+    assert live.INDICATOR_CACHE.misses == 5 and live.INDICATOR_CACHE.hits == 0
+    segunda, _, _ = run_analysis(monkeypatch, QUANDO_COMPRA)
+    assert live.INDICATOR_CACHE.hits == 5
+    assert (segunda.decision.action, segunda.decision.confidence) == (primeira.decision.action, primeira.decision.confidence)
+    assert segunda.decision.levels == primeira.decision.levels
+
+
+def test_derivativos_fora_do_ar_vira_aviso_e_nao_derruba_a_analise(monkeypatch):
+    from fake_binance import FakeBinance
+
+    original = FakeBinance._handle
+
+    async def sem_futuros(self, request):
+        if "/fapi/" in str(request.url):
+            return httpx.Response(503, text="fora do ar")
+        return await original(self, request)
+
+    monkeypatch.setattr(FakeBinance, "_handle", sem_futuros)
+    res, _, _ = run_analysis(monkeypatch, QUANDO_COMPRA)
+    assert res.health.ok and res.ctx.market.funding_rate is None
+    assert any(w.startswith("derivativos") for w in res.health.warnings)

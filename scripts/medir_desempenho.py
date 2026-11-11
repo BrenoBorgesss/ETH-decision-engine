@@ -7,7 +7,9 @@ Uso (na raiz do projeto):
     python scripts/medir_desempenho.py --saida medicao.json          # histórico completo (data/history)
     python scripts/medir_desempenho.py --demo --saida medicao.json   # amostra do repositório
 
-Seções: inicializacao, leitura, validacao, indicadores, backtest, gravacao.
+Seções: inicializacao, leitura, validacao, indicadores, backtest, gravacao, ao_vivo.
+A seção ao_vivo usa sempre a amostra do repositório e uma Binance simulada (tests/fake_binance.py):
+mede o custo de processamento de uma análise e o efeito de uma latência de rede simulada.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SECTIONS = ["inicializacao", "leitura", "validacao", "indicadores", "backtest", "gravacao"]
+SECTIONS = ["inicializacao", "leitura", "validacao", "indicadores", "backtest", "gravacao", "ao_vivo"]
 
 
 def peak_memory_mb() -> float:
@@ -177,6 +179,55 @@ def sec_gravacao(demo: bool) -> dict:
         t = median_s(lambda: store.save("X", "1m", df), 3)
         size = store.path("X", "1m").stat().st_size
     return {"repeticoes": 3, "linhas": len(df), "s": t, "arquivo_mb": size / 1e6}
+
+
+def sec_ao_vivo(demo: bool) -> dict:
+    """Tempo de uma análise ao vivo completa (carteira virtual), com Binance simulada e candles da amostra."""
+    import asyncio
+    import sqlite3
+    from datetime import UTC, datetime
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from fake_binance import FakeBinance, FakeClock
+
+    from cryptoagent.config import Secrets
+    from cryptoagent.data.rest import BinanceReadOnlyClient
+    from cryptoagent.engine import live
+    from cryptoagent.timeutils import datetime_to_ms
+
+    cfg = load_cfg(True)
+    start = datetime_to_ms(datetime(2026, 9, 1, 15, 15, 7, tzinfo=UTC))
+    paper = live.PaperView("ETHBRL", fee=0.001, capital=1000.0, risk_per_trade=10.0)
+
+    async def no_sleep(_s: float) -> None:
+        return None
+
+    async def session(latency_s: float, n: int) -> tuple[list[float], dict]:
+        """`n` análises seguidas na mesma sessão, uma a cada 5 minutos simulados (como o painel faz)."""
+        clock = FakeClock(start)
+        live.now_ms = clock
+        server = FakeBinance(clock, latency_s=latency_s)
+        times = []
+        async with BinanceReadOnlyClient(cfg.binance, Secrets(), transport=server.transport(), sleep=no_sleep, clock=clock) as client:
+            for _ in range(n):
+                t0 = time.perf_counter()
+                await live.analyze_live(cfg, Secrets(), client, sqlite3.connect(":memory:"), paper=paper)
+                times.append(time.perf_counter() - t0)
+                clock.t += 300_000
+        return times, dict(server.calls)
+
+    cpu, calls = asyncio.run(session(0.0, 13))
+    net, _ = asyncio.run(session(0.05, 7))
+    return {
+        "analises_seguidas": 12,
+        "consultas_por_analise": {path: round(n / 13, 2) for path, n in sorted(calls.items())},
+        "sem_latencia_primeira_s": cpu[0],
+        "sem_latencia_mediana_das_seguintes_s": statistics.median(cpu[1:]),
+        "latencia_simulada_por_consulta_s": 0.05,
+        "com_latencia_primeira_s": net[0],
+        "com_latencia_mediana_das_seguintes_s": statistics.median(net[1:]),
+        "pico_memoria_mb": peak_memory_mb(),
+    }
 
 
 def main() -> int:
