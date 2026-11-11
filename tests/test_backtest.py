@@ -155,3 +155,37 @@ def test_drawdown_e_comprar_e_segurar():
     bh = buy_and_hold(t, np.array([100.0, 120.0, 90.0, 110.0]), 0, 4)
     assert bh["retorno_total_pct"] == pytest.approx((1.1 * 0.999 * 0.999 - 1) * 100)
     assert bh["drawdown_max_pct"] == pytest.approx(-25)
+
+
+def test_custos_congelados_vao_e_voltam_do_arquivo_sem_mudar(tmp_path):
+    """Reprodutibilidade: os custos gravados num arquivo voltam idênticos, e o resultado também."""
+    from cryptoagent.backtest.costs import load_schedules, save_schedules
+
+    odd = CostSchedule("ETHBRL", 0.00075, {h: 0.01 + h / 1000 for h in range(24)}, [3, 14], 0.01, 0.05, "lida da conta")
+    path = tmp_path / "pasta" / "custos.json"
+    save_schedules(path, [COSTS, odd])
+    back = load_schedules(path)
+    assert back == {"ETHUSDT": COSTS, "ETHBRL": odd}
+    assert list(back["ETHBRL"].spread_by_hour) == list(range(24))  # inteiros, em ordem numérica
+    assert back["ETHBRL"].roundtrip_pct(14) == odd.roundtrip_pct(14)
+    first = path.read_text(encoding="utf-8")
+    save_schedules(path, [odd, COSTS])  # a ordem de entrada não muda o arquivo
+    assert path.read_text(encoding="utf-8") == first
+
+
+def test_arquivo_de_custos_invalido_e_recusado(tmp_path):
+    import json
+
+    from cryptoagent.backtest.costs import load_schedules, save_schedules
+
+    path = tmp_path / "custos.json"
+    save_schedules(path, [COSTS])
+    data = json.loads(path.read_text(encoding="utf-8"))
+    del data["pares"]["ETHUSDT"]["spread_by_hour"]["23"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="24 horas"):
+        load_schedules(path)
+    data["versao"] = 99
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="versão desconhecida"):
+        load_schedules(path)

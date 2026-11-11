@@ -93,6 +93,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("backtest", help="testa a estratégia no histórico (walk-forward, ablação, comparações)")
     p.add_argument("--pares", nargs="*", default=None, help="pares de operação (padrão: backtest.pares do config)")
     p.add_argument("--rapido", action="store_true", help="só parâmetros padrão + comparações (sem grade nem ablação)")
+    p.add_argument(
+        "--custos-arquivo", default=None, metavar="ARQUIVO.json",
+        help="custos congelados: se o arquivo existir, usa os custos dele (não lê a conta nem o banco de custos); se não existir, grava nele os custos desta execução",
+    )
     p.set_defaults(func=cmd_backtest)
 
     sinais = sub.add_parser("sinais", help="histórico de sinais e associação com suas compras").add_subparsers(dest="acao")
