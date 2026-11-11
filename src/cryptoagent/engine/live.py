@@ -293,61 +293,69 @@ async def analyze_live(
         health.add(Check("estabilidade dos dados", False, f"mudança de regime no último ciclo de aprendizado ({learning.drift_summary})", critical=False))
     champion_name = f"v{learning.champion.id} {learning.champion.name}" if learning.champion else "regras (config atual)"
 
-    # ---- posição da operação (traduzida para o par de análise)
-    position = None
+    # ---- posição e risco: carteira virtual (paper) ou conta real
     if paper is not None:
-        if paper.qty:
-            position = PositionView(
-                qty=paper.qty, avg_cost=paper.entry_price / ratio, opened_ms=paper.opened_ms or server_now,
-                stop=paper.stop / ratio if paper.stop else None, target1=paper.target1 / ratio if paper.target1 else None,
-                target2=paper.target2 / ratio if paper.target2 else None, source=paper.source,
-            )
-        risk = RiskView(
-            blocked_reasons=health.problems, risk_per_trade_brl=paper.risk_per_trade, capital_brl=paper.capital,
-            data_warnings=health.warnings, daily_limit_reason=paper.daily_limit_reason,
-        )
-        market = MarketView(server_now, a_mid, frames, levels, spread_pct, imbalance, funding)
-        ctx = DecisionContext(sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True, novelty=novelty)
-        decision = decide(ctx, p, spread_max_pct=cfg.custos.spread_max_pct)
-        if use_champion:
-            decision = apply_model_champion(decision, ctx, cfg, learning)
-        return LiveResult(decision, ctx, None, health, ratio, ages, (time.perf_counter() - t0) * 1000, hour_note, t_bid, t_ask, moment, champion_name)
-
-    if account.day is not None and account.day.open_qty > 1e-9:
-        auto_associate(conn, trade_sym)
-        open_ids = [tid for tid, _, _ in account.day.open_lots]
-        assoc = levels_for_open_lots(conn, trade_sym, open_ids)
-        stop = t1 = t2 = None
-        source = "regras (sem sinal associado)"
-        if assoc:
-            stop, t1, t2 = (x / ratio for x in assoc[:3])
-            source = assoc[3]
-        position = PositionView(
-            qty=account.day.open_qty,
-            avg_cost=(account.day.avg_cost_real or account.bid or t_mid) / ratio,
-            opened_ms=account.day.opened_ms or server_now,
-            stop=stop,
-            target1=t1,
-            target2=t2,
-            source=source,
-        )
-
-    limit_reason = next((r for r in account.reasons if r.startswith("PERDA MÁXIMA")), None)
-    blocked = [r for r in account.reasons if r != limit_reason] + health.problems
-    risk = RiskView(
-        blocked_reasons=blocked,
-        risk_per_trade_brl=account.limits.risk_per_trade_brl if account.limits else None,
-        capital_brl=account.effective_capital_brl,
-        data_warnings=health.warnings,
-        daily_limit_reason=limit_reason,
-        validation_reason=check_reliability(
-            cfg, trade_sym, client.local_now_ms(), champion=champion_metrics(learning) if use_champion else None
-        ).block_reason,
-    )
+        position, risk = _paper_position_and_risk(paper, ratio, server_now, health)
+    else:
+        position = _real_position(conn, account, trade_sym, ratio, t_mid, server_now)
+        risk = _real_risk(cfg, client, account, trade_sym, health, champion_metrics(learning) if use_champion else None)
     market = MarketView(server_now, a_mid, frames, levels, spread_pct, imbalance, funding)
     ctx = DecisionContext(sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True, novelty=novelty)
     decision = decide(ctx, p, spread_max_pct=cfg.custos.spread_max_pct)
     if use_champion:
         decision = apply_model_champion(decision, ctx, cfg, learning)
-    ages["saldo_s"] = (client.local_now_ms() - account.balances_ms) / 1000 if account.balances_ms else -1
+    if account is not None:
+        ages["saldo_s"] = (client.local_now_ms() - account.balances_ms) / 1000 if account.balances_ms else -1
     return LiveResult(decision, ctx, account, health, ratio, ages, (time.perf_counter() - t0) * 1000, hour_note, t_bid, t_ask, moment, champion_name)
+
+
+def _paper_position_and_risk(paper: PaperView, ratio: float, server_now: int, health: HealthReport) -> tuple[PositionView | None, RiskView]:
+    """Posição e risco da carteira VIRTUAL, com os preços traduzidos para o par de análise."""
+    position = None
+    if paper.qty:
+        position = PositionView(
+            qty=paper.qty, avg_cost=paper.entry_price / ratio, opened_ms=paper.opened_ms or server_now,
+            stop=paper.stop / ratio if paper.stop else None, target1=paper.target1 / ratio if paper.target1 else None,
+            target2=paper.target2 / ratio if paper.target2 else None, source=paper.source,
+        )
+    risk = RiskView(
+        blocked_reasons=health.problems, risk_per_trade_brl=paper.risk_per_trade, capital_brl=paper.capital,
+        data_warnings=health.warnings, daily_limit_reason=paper.daily_limit_reason,
+    )
+    return position, risk
+
+
+def _real_position(conn: sqlite3.Connection, account: AccountStatus, trade_sym: str, ratio: float, t_mid: float, server_now: int) -> PositionView | None:
+    """Posição da operação na conta real (pelo histórico de operações, conferido com o saldo), com stop e alvos do sinal associado."""
+    if account.day is None or account.day.open_qty <= 1e-9:
+        return None
+    auto_associate(conn, trade_sym)
+    open_ids = [tid for tid, _, _ in account.day.open_lots]
+    assoc = levels_for_open_lots(conn, trade_sym, open_ids)
+    stop = t1 = t2 = None
+    source = "regras (sem sinal associado)"
+    if assoc:
+        stop, t1, t2 = (x / ratio for x in assoc[:3])
+        source = assoc[3]
+    return PositionView(
+        qty=account.day.open_qty,
+        avg_cost=(account.day.avg_cost_real or account.bid or t_mid) / ratio,
+        opened_ms=account.day.opened_ms or server_now,
+        stop=stop, target1=t1, target2=t2, source=source,
+    )
+
+
+def _real_risk(
+    cfg: Config, client: BinanceReadOnlyClient, account: AccountStatus, trade_sym: str, health: HealthReport, champion: dict | None
+) -> RiskView:
+    """Risco da conta real: travas da conta e dos dados, perda máxima do dia (à parte: ainda permite vender) e confiabilidade."""
+    limit_reason = next((r for r in account.reasons if r.startswith("PERDA MÁXIMA")), None)
+    blocked = [r for r in account.reasons if r != limit_reason] + health.problems
+    return RiskView(
+        blocked_reasons=blocked,
+        risk_per_trade_brl=account.limits.risk_per_trade_brl if account.limits else None,
+        capital_brl=account.effective_capital_brl,
+        data_warnings=health.warnings,
+        daily_limit_reason=limit_reason,
+        validation_reason=check_reliability(cfg, trade_sym, client.local_now_ms(), champion=champion).block_reason,
+    )

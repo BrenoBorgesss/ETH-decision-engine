@@ -33,10 +33,12 @@ class FakeClock:
 class FakeBinance:
     """Servidor falso. `latency_s` simula a demora de rede de cada consulta."""
 
-    def __init__(self, clock: FakeClock, symbol: str = "ETHBRL", latency_s: float = 0.0) -> None:
+    def __init__(self, clock: FakeClock, symbol: str = "ETHBRL", latency_s: float = 0.0, account: dict | None = None) -> None:
         self.clock = clock
         self.symbol = symbol
         self.latency_s = latency_s
+        # conta simulada (endpoints assinados, só leitura): {"balances": [...], "trades": [...]}
+        self.account = account
         self.calls: Counter[str] = Counter()
         self.frames = {p.stem: pd.read_parquet(p) for p in (SAMPLE / symbol).glob("*.parquet")}
 
@@ -67,6 +69,15 @@ class FakeBinance:
                 df = df.tail(int(q.get("limit", 500)))
             rows = [[int(r[0]), *(f"{x:.8f}" for x in r[1:6]), int(r[6]), f"{r[7]:.8f}", int(r[8]), f"{r[9]:.8f}", f"{r[10]:.8f}", "0"] for r in df[KLINE_COLUMNS].itertuples(index=False)]
             return httpx.Response(200, json=rows)
+        if url.path == "/sapi/v1/account/apiRestrictions" and self.account is not None:
+            return httpx.Response(200, json={"ipRestrict": True, "enableReading": True, "enableWithdrawals": False, "enableSpotAndMarginTrading": False})
+        if url.path == "/api/v3/account" and self.account is not None:
+            return httpx.Response(200, json={"balances": self.account.get("balances", [])})
+        if url.path == "/api/v3/account/commission" and self.account is not None:
+            return httpx.Response(200, json={"standardCommission": {"maker": "0.001", "taker": "0.001"}, "discount": {"enabledAccount": False}})
+        if url.path == "/api/v3/myTrades" and self.account is not None:
+            a, b = int(q.get("startTime", 0)), int(q.get("endTime", 10**15))
+            return httpx.Response(200, json=[t for t in self.account.get("trades", []) if a <= t["time"] <= b])
         price = self.last_price()
         if url.path == "/api/v3/ticker/bookTicker":
             return httpx.Response(200, json={"symbol": q["symbol"], "bidPrice": f"{price * 0.9999:.2f}", "bidQty": "1.5", "askPrice": f"{price * 1.0001:.2f}", "askQty": "1.2"})
