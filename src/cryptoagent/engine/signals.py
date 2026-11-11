@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -45,8 +46,8 @@ def ramp(value: float, start: float, full: float) -> float:
     return float(min(1.0, max(0.0, (value - start) / (full - start))))
 
 
-def _last(ctx: DecisionContext, tf: str) -> pd.Series:
-    return ctx.market.frames[tf].iloc[-1]
+def _last(ctx: DecisionContext, tf: str) -> Any:  # noqa: ANN401 - Series do pandas ou ArrayRow
+    return ctx.market.last(tf)
 
 
 def sig_vwap(ctx: DecisionContext, p: Estrategia) -> SignalScore:
@@ -103,7 +104,7 @@ def sig_fluxo_taker(ctx: DecisionContext, p: Estrategia) -> SignalScore:
     """Nota pela queda da venda agressiva em relação ao pico recente, só quando o pico foi dominado por vendas."""
     g = ctx.market.frames[p.tf_gatilho].iloc[-6:]
     peak_ratio = float(g["taker_sell_ratio"].max())
-    now = float(g["sell_vol_vs_peak"].iloc[-1])
+    now = float(_last(ctx, p.tf_gatilho)["sell_vol_vs_peak"])
     s = ramp(now, 0.8, 0.3) if peak_ratio >= 0.55 else 0.0
     return SignalScore("fluxo_taker", s, p.pesos["fluxo_taker"], f"venda agressiva agora = {now * 100:.0f}% do pico recente (pico com {peak_ratio * 100:.0f}% do volume vendido)")
 
@@ -167,9 +168,10 @@ def anti_knife_trigger(ctx: DecisionContext, p: Estrategia) -> TriggerResult:
     g = ctx.market.frames[p.tf_gatilho]
     if len(g) < p.gatilho_janela_5m + 1:
         return TriggerResult(False, "candles de 5m insuficientes para o gatilho")
-    last, prev = g.iloc[-1], g.iloc[-2]
-    window = g.iloc[-(p.gatilho_janela_5m + 1) : -1]
-    stretched = bool(((window["bb_pctb"] <= 0) | (window["low"] < window["bb_lower"])).any())
+    last, prev = ctx.market.last(p.tf_gatilho), ctx.market.last(p.tf_gatilho, 2)
+    window = slice(-(p.gatilho_janela_5m + 1), -1)  # os N candles antes do último
+    pctb, low, lower = (g[c].to_numpy()[window] for c in ("bb_pctb", "low", "bb_lower"))
+    stretched = bool(((pctb <= 0) | (low < lower)).any())
     back_inside = bool(last["bb_pctb"] > 0 and last["close"] > prev["close"])
     if stretched and back_inside:
         return TriggerResult(True, f"{p.tf_gatilho}: esticou abaixo da banda e o último candle fechou de volta dentro, subindo")

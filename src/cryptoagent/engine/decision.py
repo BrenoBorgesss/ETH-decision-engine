@@ -96,7 +96,7 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
 
     frames_ok = not problems
     if frames_ok:
-        d.regime = str(m.frames[p.tf_setup].iloc[-1]["regime"])
+        d.regime = str(m.last(p.tf_setup)["regime"])
 
     # ------------------------------------------------------- com posição aberta
     if ctx.position is not None:

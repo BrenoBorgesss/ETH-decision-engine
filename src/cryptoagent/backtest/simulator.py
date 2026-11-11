@@ -16,6 +16,7 @@ Como cada coisa é simulada:
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -25,7 +26,7 @@ from cryptoagent.backtest.costs import CostSchedule
 from cryptoagent.backtest.data import BacktestData
 from cryptoagent.backtest.execution import buy_fill, close_pnl, oco_check, sell_fill
 from cryptoagent.config import Estrategia, Indicadores
-from cryptoagent.engine.context import DecisionContext, MarketView, PositionView, RiskView, SeasonView
+from cryptoagent.engine.context import ArrayRow, DecisionContext, MarketView, PositionView, RiskView, SeasonView
 from cryptoagent.engine.decision import decide
 from cryptoagent.indicators.structure import Level, support_resistance_arrays
 
@@ -155,12 +156,21 @@ def simulate(
     sw_l, sw_lp = s15["swing_low"].to_numpy(dtype=float), s15["swing_low_pos"].to_numpy(dtype=float)
     atr15 = s15["atr"].to_numpy(dtype=float)
 
-    def frames_at(t: int) -> dict[str, pd.DataFrame]:
-        out = {}
+    columns = data.column_arrays()  # timeframe -> {coluna: array}: leitura de linha sem montar Series
+    timing_close = columns[p.tf_timing]["close"]
+
+    def frames_at(t: int) -> tuple[dict[str, pd.DataFrame], Callable[[str, int], ArrayRow], float]:
+        """Candles fechados antes de `t`, o leitor rápido de linhas e o último fechamento do timeframe de timing."""
+        out, ends = {}, {}
         for tf, f in data.frames.items():
             e = int(np.searchsorted(ct[tf], t, side="left"))
             out[tf] = f.iloc[max(0, e - n_rows.get(tf, 3)) : e]
-        return out
+            ends[tf] = e
+
+        def rows(tf: str, back: int) -> ArrayRow:
+            return ArrayRow(columns[tf], ends[tf] - back)
+
+        return out, rows, float(timing_close[ends[p.tf_timing] - 1])
 
     def ratio_at(t: int) -> float:
         i = int(np.searchsorted(data.ratio_time, t - 60_000, side="right")) - 1
@@ -244,11 +254,11 @@ def simulate(
             limit = "PERDA MÁXIMA DO DIA ATINGIDA" if day_pnl + unreal <= -max_loss else None
             if limit:
                 stats.limit_days.add(day_key)
-            frames = frames_at(t)
+            frames, rows, price = frames_at(t)
             ratio = ratio_at(t)
             ctx = DecisionContext(
                 data.analysis, data.trade, ratio,
-                MarketView(t, float(frames[p.tf_timing]["close"].iloc[-1]), frames, [], spread),
+                MarketView(t, price, frames, [], spread, rows=rows),
                 RiskView([], None, equity, daily_limit_reason=limit),
                 cost_pct,
                 PositionView(pos.qty, pos.avg_an, pos.entry_ms, pos.stop_an, pos.t1_an, pos.t2_an, "sinal do backtest"),
@@ -277,12 +287,12 @@ def simulate(
         if prefilter and e15 >= 0 and min_set_only and no_stretch15[e15]:
             stats.blocks["sem esticamento"] += 1
             continue  # todas as notas seriam 0: decide() daria ESPERAR
-        frames = frames_at(t)
+        frames, rows, price = frames_at(t)
         ratio = ratio_at(t)
         risk_trade = max_loss / divisor
         ctx = DecisionContext(
             data.analysis, data.trade, ratio,
-            MarketView(t, float(frames[p.tf_timing]["close"].iloc[-1]), frames, levels_at(t), spread),
+            MarketView(t, price, frames, levels_at(t), spread, rows=rows),
             RiskView([], risk_trade, equity),
             cost_pct,
             None,

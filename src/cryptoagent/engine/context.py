@@ -5,7 +5,9 @@ Tudo aqui é "foto até agora": só candles já FECHADOS antes do instante da de
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -20,6 +22,23 @@ def closed_rows(frame: pd.DataFrame, t_ms: int, n: int) -> pd.DataFrame:
     return frame.iloc[max(0, end - n) : end]
 
 
+class ArrayRow:
+    """Uma linha de candle lida direto dos arrays de cada coluna (sem montar uma Series do pandas).
+
+    Montar a linha com `frame.iloc[-1]` custa dezenas de microssegundos; no backtest isso é feito
+    centenas de milhares de vezes. Aqui cada valor é lido só quando pedido, em tempo constante.
+    """
+
+    __slots__ = ("_columns", "_index")
+
+    def __init__(self, columns: Mapping[str, Any], index: int) -> None:
+        self._columns = columns
+        self._index = index
+
+    def __getitem__(self, column: str) -> Any:  # noqa: ANN401 - o tipo depende da coluna
+        return self._columns[column][self._index]
+
+
 @dataclass(frozen=True)
 class MarketView:
     """O mercado no instante da decisão: preço, candles fechados com indicadores, suportes e resistências, spread e extras."""
@@ -30,6 +49,15 @@ class MarketView:
     spread_pct: float | None = None  # spread atual do par de operação
     book_imbalance: float | None = None  # só ao vivo
     funding_rate: float | None = None
+    # Opcional: leitor rápido de linhas (timeframe, quantos candles para trás) -> linha. O backtest fornece um
+    # baseado em arrays; sem ele, a linha vem de `frames`.
+    rows: Callable[[str, int], Any] | None = None
+
+    def last(self, tf: str, back: int = 1) -> Any:  # noqa: ANN401 - Series do pandas ou ArrayRow
+        """Linha do candle fechado mais recente de `tf` (`back=1`) ou do anterior (`back=2`). Aceita `linha["coluna"]`."""
+        if self.rows is not None:
+            return self.rows(tf, back)
+        return self.frames[tf].iloc[-back]
 
 
 @dataclass(frozen=True)

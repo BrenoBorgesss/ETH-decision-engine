@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -41,6 +41,13 @@ class BacktestData:
     first_valid_ms: int  # primeiro instante em que todos os indicadores estão definidos
     decision_tf: str = "5m"  # timeframe do gatilho: uma decisão a cada fechamento dele
     season: SeasonPIT | None = None
+    _columns: dict[str, dict[str, np.ndarray]] | None = field(default=None, repr=False, compare=False)
+
+    def column_arrays(self) -> dict[str, dict[str, np.ndarray]]:
+        """Cada coluna de cada timeframe como array (calculado uma vez e guardado), para ler linhas sem pandas."""
+        if self._columns is None:
+            self._columns = {tf: {c: f[c].to_numpy() for c in f.columns} for tf, f in self.frames.items()}
+        return self._columns
 
     @property
     def last_ms(self) -> int:

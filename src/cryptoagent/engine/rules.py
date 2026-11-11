@@ -28,7 +28,7 @@ def data_problems(ctx: DecisionContext, p: Estrategia) -> list[str]:
         if frame is None or frame.empty:
             problems.append(f"sem candles de {tf}")
             continue
-        last = frame.iloc[-1]
+        last = ctx.market.last(tf)
         missing = [c for c in REQUIRED_COLUMNS[role] if c not in frame.columns or pd.isna(last[c])]
         if missing:
             problems.append(f"indicadores de {tf} ainda indefinidos: {', '.join(missing)}")
@@ -47,8 +47,8 @@ class TrendView:
 
 def higher_timeframes(ctx: DecisionContext, p: Estrategia) -> TrendView:
     """Filtro de tendência (1h/4h). Nunca é motivo de compra: só bloqueia ou reduz a confiança."""
-    h4 = ctx.market.frames[p.tf_contexto].iloc[-1]
-    h1 = ctx.market.frames[p.tf_confirmacao].iloc[-1]
+    h4 = ctx.market.last(p.tf_contexto)
+    h1 = ctx.market.last(p.tf_confirmacao)
     strong_down_1h = h1["adx"] >= p.adx_queda_forte_1h and h1["minus_di"] > h1["plus_di"]
     bearish_4h = h4["ema_50"] < h4["ema_200"] and h4["ema_50_slope"] < 0
     structure_down_1h = h1["structure"] == "baixa" and h1["close"] < h1["ema_50"]
@@ -114,10 +114,10 @@ class Levels:
 
 def buy_levels(ctx: DecisionContext, p: Estrategia) -> Levels | None:
     """Entrada, stop e alvos de uma compra agora, com risco e retorno já descontados os custos e o tamanho sugerido. Devolve None se o preço já está acima das médias."""
-    s15 = ctx.market.frames[p.tf_setup].iloc[-1]
+    s15 = ctx.market.last(p.tf_setup)
     g5 = ctx.market.frames[p.tf_gatilho]
     entry = ctx.market.price
-    atr5 = float(g5["atr"].iloc[-1])
+    atr5 = float(ctx.market.last(p.tf_gatilho)["atr"])
     recent_low = float(g5["low"].iloc[-p.stop_fundo_barras_5m :].min())
     stop = min(recent_low - p.stop_atr_5m * atr5, entry - p.stop_min_atr_5m * atr5)
 
@@ -156,8 +156,8 @@ def exit_check(ctx: DecisionContext, p: Estrategia, *, ratio: float = 1.0) -> tu
     price = ctx.market.price
     def tp(x: float) -> str:
         return num(x * ratio)
-    s15 = ctx.market.frames[p.tf_setup].iloc[-1]
-    g5 = ctx.market.frames[p.tf_gatilho].iloc[-1]
+    s15 = ctx.market.last(p.tf_setup)
+    g5 = ctx.market.last(p.tf_gatilho)
     if pos.stop is not None and price <= pos.stop:
         return "stop", f"preço {tp(price)} atingiu o stop {tp(pos.stop)}: sair para limitar a perda", 100.0
     if pos.target2 is not None and price >= pos.target2:
@@ -187,8 +187,8 @@ def rules_levels_for_position(ctx: DecisionContext, p: Estrategia) -> tuple[floa
     """
     pos = ctx.position
     assert pos is not None
-    s15 = ctx.market.frames[p.tf_setup].iloc[-1]
-    atr5 = float(ctx.market.frames[p.tf_gatilho]["atr"].iloc[-1])
+    s15 = ctx.market.last(p.tf_setup)
+    atr5 = float(ctx.market.last(p.tf_gatilho)["atr"])
     stop = pos.avg_cost - p.stop_posicao_sem_sinal_atr_5m * atr5
     above = [m for m in (float(s15["vwap"]), float(s15["bb_mid"])) if m > pos.avg_cost]
     t1 = min(above) if above else pos.avg_cost * (1 + 2 * ctx.cost_pct / 100)
