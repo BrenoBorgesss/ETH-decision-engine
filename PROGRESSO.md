@@ -10,8 +10,8 @@ Legenda: `[ ]` pendente · `[x]` concluído com evidência · `[BLOQUEADO]` · `
 |---|---|---|
 | 0 | Preparação | concluída e aprovada (2026-11-10) |
 | 1 | Diagnóstico | concluída e aprovada (2026-11-10) |
-| 2 | Segurança e configuração | concluída — aguardando aprovação (1 item extra adiado) |
-| 3 | Estrutura e qualidade do código | pendente |
+| 2 | Segurança e configuração | concluída e aprovada (2026-11-11); 1 item extra adiado (biblioteca do gráfico) |
+| 3 | Estrutura e qualidade do código | concluída — aguardando aprovação (1 item adiado) |
 | 4 | Coleta de dados | pendente |
 | 5 | Performance e eficiência | pendente |
 | 6 | Modelo, backtest e confiabilidade | pendente |
@@ -192,10 +192,50 @@ Backup antes da etapa: tag git `backup-antes-etapa-2` (aponta para `d8aaa3f`).
 
 ## ETAPA 3 — ESTRUTURA E QUALIDADE DO CÓDIGO
 
-- [ ] **3.1** Reorganizar em módulos (`data/`, `features/`, `models/`, `backtest/`, `simulation/`, `learning/`, `dashboard/`, `config/`, `tests/`), sem quebrar o que já funciona.
-- [ ] **3.2** Adicionar type hints e docstrings.
-- [ ] **3.3** Remover código morto e duplicação.
-- [ ] **3.4** Confirmar que o projeto continua rodando igual ao baseline da Etapa 1 (comparar saídas).
+Backup antes da etapa: tag git `backup-antes-etapa-3` (aponta para `bf93869`).
+Ferramentas de análise (ruff 0.17.4, vulture 2.16, pylint) instaladas num ambiente virtual separado, fora do projeto; o `.venv` do projeto não foi alterado.
+
+- [x] **Pré-requisito** Congelar os custos do backtest para ter um baseline estável (problema M3 do diagnóstico).
+  - `backtest --custos-arquivo ARQUIVO.json`: se o arquivo existe, usa os custos dele e não consulta a conta nem o banco de custos; se não existe, grava os custos da execução. Novas funções `save_schedules`/`load_schedules` e `CostSchedule.to_dict/from_dict` em `backtest/costs.py`.
+  - Demonstração real: 1ª execução (grava) e 2ª (lê) geram o mesmo JSON, SHA-256 `c348cc24…cf544`, igual ao baseline da Etapa 2. Com a taxa do config trocada para 0,2% e o arquivo congelado: mesmo hash. Com a mesma taxa trocada SEM o arquivo: 1 operação, +0,53% (prova de que o congelamento é o que segura o resultado).
+  - Erro meu corrigido no caminho: a primeira versão devolvia as horas em ordem de texto ("0", "1", "10"...), o que mudava os bytes do relatório sem mudar os números. Corrigido para ordem numérica e coberto por teste.
+  - 2 testes novos em `tests/test_backtest.py`. Commit `6e01d2c`.
+- [x] **3.1** Reorganizar em módulos, sem quebrar o que já funciona.
+  - Decisão D1 (aprovada): os nomes `engine/`, `paper/`, `indicators/` foram mantidos em vez de `models/`, `simulation/`, `features/`. `learning/` será criado na Etapa 8.
+  - `cli.py` (1.330 linhas) virou o pacote `cli/` com 15 módulos (maior: `dados.py`, 185 linhas). Divisão por script: as 41 definições foram movidas sem alterar o corpo. Evidência: comparação de AST → `definicoes no original: 41 | no pacote: 41`, `faltando: []`, `sobrando: []`; única diferença é a ordem de dois `import` locais em `cmd_panel`. O ponto de entrada `cryptoagent.cli:main` não mudou.
+  - `--help` de todos os 37 comandos/subcomandos idêntico ao de antes (295 linhas, `cmp` sem diferença) no momento do commit. Commit `eb2e50f`.
+  - Ajuste em teste existente: `tests/test_readonly_guard.py` passou a ler todos os arquivos de `cli/` (antes lia `cli.py`); a verificação é a mesma.
+- [x] **3.2** Adicionar type hints e docstrings.
+  - Type hints: 34 funções tinham parâmetro ou retorno sem anotação; agora 0 (script AST: `sem_retorno: 0, sem_tipo_arg: 0` em 458 funções). Commit `9c6ac1d`.
+  - Docstrings: 293 inseridas em funções, classes e métodos públicos, a partir de um mapa escrito depois de ler o código de cada item. O script de inserção confere que o AST de cada arquivo, sem as docstrings, é idêntico ao anterior. Commit `dcb7625`.
+  - Sem docstring, de propósito: 6 métodos de uma linha dos `Protocol` (`ServiceLike`, `KlinesSource`) e 134 funções privadas ou aninhadas (prefixo `_`, validadores do pydantic, funções internas). A regra de lint da Etapa 11 dirá se alguma delas passa a ser exigida.
+- [x] **3.3** Remover código morto e duplicação.
+  - vulture (confiança ≥ 60) apontou 49 itens; cada um foi conferido por busca. A maioria é falso positivo (validadores do pydantic, campos de dataclass, rotas do FastAPI). Removidos os confirmados sem nenhum uso: `engine/journal.last_signal`, `SymbolAnalysis.hour_row`, campo `RiskView.quote_to_brl`.
+  - pylint `duplicate-code` (≥ 6 linhas iguais): nenhum bloco duplicado, antes e depois.
+  - Duplicação pequena removida: `REGIME_PT` do terminal agora deriva do dicionário do motor de decisão.
+  - 11 lambdas atribuídas a nome viraram funções (inclui o problema B6); `timezone.utc` → `datetime.UTC`.
+  - Mantidos de propósito: campos informativos nunca lidos (`Check.limit_s`, `Stamped.exchange_ms`, `CandleBuffer.last_update_ms/last_source`, `SimStats.decision_bars`, `AccountStatus.trades_synced`, `Attribution.op_qty/ignored_qty`, `FillEstimate.best_price`) e as constantes `REGIMES` e `CLASSES`: remover mexeria em construtores posicionais sem ganho. Commit `1919711`.
+  - **Achado novo (B7):** `conta.saldo_max_s` existe no config com o comentário "leitura de saldo mais velha que isso = ESPERAR", mas nenhum código lê esse campo. Hoje o saldo é relido a cada análise, então a idade é sempre próxima de zero; ainda assim é uma proteção documentada e não implementada. Decidir na Etapa 9 (implementar ou remover).
+- [x] **3.4** Confirmar que o projeto continua rodando igual ao baseline (comparar saídas).
+  - Testes: `233 passed, 1 warning in 17.38s` (eram 231; +2 dos custos congelados).
+  - Backtest com custos congelados depois de todas as mudanças: SHA-256 `c348cc24a1f7e7aca7a610c8e9c0f8d820ca6ffaa9c5992a6b4c77de959cf544`, idêntico ao baseline da Etapa 2 (13 operações, −3,67%).
+  - `--help`: única diferença em relação ao baseline é a opção nova `--custos-arquivo` do comando `backtest`.
+  - Importação de `cryptoagent.cli`: 1,06 s (era 0,99 s; diferença dentro da variação entre execuções, não medida com repetição).
+- [ADIADO] **Quebrar as 4 funções mais longas** (`simulate` 198 linhas, `analyze_live`, `AccountMonitor.refresh`, `decide`): continuam 8 funções com mais de 80 linhas. Proposta: quebrar cada uma na etapa que já vai reescrevê-la (`analyze_live` na 5, `simulate` e `decide` na 6, `refresh` na 9), para não refatorar duas vezes. Aguardando sua concordância.
+
+### Métricas de qualidade, antes × depois (script AST)
+| Métrica | Etapa 1 | Etapa 3 |
+|---|---|---|
+| Maior arquivo | `cli.py`, 1.328 linhas | `config.py`, 534 linhas |
+| Funções sem anotação de retorno | 13 | 0 |
+| Funções com parâmetro sem tipo | 11 | 0 |
+| Funções sem docstring | 325 de 440 | 134 de 458 |
+| Funções com mais de 80 linhas | 8 | 8 |
+| Blocos duplicados (≥ 6 linhas) | não medido | 0 |
+
+### Problemas durante a Etapa 3
+- Um `sed` meu quebrou uma linha de `tests/test_readonly_guard.py`; o teste acusou na hora e corrigi antes do commit.
+- Tentei remover dois atributos de `CandleBuffer` e desisti: deixaria parâmetros sem uso em métodos públicos. Restaurei o arquivo com `git checkout`.
 
 ## ETAPA 4 — COLETA DE DADOS
 
@@ -296,3 +336,9 @@ Backup antes da etapa: tag git `backup-antes-etapa-2` (aponta para `d8aaa3f`).
 - Alterados: `.gitignore`, `.env.example`, `README.md`, `config/config.yaml`, `src/cryptoagent/config.py`, `src/cryptoagent/cli.py`, `src/cryptoagent/logging_setup.py`, `src/cryptoagent/alerts/notify.py`, `src/cryptoagent/dashboard/server.py`, `src/cryptoagent/dashboard/service.py`, `src/cryptoagent/data/history.py`, `src/cryptoagent/engine/decision.py`, `src/cryptoagent/engine/live.py`, `src/cryptoagent/engine/rules.py`, `tests/test_config_and_store.py`, `tests/test_dashboard.py`, `PROGRESSO.md`
 - Removidos: nenhum
 - Não tocados: `.env`, `data/`, `logs/`
+
+### Etapa 3
+- Criados: `src/cryptoagent/cli/` com `__init__.py`, `_shared.py`, `app.py`, `backtest.py`, `conta.py`, `custos.py`, `dados.py`, `decisao.py`, `diario.py`, `historico.py`, `indicadores.py`, `painel.py`, `paper.py`, `sazonalidade.py`, `sessao.py`
+- Removidos: `src/cryptoagent/cli.py` (conteúdo movido para o pacote acima)
+- Alterados: 66 arquivos de `src/cryptoagent` (docstrings e anotações; lista exata em `git diff --name-status backup-antes-etapa-3 HEAD`), `tests/test_backtest.py`, `tests/test_readonly_guard.py`, `PROGRESSO.md`
+- Não tocados: `.env`, `data/`, `logs/`, `config/`, `README.md`
