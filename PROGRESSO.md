@@ -290,9 +290,65 @@ Backup antes da etapa: tag git `backup-antes-etapa-4` (aponta para `7e663fe`).
 
 ## ETAPA 5 — PERFORMANCE E EFICIÊNCIA
 
-- [ ] **5.1** Medir o baseline (tempo de inicialização, coleta, cálculo de indicadores, memória) com profiling real.
-- [ ] **5.2** Corrigir gargalos (vetorização, cache de indicadores, evitar recálculo, coleta assíncrona/em segundo plano).
-- [ ] **5.3** Medir de novo e registrar a tabela antes/depois com números reais.
+Backup antes da etapa: tag git `backup-antes-etapa-5` (aponta para `a9d4ec2`).
+
+- [x] **5.1** Medir o baseline (tempo de inicialização, coleta, cálculo de indicadores, memória) com profiling real.
+  - `scripts/medir_desempenho.py`: mede inicialização, leitura do histórico, validação, indicadores, backtest, gravação e análise ao vivo. Cada seção roda em processo próprio (o pico de memória de uma não contamina a outra) e cada tempo é a mediana de várias repetições. Grava um JSON. Roda no histórico completo ou, com `--demo`, na amostra do repositório.
+  - Baseline no histórico completo (coluna "Antes" da tabela abaixo). O que ele mostrou: 92% do tempo do backtest estava na simulação (31,2 s de 33,8 s); ler, validar e gravar o histórico já eram rápidos; iniciar o programa custava 1,2 s mesmo para um `--help`.
+  - cProfile de uma simulação: 178.535 chamadas de `frame.iloc[-1]` do pandas dentro da função de decisão somavam cerca de 12 s (montar uma linha de tabela com colunas de tipos diferentes custa dezenas de microssegundos). Depois vinham os recortes de janela e os `.min()` de poucas linhas.
+  - `python -X importtime`: dos 1,12 s de importação, 0,54 s eram do pandas e o resto de httpx, pydantic e dos módulos de comando, todos carregados antes de saber qual comando rodar.
+  - Análise ao vivo: medida com uma Binance simulada (`tests/fake_binance.py`, candles da amostra) e a carteira virtual, porque a chave real está recusada e eu não leio a sua conta. 0,238 s de processamento por análise; com 50 ms de latência simulada por consulta, 0,537 s (5 esperas em sequência).
+- [x] **5.2** Corrigir gargalos (vetorização, cache de indicadores, evitar recálculo, coleta assíncrona/em segundo plano).
+  - **Backtest (leitura por arrays).** `MarketView.last()` e `MarketView.tail()` leem a última linha e as últimas N posições de uma coluna. No backtest, o simulador entrega leitores que vão direto nos arrays do numpy (`ArrayRow`); ao vivo continuam vindo do DataFrame. O motor de decisão (`decision.py`, `rules.py`, `signals.py`) passou a usar esses dois métodos. O custo de ida e volta por hora é calculado uma vez por simulação (antes, 110 mil vezes). Commits `19e3f4d` e `46f23e4`.
+  - **Inicialização (importação preguiçosa).** Commit `c6259cf`. Os comandos são registrados por nome ("módulo:função") e importados só na hora de rodar. `intervals.py` e `cli/_console.py` são módulos leves para o `--help` não puxar pandas. Conferido: depois de `import cryptoagent.cli`, nenhum de pandas, numpy, httpx, pydantic ou fastapi está carregado.
+  - **Análise ao vivo (cache de indicadores).** `indicators/cache.py`: guarda o resultado por (par, timeframe) com uma impressão digital dos candles fechados (quantidade, primeiro e último horário, soma de fechamento e de volume) e dos parâmetros; devolve cópia. Entre duas análises os candles de 15m, 1h e 4h quase sempre são os mesmos.
+  - **Análise ao vivo (coleta em paralelo).** Antes: relógio → candles → preço → preço do par de operação → livro → derivativos, um depois do outro. Agora: relógio → (candles + derivativos em paralelo) → (preços + livro em paralelo). Os preços continuam sendo buscados por último, para chegarem frescos à decisão.
+  - **`analyze_live` dividida** (pendência da Etapa 3; commit `7d24cab`, junto com o cache e a coleta em paralelo): 170 → 108 linhas, com `_fetch_candles`, `_fetch_funding`, `_prepare_frames`, `_fetch_quotes`, `_structure_levels` e `_season_context`. Os dois últimos são blocos movidos sem alteração.
+  - Antes de mexer na análise ao vivo, criei `tests/test_live.py` com uma "foto" do resultado num instante da amostra (ação, confiança, regime, preço, notas dos sinais, níveis e lista de verificações). A foto é a mesma antes e depois.
+  - Não mexi: o cálculo dos indicadores em si. O profiling de 1.000 candles não mostrou um ponto dominante (são dezenas de operações pequenas do pandas), e reescrever em numpy arriscaria mudar valores. O cache resolve o caso que importa (ao vivo).
+- [x] **5.3** Medir de novo e registrar a tabela antes/depois com números reais.
+  - Mesmo script, mesma máquina, histórico completo (ETHUSDT 599.455 candles de 1m; backtest do ETHBRL com custos do config):
+
+| Medida | Antes | Depois | Variação |
+|---|---|---|---|
+| Python vazio (referência) | 0,04 s | 0,04 s | +8% |
+| Importar o programa | 1,19 s | 0,24 s | -80% |
+| cryptoagent --version | 1,23 s | 0,27 s | -78% |
+| cryptoagent --help | 1,26 s | 0,27 s | -79% |
+| Ler 1m do disco (599 mil candles) | 0,032 s | 0,026 s | -19% |
+| Validar 1m (599 mil candles) | 0,43 s | 0,43 s | -0% |
+| Gravar 1m inteiro (36,7 MB) | 0,23 s | 0,25 s | +5% |
+| Indicadores no histórico, 1m | 1,606 s | 1,559 s | -3% |
+| Indicadores no histórico, 5m | 0,317 s | 0,321 s | +1% |
+| Indicadores no histórico, 15m | 0,123 s | 0,127 s | +3% |
+| Indicadores no histórico, 1h | 0,052 s | 0,050 s | -4% |
+| Indicadores no histórico, 4h | 0,035 s | 0,037 s | +5% |
+| Indicadores ao vivo, 5 timeframes × 1000 candles | 0,153 s | 0,154 s | +0% |
+| Backtest rápido: carregar e preparar | 2,64 s | 2,62 s | -1% |
+| Backtest rápido: simular | 31,20 s | 7,87 s | -75% |
+| Backtest rápido: total | 33,83 s | 10,49 s | -69% |
+| Backtest: pico de memória | 651 MB | 655 MB | +1% |
+| Análise ao vivo, 1ª da sessão (sem latência) | 0,253 s | 0,238 s | -6% |
+| Análise ao vivo, seguintes (sem latência) | 0,238 s | 0,147 s | -38% |
+| Análise ao vivo, seguintes (50 ms por consulta) | 0,537 s | 0,327 s | -39% |
+| Análise ao vivo: pico de memória | 241 MB | 248 MB | +3% |
+
+  - O resultado do backtest é o mesmo antes e depois: 12 operações, −3,2106469980240693% nas duas medições (custos do config), e SHA-256 `c348cc24…cf544` no backtest de referência com custos congelados (13 operações, −3,67%).
+  - Variações de até ±8% nas linhas que não foram alteradas são ruído entre execuções.
+  - Memória: o pico do backtest é 651 MB (carregar o histórico de dois pares em 1m com ~60 colunas de indicadores). Não foi alvo desta etapa e não mudou.
+- [x] **C5 do diagnóstico** (regravar o Parquet de 1m inteiro a cada atualização): medido, 0,23 s para 36,7 MB. Não é gargalo; mantive o formato atual, mais simples. Encerrado sem mudança.
+- [ADIADO] **`analyze_live` ainda tem 108 linhas** (a meta informal era ficar abaixo de 80). O que sobra são os dois ramos finais, carteira virtual e conta real; o da conta real não tem teste e será reescrito na Etapa 9, onde termino a divisão.
+- [ADIADO] **Backtest completo (grade + ablação)**: não medi antes nem depois (levaria vários minutos por execução). Ele chama a mesma `simulate`, então deve ganhar na mesma proporção, mas isso não foi verificado.
+
+### Verificação final da Etapa 5
+- `python -m pytest -q` → `270 passed, 1 warning in 12.09s` (eram 263; +7 testes em `tests/test_live.py`). A suíte ficou mais rápida que na Etapa 4 (24 s) por causa do backtest.
+- Backtest de referência: SHA-256 `c348cc24a1f7e7aca7a610c8e9c0f8d820ca6ffaa9c5992a6b4c77de959cf544`, idêntico ao baseline, conferido depois de cada uma das três mudanças no backtest e no fim.
+- `--help` dos 37 comandos e subcomandos: idêntico ao da Etapa 4 (`diff` vazio).
+- `git status --short` → vazio.
+
+### Problemas durante a Etapa 5
+- Um `sed` para encurtar caminhos na saída do profiling falhou (barra invertida do Windows); troquei por `awk`. Nenhum arquivo do projeto foi afetado.
+- Achado positivo ao montar o teste: nos instantes em que o backtest da amostra compra, a análise ao vivo simulada também decide COMPRAR (5 de 6 instantes conferidos; no sexto, ESPERAR por risco/retorno; não investiguei a causa, a hipótese é o preço "de agora" da simulação, que é o fechamento do minuto seguinte). É um indício de coerência entre os dois caminhos, não uma prova; a auditoria é da Etapa 6.
 
 ## ETAPA 6 — MODELO, BACKTEST E CONFIABILIDADE
 
@@ -392,3 +448,10 @@ Backup antes da etapa: tag git `backup-antes-etapa-4` (aponta para `7e663fe`).
 - Removidos: nenhum
 - Não tocados: `.env`, `data/history`, `data/*.sqlite`, `logs/`, `README.md`. Criada pelo programa (ignorada pelo git): `data/demo/` (relatórios e log do modo demo)
 - Fora do repositório (temporários, no scratchpad da sessão): pasta `hist_incremental` da demonstração do 4.3, scripts de medição
+
+### Etapa 5
+- Criados: `scripts/medir_desempenho.py`, `src/cryptoagent/intervals.py`, `src/cryptoagent/cli/_console.py`, `src/cryptoagent/indicators/cache.py`, `tests/fake_binance.py`, `tests/test_live.py`
+- Alterados: `src/cryptoagent/timeutils.py`, `src/cryptoagent/cli/__init__.py`, `src/cryptoagent/cli/_shared.py`, `src/cryptoagent/cli/app.py`, `src/cryptoagent/engine/context.py`, `src/cryptoagent/engine/decision.py`, `src/cryptoagent/engine/rules.py`, `src/cryptoagent/engine/signals.py`, `src/cryptoagent/engine/live.py`, `src/cryptoagent/backtest/data.py`, `src/cryptoagent/backtest/simulator.py`, `tests/test_demo.py`, `PROGRESSO.md`
+- Removidos: nenhum
+- Não tocados: `.env`, `data/`, `logs/`, `config/`, `README.md`, `exemplos/`
+- Fora do repositório (temporários, no scratchpad da sessão): `medicao_antes.json`, `medicao_depois.json`, `ao_vivo_antes.json`, scripts de profiling
