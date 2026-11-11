@@ -150,7 +150,7 @@ def _rules_metrics(c: Config, data: BacktestData, costs: CostSchedule, window: t
     return compute_metrics(trades, a, b, bt.capital, c.fuso.local)
 
 
-def run_cycle(
+def run_cycle(  # noqa: C901 - roteiro em seções comentadas (avaliação, proteções, critérios) que usam o mesmo corte no tempo
     cfg: Config,
     costs: CostSchedule,
     *,

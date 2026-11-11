@@ -116,7 +116,7 @@ async def cmd_status(cfg: Config, secrets: Secrets, args: argparse.Namespace) ->
 # ------------------------------------------------------------ dados ao-vivo
 
 
-async def cmd_live(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
+async def cmd_live(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:  # noqa: C901 - laço do terminal com funções internas (WebSocket, REST, tela); só lê dados
     """Comando `dados ao-vivo`: acompanha preço e candles pelo WebSocket numa tabela que se atualiza. Devolve o código de saída do processo."""
     tz = cfg.fuso.local
     sd = cfg.saude_dados

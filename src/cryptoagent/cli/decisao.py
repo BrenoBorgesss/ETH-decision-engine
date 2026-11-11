@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # só para as anotações: importar de verdade aqui deixaria 
 ACTION_STYLE = {"COMPRAR": "bold white on green", "VENDER": "bold white on red", "ESPERAR": "bold black on yellow"}
 
 
-def print_decision(res: LiveResult, cfg: Config) -> None:
+def print_decision(res: LiveResult, cfg: Config) -> None:  # noqa: C901 - só monta texto: um `if` por bloco opcional da tela
     """Imprime no terminal a decisão completa: ação, confiança, parcelas, motivos, travas, níveis e saúde dos dados."""
     from cryptoagent.fmt import brl, num, pct
 

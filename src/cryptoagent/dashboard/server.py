@@ -63,7 +63,9 @@ class ServiceLike(Protocol):
         """Apaga um registro manual."""
 
 
-def create_app(service: ServiceLike, token: str | None = None, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS) -> FastAPI:
+def create_app(  # noqa: C901 - a complexidade é a soma das rotas, cada uma uma função interna curta
+    service: ServiceLike, token: str | None = None, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS
+) -> FastAPI:
     """Monta o aplicativo do painel. `token` e `allowed_hosts` só são passados nos testes."""
     token = token or pysecrets.token_urlsafe(24)
     app = FastAPI(title="Agente cripto (somente leitura)", docs_url=None, redoc_url=None, openapi_url=None)

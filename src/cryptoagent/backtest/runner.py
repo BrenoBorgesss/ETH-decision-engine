@@ -157,25 +157,39 @@ def run_pair(
         rep.elapsed_s = time.perf_counter() - t0
         return rep
 
-    # ---- walk-forward na grade
+    rep.wf_choices, rep.walkforward = _walk_forward(cfg, data, folds, oos_a, oos_b, common, progress)
+    rep.ablation = _ablation(cfg, data, rep.default, oos_a, oos_b, common, progress)
+    rep.untestable = dict(EXTRAS_UNTESTABLE)
+    rep.elapsed_s = time.perf_counter() - t0
+    return rep
+
+
+def _walk_forward(
+    cfg: Config,
+    data: BacktestData,
+    folds: list[Fold],
+    oos_a: int,
+    oos_b: int,
+    common: dict,
+    progress: Callable[[str], None],
+) -> tuple[list[dict], Variant]:
+    """Grade do walk-forward: cada combinação é simulada uma vez; em cada mês de teste vale a que mais ganhou no treino.
+
+    Mês sem combinação com operações suficientes no treino, ou em que nem a melhor ganhou, fica sem operar.
+    """
+    bt, p0, tz = cfg.backtest, cfg.estrategia, cfg.fuso.local
     keys = list(bt.grade)
     combos = [dict(zip(keys, vals, strict=True)) for vals in itertools.product(*(bt.grade[k] for k in keys))]
     runs = []
     for n, combo in enumerate(combos, 1):
         progress(f"{data.trade}: grade {n}/{len(combos)} {combo}...")
         runs.append((combo, simulate(data, p0.model_copy(update=combo), label=str(combo), **common)))
+    choices: list[dict] = []
     test_trades: list[Trade] = []
     for f in folds:
-        best, best_score, best_n = None, -np.inf, 0
-        for combo, res in runs:
-            tr = _in_window(res.trades, f.train_start_ms, f.train_end_ms)
-            if len(tr) < bt.operacoes_min_treino:
-                continue
-            score = float(np.mean([t.pnl_pct for t in tr]))
-            if score > best_score:
-                best, best_score, best_n = (combo, res), score, len(tr)
+        best, best_score, best_n = _best_in_training(runs, f, bt.operacoes_min_treino)
         if best is None:
-            rep.wf_choices.append(
+            choices.append(
                 {
                     "teste_inicio": f.test_start_ms,
                     "escolha": "nenhuma combinação com operações suficientes no treino: mês sem operar",
@@ -183,17 +197,16 @@ def run_pair(
                 }
             )
             continue
+        train_ci = list(mean_ci95([t.pnl_pct for t in _in_window(best[1].trades, f.train_start_ms, f.train_end_ms)]))
         if best_score <= bt.expectativa_min_treino_pct:
             # Até a melhor combinação perdeu dinheiro no treino: operar seria apostar contra a evidência.
-            rep.wf_choices.append(
+            choices.append(
                 {
                     "teste_inicio": f.test_start_ms,
                     "escolha": f"nenhuma combinação ganhou no treino (melhor: {best_score:+.3f}% por operação em {best_n}): mês sem operar",
                     "treino_ops": best_n,
                     "treino_expectativa_pct": best_score,
-                    "treino_expectativa_ic95_pct": list(
-                        mean_ci95([t.pnl_pct for t in _in_window(best[1].trades, f.train_start_ms, f.train_end_ms)])
-                    ),
+                    "treino_expectativa_ic95_pct": train_ci,
                     "teste_ops": 0,
                 }
             )
@@ -201,32 +214,59 @@ def run_pair(
         chosen = _in_window(best[1].trades, f.test_start_ms, f.test_end_ms)
         test_trades += chosen
         tm = compute_metrics(chosen, f.test_start_ms, f.test_end_ms, bt.capital, tz)
-        rep.wf_choices.append(
+        choices.append(
             {
                 "teste_inicio": f.test_start_ms,
                 "escolha": best[0],
                 "treino_ops": best_n,
                 "treino_expectativa_pct": best_score,
-                "treino_expectativa_ic95_pct": list(
-                    mean_ci95([t.pnl_pct for t in _in_window(best[1].trades, f.train_start_ms, f.train_end_ms)])
-                ),
+                "treino_expectativa_ic95_pct": train_ci,
                 "teste_ops": tm["operacoes"],
                 "teste_expectativa_pct": tm["expectativa_pct"],
                 "teste_retorno_pct": tm["retorno_total_pct"],
             }
         )
-    rep.walkforward = Variant(
+    walkforward = Variant(
         "walk-forward (parâmetros escolhidos só no treino)", compute_metrics(test_trades, oos_a, oos_b, bt.capital, tz)
     )
+    return choices, walkforward
 
-    # ---- ablação (no período fora da amostra)
+
+def _best_in_training(
+    runs: list[tuple[dict, SimResult]], f: Fold, min_trades: int
+) -> tuple[tuple[dict, SimResult] | None, float, int]:
+    """A combinação com maior resultado médio por operação no TREINO do mês (só entre as com operações suficientes)."""
+    best, best_score, best_n = None, -np.inf, 0
+    for combo, res in runs:
+        tr = _in_window(res.trades, f.train_start_ms, f.train_end_ms)
+        if len(tr) < min_trades:
+            continue
+        score = float(np.mean([t.pnl_pct for t in tr]))
+        if score > best_score:
+            best, best_score, best_n = (combo, res), score, len(tr)
+    return best, best_score, best_n
+
+
+def _ablation(
+    cfg: Config,
+    data: BacktestData,
+    default: Variant,
+    oos_a: int,
+    oos_b: int,
+    common: dict,
+    progress: Callable[[str], None],
+) -> list[Variant]:
+    """Ablação no período fora da amostra: cada sinal extra somado ao conjunto mínimo, todos juntos e sem o filtro de horário."""
+    bt, p0, tz = cfg.backtest, cfg.estrategia, cfg.fuso.local
+    out: list[Variant] = []
+
     def ablate(name: str, p: Estrategia, season_on: bool = True, note: str = "") -> None:
         progress(f"{data.trade}: ablação {name}...")
         r = simulate(data, p, start_ms=oos_a, end_ms=oos_b, season_on=season_on, label=name, **common)
-        rep.ablation.append(Variant(name, compute_metrics(r.trades, oos_a, oos_b, bt.capital, tz), note))
+        out.append(Variant(name, compute_metrics(r.trades, oos_a, oos_b, bt.capital, tz), note))
 
     base_signals = list(p0.sinais_ativos)
-    rep.ablation.append(Variant(f"conjunto mínimo ({', '.join(base_signals)})", rep.default.metrics))
+    out.append(Variant(f"conjunto mínimo ({', '.join(base_signals)})", default.metrics))
     for extra in EXTRAS_TESTABLE:
         if extra not in base_signals:
             ablate(f"+ {extra}", p0.model_copy(update={"sinais_ativos": [*base_signals, extra]}))
@@ -235,6 +275,4 @@ def run_pair(
         p0.model_copy(update={"sinais_ativos": base_signals + [e for e in EXTRAS_TESTABLE if e not in base_signals]}),
     )
     ablate("sem o filtro de horário", p0, season_on=False)
-    rep.untestable = dict(EXTRAS_UNTESTABLE)
-    rep.elapsed_s = time.perf_counter() - t0
-    return rep
+    return out
