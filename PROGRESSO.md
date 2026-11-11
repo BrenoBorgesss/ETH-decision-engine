@@ -11,15 +11,15 @@ Legenda: `[ ]` pendente · `[x]` concluído com evidência · `[BLOQUEADO]` · `
 | 0 | Preparação | concluída e aprovada (2026-11-10) |
 | 1 | Diagnóstico | concluída e aprovada (2026-11-10) |
 | 2 | Segurança e configuração | concluída e aprovada (2026-11-11); 1 item extra adiado (biblioteca do gráfico) |
-| 3 | Estrutura e qualidade do código | concluída — aguardando aprovação (1 item adiado) |
-| 4 | Coleta de dados | pendente |
-| 5 | Performance e eficiência | pendente |
-| 6 | Modelo, backtest e confiabilidade | pendente |
-| 7 | Simulação com dinheiro virtual | pendente |
-| 8 | Aprendizado contínuo e panoramas | pendente |
-| 9 | Controle de risco e sinais | pendente |
-| 10 | Dashboard e aparência | pendente |
-| 11 | Testes, lint e CI | pendente |
+| 3 | Estrutura e qualidade do código | concluída e aprovada (2026-11-11) |
+| 4 | Coleta de dados | concluída e aprovada (2026-11-11) |
+| 5 | Performance e eficiência | concluída e aprovada (2026-11-11) |
+| 6 | Modelo, backtest e confiabilidade | concluída e aprovada (2026-11-11) |
+| 7 | Simulação com dinheiro virtual | concluída e aprovada (2026-11-11) |
+| 8 | Aprendizado contínuo e panoramas | concluída e aprovada (2026-11-11) |
+| 9 | Controle de risco e sinais | concluída e aprovada (2026-11-11) |
+| 10 | Dashboard e aparência | concluída e aprovada (2026-11-11) |
+| 11 | Testes, lint e CI | concluída — aguardando aprovação |
 | 12 | Documentação para o GitHub | pendente |
 | 13 | LinkedIn, changelog e auditoria final | pendente |
 
@@ -33,6 +33,7 @@ Legenda: `[ ]` pendente · `[x]` concluído com evidência · `[BLOQUEADO]` · `
   - O git não tinha `user.name`/`user.email`. Configurado só neste repositório: `BrenoBorgesss` / `BrenoBorgesss@users.noreply.github.com`.
   - Commit inicial: `8ab7665 chore: commit inicial do estado atual do projeto` — 99 arquivos. Filtro dos arquivos staged por `.env`, `data/`, `logs/`, `.venv/`, `.sqlite`, `.parquet` → nenhuma ocorrência.
   - Aviso do git: "LF will be replaced by CRLF" em todos os arquivos (falta `.gitattributes`; tratar na Etapa 11.2).
+    - Resolvido: `.gitattributes` existe desde a Etapa 2. Conferido na Etapa 11: `git ls-files --eol` → 170 arquivos `i/lf`, 9 binários, 8 vazios, nenhum `i/crlf`.
 - [x] **0.2** Criar a branch `melhorias`.
   - `git switch -c melhorias` → `Switched to a new branch 'melhorias'`; `git log --oneline --all --decorate` → `8ab7665 (HEAD -> melhorias, main)`.
 - [x] **0.3** Criar o `PROGRESSO.md` com todas as etapas (0 a 13) e os itens de cada uma.
@@ -613,10 +614,96 @@ Backup antes da etapa: tag git `backup-antes-etapa-10` (aponta para `6bb628c`).
 
 ## ETAPA 11 — TESTES, LINT E CI
 
-- [ ] **11.1** Testes (pytest) para coleta, indicadores, sinais, backtest, carteira virtual, registro de operações, promoção de modelo e risco.
-- [ ] **11.2** Lint e formatação (ruff/black) e pre-commit.
-- [ ] **11.3** GitHub Actions rodando lint + testes.
-- [ ] **11.4** Relatório de cobertura das partes críticas.
+Backup antes da etapa: tag git `backup-antes-etapa-11` (aponta para `fb72b31`).
+Ferramentas instaladas no `.venv` e declaradas em `[project.optional-dependencies] dev`: ruff 0.17.4, pytest-cov 7.1.0 (coverage 7.17.2), pre-commit 4.7.0.
+
+- [x] **Pendência das Etapas 3 e 6: dividir `simulate` e `decide`.**
+  - `simulate` (220 linhas, complexidade 33) virou `_Market` (leituras no instante da decisão), `_Book` (carteira, OCO, fechamento), `_manage_position`, `_entry_context` e `_count`. `decide` (122 linhas, complexidade 24) virou `_decide_with_position`, `_exit_after_daily_limit`, `_sell`, `_decide_entry`, `_confidence_parts`, `_explain` e `_level_gates`. Commit `ce7a2e8`.
+  - `run_pair` (complexidade 16) perdeu a grade do walk-forward e a ablação para `_walk_forward`, `_best_in_training` e `_ablation`. Commit `f408349`.
+  - **Prova de que nada mudou:**
+    - backtest rápido SHA-256 `ac4ae271…` igual ao de antes;
+    - backtest completo `111d501b2bf7…6cc7b8861` igual, comparado com o commit anterior rodando lado a lado (`git worktree`);
+    - modelo treinado no demo com JSON idêntico;
+    - foto do teste ao vivo e teste de equivalência dos atalhos continuam passando.
+- [x] **11.1** Testes (pytest) para coleta, indicadores, sinais, backtest, carteira virtual, registro de operações, promoção de modelo e risco.
+  - Mapa feito pela cobertura (antes: 353 testes, 74,7%). Os buracos maiores eram WebSocket 33%, walk-forward 55%, relatório da carteira virtual 69%, sinais extras 77%, diário e ligação compra → sinal 69–76%.
+  - **28 testes novos** (353 → 381), em 5 arquivos novos e 2 alterados:
+    - `test_backtest_walkforward.py` (5): simulador falso com resultados conhecidos por mês. Prova que a escolha usa só o treino (escolhe a combinação que foi PIOR no mês de teste porque foi melhor no treino), que o mês fica parado se nem a melhor ganhou, que combinação com poucas operações não entra e que a ablação roda só fora da amostra.
+    - `test_websocket.py` (4): servidor WebSocket local em 127.0.0.1. Testa entrega, mensagem incompleta ignorada, erro no tratamento sem derrubar a conexão, reconexão depois de queda e silêncio de 30 s tratado como conexão morta.
+    - `test_registro_operacoes.py` (5): diário manual (validação, lista, apagar), ligação compra → último COMPRAR ao vivo em até 30 min, confirmação e correção, níveis da posição vindos do sinal e spread medido por hora só com amostras suficientes.
+    - `test_paper_relatorio.py` (6): patrimônio e métricas batem com as operações, comprar e segurar com a mesma conta do backtest, desfecho dos sinais x calibração, comparação com o backtest e leitura das operações virtuais pelo aprendizado.
+    - `test_sinais_extras.py` (6): stoch RSI, divergência, pavio, fluxo taker, suporte e livro de ofertas, cada um com o caso que pontua e o que não pontua.
+    - `test_demo.py` (+3): `paper replay` de ponta a ponta no demo, recusa sem aquecimento e "o demo não grava nada na pasta do projeto".
+  - **Achado e corrigido:** os testes do modo demo gravavam em `data/demo/` do projeto. Cada execução da suíte deixava um modelo novo (21 arquivos acumulados hoje em `data/demo/models/ETHBRL`). Agora usam uma cópia temporária de `config/` e `exemplos/`. Prova: retrato de data/tamanho de todos os arquivos do projeto antes e depois da suíte → `novos: 0 | removidos: 0 | alterados: 0`. Commit `bef5416`.
+  - **Achado e corrigido:** `ResourceWarning: unclosed database` (12 avisos, visíveis só com a cobertura ligada). Vinha de 7 conexões SQLite abertas e nunca fechadas em 5 arquivos de TESTE: `test_live.py`, `test_replay.py` (3), `test_painel_etapa10.py`, `test_learning.py` e `test_dashboard.py`. O código do programa fecha todas as conexões.
+    - Commits `03398c1` e `b830507`.
+    - Minha primeira correção pegou só `test_live.py` e ainda sobraram 5 avisos; achei os outros procurando conexões nos testes.
+    - Prova: suíte completa com cobertura → 0 `ResourceWarning`; os 4 arquivos corrigidos passam com `-W error::ResourceWarning`.
+  - **Suíte numa cópia limpa** (`git clone`, sem `data/`, `.env` nem `logs/`): `381 passed`, e nenhum arquivo novo criado na cópia.
+  - O replay de ponta a ponta leva ~45 s e ficou marcado `@pytest.mark.lento`. Roda no CI e na suíte completa; para pular localmente: `pytest -m "not lento"`.
+- [x] **11.2** Lint e formatação (ruff/black) e pre-commit.
+  - **Formatação:** `ruff format` (mesmo estilo do black), linha de 120. Commit `680f991` só de formatação. O AST dos 148 arquivos `.py` é idêntico antes e depois (script de comparação, com docstrings normalizadas). O commit está em `.git-blame-ignore-revs`, para não poluir o `git blame`.
+  - **Regras do lint** (em `pyproject.toml`): pycodestyle, pyflakes, ordem de imports, bugbear, pyupgrade, simplify, comprehensions, ruff, complexidade (máx. 15) e docstring nos itens públicos.
+    - Ignorados de propósito: tamanho de linha (fica com o formatador) e os caracteres "ambíguos" × − – dos textos em português.
+    - Os 95 avisos iniciais foram corrigidos (commit `5b77e90`), por exemplo:
+      - `zip(..., strict=True)` onde os tamanhos são iguais por construção;
+      - `l` → `lot`/`lo`;
+      - `obj != obj` → `math.isfinite`;
+      - docstrings nos métodos dos `Protocol`.
+    - Falsos positivos marcados com o motivo: `sqlite3.Row.keys()`, porque em `Row` o `in` compara valores, não colunas.
+  - **4 funções continuam acima da complexidade 15**, com `noqa: C901` e o motivo escrito na linha:
+    - `cmd_live`: laço do terminal;
+    - `print_decision`: só monta texto;
+    - `create_app`: soma das rotas;
+    - `run_cycle`: seções com o mesmo corte no tempo.
+    - Decisão consciente: dividir não melhora a leitura.
+  - `.pre-commit-config.yaml`:
+    - ruff check/format;
+    - yaml/toml, fim de arquivo, espaços no fim da linha, arquivos grandes (> 8 MB) e conflito de merge;
+    - `detect-private-key`;
+    - trava local que recusa `.env`, `*.sqlite`, `*.db`, `data/` e `logs/`.
+  - **Prova:** `pre-commit run --all-files` → 9 checagens passaram. Arquivos falsos criados e apagados em seguida: `prova_trava.sqlite` e `prova_dir/.env` foram recusados pela trava, e um arquivo com o cabeçalho de uma chave privada RSA falsa, por `detect-private-key`. O próprio gancho barrou o primeiro commit deste PROGRESSO, que citava esse cabeçalho literalmente.
+  - `pre-commit install` feito, e o gancho rodou nos commits seguintes desta etapa.
+- [x] **11.3** GitHub Actions rodando lint + testes.
+  - `.github/workflows/ci.yml`:
+    - **job de lint:** ruff 0.17.4;
+    - **job de testes:** Ubuntu com Python 3.11 (a mínima declarada) e 3.14, mais Windows com 3.14, com cobertura e mínimo de 85% por área crítica;
+    - guarda o `coverage.json` como artefato; permissão só de leitura; nenhuma chave nem segredo usado.
+  - Validado com `actionlint` 1.7.12 (sem problemas) e com o `check-yaml` do pre-commit.
+  - **[BLOQUEADO] execução real no GitHub:** o repositório não tem remote (`git remote -v` vazio). O primeiro push é da Etapa 12, com sua autorização.
+  - Aqui só existe Python 3.14 no Windows (sem WSL nem Docker), então **Linux e Python 3.11 não foram testados localmente**. Procurei código que dependa do sistema ou de versões novas do Python: nenhum (o único trecho específico do Windows, o alerta, já confere `sys.platform`). Se algo falhar, vai aparecer no primeiro push.
+- [x] **11.4** Relatório de cobertura das partes críticas.
+  - `scripts/cobertura_critica.py`: cobertura por área (linhas + ramos), a partir do `coverage.json`. Com `--minimo`, sai com erro abaixo do mínimo (conferido: `--minimo 95` → código de saída 1).
+  - `docs/COBERTURA.md`: tabela, como reproduzir, o que os testes conferem e o que fica de fora e por quê. Resultado (381 testes):
+
+| Área | Antes | Depois |
+|---|---|---|
+| Coleta de dados | 88,7% | 94,6% |
+| Indicadores | 95,7% | 95,7% |
+| Sinais e decisão | 92,1% | 95,2% |
+| Backtest | 85,2% | 93,2% |
+| Carteira virtual | 81,5% | 89,9% |
+| Registro de operações | 91,2% | 96,8% |
+| Promoção de modelo | 91,6% | 93,5% |
+| Risco | 90,0% | 90,0% |
+| Segurança | 98,8% | 98,8% |
+| Pacote inteiro | 74,7% | 79,0% |
+
+- [x] **Extra:** `pyproject.toml` passou a incluir `dashboard/static/vendor/*` nos arquivos do pacote. Sem isso, uma instalação que não seja editável ficaria sem a biblioteca do gráfico (erro meu da Etapa 10). Não deu para gerar o pacote aqui, porque o `.venv` não tem `setuptools`; a conferência fica para o teste de instalação do zero (12.3).
+
+### Verificação final da Etapa 11
+- `python -m pytest -q` → `381 passed, 1 warning in 174.28s` (era 352; com cobertura: 0 `ResourceWarning`, total 79%). O aviso é da biblioteca `starlette` (o `TestClient` do FastAPI avisa que vai trocar de cliente HTTP), não do projeto.
+- `ruff check .` → `All checks passed!`; `ruff format --check .` → `160 files already formatted`.
+- `pre-commit run --all-files` → 9 checagens passaram (a trava de segredos não tinha arquivo para checar).
+- Backtest de referência: rápido `ac4ae271…` e completo `111d501b…`, iguais aos de antes da etapa.
+- `git status --short` → vazio.
+
+### Problemas durante a Etapa 11
+- **Caminho no formato errado.** Passei ao Python do Windows um caminho no formato `/c/Users/...` dentro de uma opção (`--cov-report=json:/c/...`). O arquivo foi parar em `C:\c\Users\breno\AppData\...\cov_final.json`, numa pasta `C:\c` nova.
+  - A trava de segurança não me deixou apagar uma pasta no topo do disco. **Fica para você apagar `C:\c`**; ela contém só esse arquivo de cobertura (800 KB, sem dados pessoais).
+  - Refiz com o caminho do Windows (`cygpath -w`).
+- O primeiro teste do WebSocket demorava 16 s: o laço só confere o `stop` entre mensagens. Com a Binance (várias mensagens por segundo) isso é imediato. O teste passou a fechar a conexão no fim, e a observação ficou no topo do arquivo de teste.
+- Um teste de walk-forward falhou na primeira versão porque os dados falsos acabavam antes do fim do último mês de teste. Erro do teste, corrigido.
 
 ## ETAPA 12 — DOCUMENTAÇÃO PARA O GITHUB
 
@@ -710,3 +797,21 @@ Backup antes da etapa: tag git `backup-antes-etapa-10` (aponta para `6bb628c`).
 - Não tocados: `.env`, `data/` real, `logs/`, `README.md`, `config/`
 - Criados pelo programa no modo demo: `data/demo/replay/painel-demo-*.sqlite`, `data/demo/agent.sqlite` (registros de teste apagados pela tela)
 - Fora do repositório (temporários): pacote do npm baixado e extraído no scratchpad, perfis do Edge sem janela
+
+### Etapa 11
+- Criados: `.github/workflows/ci.yml`, `.pre-commit-config.yaml`, `.git-blame-ignore-revs`, `docs/COBERTURA.md`, `scripts/cobertura_critica.py`, `tests/test_backtest_walkforward.py`, `tests/test_websocket.py`, `tests/test_registro_operacoes.py`, `tests/test_paper_relatorio.py`, `tests/test_sinais_extras.py`
+- Alterados: 113 arquivos (`git diff --name-status backup-antes-etapa-11 HEAD`). A maioria é só formatação (commit `680f991`, AST idêntico). Mudanças de conteúdo:
+  - `pyproject.toml`: ruff, coverage, marcador `lento`, dependências de desenvolvimento e `vendor/` no pacote;
+  - `src/cryptoagent/backtest/simulator.py`, `backtest/runner.py`, `engine/decision.py`: divisão das funções, sem mudar resultado;
+  - correções do lint em `account/ledger.py`, `indicators/structure.py`, `dashboard/service.py`, `dashboard/server.py`, `dashboard/views.py`, `data/history.py`, `paper/report.py`, `timeutils.py`, `__main__.py`, `cli/app.py`, `cli/dados.py`, `cli/painel.py` e outros;
+  - `noqa: C901` com motivo em `cli/dados.py`, `cli/decisao.py`, `dashboard/server.py` e `learning/cycle.py`;
+  - testes: `tests/test_demo.py`, `tests/test_live.py`, `tests/test_replay.py`, `tests/test_painel_etapa10.py`, `tests/test_learning.py`, `tests/test_dashboard.py` (conexões fechadas) e ajustes de lint em outros arquivos de teste;
+  - `PROGRESSO.md`.
+- Removidos: nenhum
+- Não tocados: `.env`, `data/` real, `logs/`, `README.md`, `config/`
+- Fora do repositório:
+  - `.git/hooks/pre-commit` (instalado pelo `pre-commit install`);
+  - ambientes do pre-commit em `~/.cache/pre-commit`;
+  - `actionlint-py` no ambiente de ferramentas do scratchpad;
+  - `C:\c\...\cov_final.json` (ver Problemas).
+- Ficaram em `data/demo/models/ETHBRL`: 21 modelos gerados pelas execuções antigas da suíte (antes da correção). Ignorados pelo git; podem ser apagados sem perda.
