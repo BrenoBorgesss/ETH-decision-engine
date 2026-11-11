@@ -19,8 +19,8 @@ Legenda: `[ ]` pendente · `[x]` concluído com evidência · `[BLOQUEADO]` · `
 | 8 | Aprendizado contínuo e panoramas | concluída e aprovada (2026-11-11) |
 | 9 | Controle de risco e sinais | concluída e aprovada (2026-11-11) |
 | 10 | Dashboard e aparência | concluída e aprovada (2026-11-11) |
-| 11 | Testes, lint e CI | concluída — aguardando aprovação |
-| 12 | Documentação para o GitHub | pendente |
+| 11 | Testes, lint e CI | concluída e aprovada (2026-11-11) |
+| 12 | Documentação para o GitHub | concluída — aguardando aprovação |
 | 13 | LinkedIn, changelog e auditoria final | pendente |
 
 ---
@@ -707,11 +707,57 @@ Ferramentas instaladas no `.venv` e declaradas em `[project.optional-dependencie
 
 ## ETAPA 12 — DOCUMENTAÇÃO PARA O GITHUB
 
-- [ ] **12.1** `README.md` profissional em português (+ seção curta em inglês): descrição, problema, screenshots/GIF, funcionalidades, arquitetura (Mermaid), tecnologias, instalação passo a passo (incluindo modo demo), resultados reais do backtest e da simulação, limitações, aviso legal, próximos passos.
-- [ ] **12.2** `requirements.txt`/`pyproject.toml`, `.gitignore`, `.env.example`, `LICENSE` (MIT), `Dockerfile` (se fizer sentido).
-- [ ] **12.3** Teste de instalação do zero em um ambiente limpo seguindo apenas o README.
-- [ ] **12.4** Varredura final por dados sensíveis (chaves, saldos, operações reais, histórico git).
-- [ ] **12.5** Sugerir nome do repositório, descrição curta e topics.
+Backup antes da etapa: tag git `backup-antes-etapa-12` (aponta para `6377e53`).
+
+- [x] **12.1** `README.md` profissional em português (+ seção curta em inglês).
+  - Seções: problema, funcionalidades, captura do painel (demo), resultados reais, arquitetura (Mermaid), tecnologias, instalação passo a passo com modo demonstração, uso com a conta (só leitura), como decide, segurança, qualidade, limitações, próximos passos, estrutura, licença e resumo em inglês. Aviso legal com o texto exato no topo e no fim.
+  - **Todos os números vêm de execuções reais de 11/11/2026**, no código desta etapa:
+    - backtest completo do ETHBRL com custos congelados: hash `111d501b…`, o mesmo da Etapa 11. Padrão: 13 operações, −3,67%. Walk-forward: 0 operações. Ingênua: 598 operações, −76,40%. Comprar e segurar: +24,02%. Ablação e alvo x custo saíram do mesmo relatório;
+    - replay do demo (08/09): 2 operações, +0,95% x backtest 3, +0,47%;
+    - replay real de 7 dias (01–07/09, 2.016 decisões): 0 operações x backtest 1, −0,71%; comprar e segurar +0,24%. Igual ao da Etapa 7. Levou 563 s (299 s na Etapa 7), porque rodou junto com a instalação do zero;
+    - modelo (AUC 0,486), ciclos de aprendizado e calibração citados do PROGRESSO (Etapas 6 e 8).
+  - Afirmações conferidas no código: a regra de "estratégia em teste" (`confiabilidade` no config), os comandos do demo (`--help`) e as opções do `paper rodar`. Duas frases corrigidas antes do commit: "multiplataforma" e "CI roda no Ubuntu" viraram "testado só no Windows" e "CI configurado", porque Linux ainda não foi testado.
+  - Mermaid conferido: renderizado com o mermaid 10.9.1 no navegador embutido ("OK: 1 svg"), servido por um servidor local temporário já desligado.
+  - Caminho pessoal removido: o README não tem mais `C:\Users\<usuário>\...`. No PROGRESSO e no DIAGNOSTICO, os caminhos viraram `<pasta do projeto>` e `<usuário>`.
+  - O endereço do clone ficou como `https://github.com/BrenoBorgesss/<nome-do-repositorio>.git`, até você escolher o nome (12.5).
+- [x] **12.2** `requirements.txt`/`pyproject.toml`, `.gitignore`, `.env.example`, `LICENSE` (MIT), `Dockerfile` (se fizer sentido).
+  - `LICENSE` MIT em nome de `BrenoBorgesss`. `pyproject.toml`: `license = "MIT"`, `license-files`, autor, palavras-chave, classificadores, `setuptools>=77` (exigido pela licença no formato SPDX).
+  - `requirements.txt` (40 pacotes) e `requirements-dev.txt` (17) com as versões exatas testadas, calculadas a partir do `pyproject.toml` e do ambiente.
+    - **Achado:** os metadados do projeto instalados no seu `.venv` estão desatualizados: não listam fastapi, uvicorn nem scikit-learn, que estão no `pyproject.toml`. Não reinstalei o seu `.venv`, porque o coletor ou o painel podiam estar abertos. Basta rodar `pip install -e ".[dev]"` com tudo fechado.
+  - `.gitignore`: cobertura (`.coverage`, `coverage.json`, `htmlcov/`), `build/`, `dist/` e `.ruff_cache/`. `.env.example` conferido: só nomes, sem valores.
+  - **Dockerfile: não fiz, de propósito.** Motivos:
+    - não há Docker nesta máquina para testar, e eu não entregaria um arquivo sem prova;
+    - o painel só escuta em `127.0.0.1` e recusa outro `Host`, que é proteção de segurança; num contêiner, isso exigiria abrir a porta para fora;
+    - os alertas e os atalhos são do Windows.
+    - O modo demonstração já roda sem chave e sem internet com `pip install`.
+- [x] **12.3** Teste de instalação do zero em um ambiente limpo seguindo apenas o README.
+  - Clone limpo do commit `8ae565a` numa pasta temporária, ambiente virtual novo com o Python do sistema e só os comandos do README:
+    - `pip install -e ".[dev]"` → exit 0 em 194 s; `pip check` → `No broken requirements found.`;
+    - `--demo backtest --rapido` → exit 0 (10 operações, −2,79%; comprar e segurar +8,44%);
+    - `--demo paper replay --inicio 2026-09-08 --dias 1` → exit 0, mesmos números do seu ambiente;
+    - `pytest -m "not lento"` → `380 passed, 1 deselected`.
+  - **Pacote não editável:** `pip wheel .` gerou `cryptoagent-0.1.0-py3-none-any.whl`, com `static/vendor/` (biblioteca do gráfico e licença) e `LICENSE`. Isso confirma a correção da Etapa 11.
+  - **Achado e corrigido:** o ambiente novo recebeu versões mais recentes (pandas 3.1.1, fastapi 0.162 e outras), e os testes mostraram 67 avisos. Vinham de duas APIs que o pandas 3.1 marcou como obsoletas: `Series.dt.weekday` e `join(rsuffix=...)`. Troquei pelas equivalentes, que funcionam do pandas 2.2 ao 3.1. Commit `291e74c`.
+    - Prova: backtest de referência com hash `ac4ae271…` inalterado; no ambiente novo, depois de `git pull`, `380 passed, 1 warning` (só o aviso da `starlette`).
+  - **Não testado:** Linux e Python 3.11 (não há aqui). Ficam para o CI no primeiro push.
+- [x] **12.4** Varredura final por dados sensíveis (chaves, saldos, operações reais, histórico git).
+  - Script que verifica os arquivos atuais e todas as versões de arquivo de todos os commits (61 commits, 614 versões). Mostra só onde achou cada padrão, nunca o valor.
+  - Nenhum `.env`, banco SQLite, `data/`, `logs/` ou Parquet fora de `exemplos/` em nenhum commit.
+  - Nenhum `BINANCE_API_KEY/SECRET` com valor, chave privada, assinatura em URL nem e-mail pessoal. Autor e commiter de todos os commits: `BrenoBorgesss <BrenoBorgesss@users.noreply.github.com>`.
+  - Sequências de 64 caracteres: todas são hashes SHA-256 em hexadecimal (do backtest e da biblioteca do gráfico), conferido um por um no histórico. "Tokens": só os falsos dos testes (`token-de-teste-…`).
+  - Saldos e operações reais: nunca foram versionados. Os bancos ficam em `data/` (ignorado), e as capturas de tela são do modo demonstração.
+  - **Resta no histórico:** versões antigas do README, do PROGRESSO e do DIAGNOSTICO têm o caminho `C:\Users\<seu usuário do Windows>\Documents\IA_para_Criptos_2.0` (o mesmo nome do seu usuário do GitHub). Os arquivos atuais estão limpos. Apagar do histórico exige reescrevê-lo (todos os hashes de commit mudam). Recomendo não reescrever; a decisão é sua.
+- [x] **12.5** Sugerir nome do repositório, descrição curta e topics. Sugestões no relatório da etapa.
+
+### Verificação final da Etapa 12
+- `python -m pytest -q` → `381 passed, 1 warning in 154.97s`.
+- `ruff check .` → `All checks passed!`; `ruff format --check .` → `160 files already formatted`; `pre-commit run --all-files` → 9 checagens passaram.
+- Varredura de dados sensíveis repetida depois do commit do README: nada novo.
+- `git status --short` → vazio.
+
+### Problemas durante a Etapa 12
+- Os primeiros scripts de troca de caminhos falharam: as barras invertidas do Windows foram interpretadas pelo Python. Nada foi aplicado pela metade; refiz com o script gravado em arquivo.
+- O navegador embutido mostra arquivos locais só como imagem estática; para conferir o Mermaid, servi a página por um servidor HTTP em `127.0.0.1`, desligado logo depois.
 
 ## ETAPA 13 — LINKEDIN, CHANGELOG E AUDITORIA FINAL
 
@@ -815,3 +861,11 @@ Ferramentas instaladas no `.venv` e declaradas em `[project.optional-dependencie
   - `actionlint-py` no ambiente de ferramentas do scratchpad;
   - `C:\c\...\cov_final.json` (ver Problemas).
 - Ficaram em `data/demo/models/ETHBRL`: 21 modelos gerados pelas execuções antigas da suíte (antes da correção). Ignorados pelo git; podem ser apagados sem perda.
+
+### Etapa 12
+- Criados: `LICENSE`, `requirements.txt`, `requirements-dev.txt`
+- Alterados: `README.md` (reescrito), `pyproject.toml`, `.gitignore`, `DIAGNOSTICO.md` e `PROGRESSO.md` (caminhos pessoais), `src/cryptoagent/timeutils.py`, `src/cryptoagent/seasonality/validation.py` (APIs obsoletas do pandas)
+- Removidos: nenhum
+- Não tocados: `.env`, `data/` real, `logs/`, `config/`, `.venv` (não reinstalado)
+- Criados pelo programa no modo demo: `data/demo/replay/replay-20260908-1d.sqlite` (ignorado pelo git)
+- Fora do repositório (temporários, no scratchpad): clone limpo com `.venv` novo, wheel gerada, replay real de 7 dias, página de teste do Mermaid
