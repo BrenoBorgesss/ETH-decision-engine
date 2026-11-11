@@ -96,6 +96,9 @@ class RiskView:
     # Perda máxima do dia atingida. Fica separada das outras travas porque, com posição aberta,
     # ainda permite VENDER nas saídas que reduzem risco (stop, invalidação, tempo).
     daily_limit_reason: str | None = None
+    # Estratégia ainda não validada no backtest (regra de confiabilidade): compras viram AGUARDAR.
+    # Não afeta vendas. Vazio no backtest e no paper trading, que são justamente onde ela é testada.
+    validation_reason: str | None = None
 
 
 @dataclass(frozen=True)

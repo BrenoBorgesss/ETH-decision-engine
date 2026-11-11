@@ -21,6 +21,7 @@ from cryptoagent.data.validation import inspect_klines
 from cryptoagent.engine.context import DecisionContext, MarketView, PositionView, RiskView, SeasonView
 from cryptoagent.engine.decision import Decision, decide
 from cryptoagent.engine.journal import auto_associate, levels_for_open_lots
+from cryptoagent.engine.reliability import check_reliability
 from cryptoagent.indicators.cache import IndicatorCache
 from cryptoagent.indicators.structure import Level, previous_day_levels, support_resistance
 from cryptoagent.indicators.volume import book_imbalance
@@ -315,6 +316,7 @@ async def analyze_live(
         capital_brl=account.effective_capital_brl,
         data_warnings=health.warnings,
         daily_limit_reason=limit_reason,
+        validation_reason=check_reliability(cfg, trade_sym, now_ms()).block_reason,
     )
     market = MarketView(server_now, a_mid, frames, levels, spread_pct, imbalance, funding)
     ctx = DecisionContext(sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True)

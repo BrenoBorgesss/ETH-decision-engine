@@ -150,6 +150,8 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
         d.blocks.append(text)
         d.strategy_gates.setdefault(key, text)
 
+    if ctx.risk.validation_reason:
+        gate("validacao", ctx.risk.validation_reason)
     if d.regime in p.bloquear_regimes:
         gate("regime", f"regime {REGIME_PT.get(d.regime, d.regime)} no {p.tf_setup}: sinais de compra bloqueados")
 
