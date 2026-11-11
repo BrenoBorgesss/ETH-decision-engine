@@ -46,6 +46,16 @@ a regra de confiança mantém o agente em **AGUARDAR (estratégia em teste)**.
 - **Coerência observada:** em 5 de 6 instantes em que o backtest da amostra comprou, a análise ao
   vivo simulada (`tests/test_live.py`) também decidiu COMPRAR.
 
+### Replay x backtest (Etapa 7)
+
+O replay roda o laço do paper trading ao vivo sobre o histórico. Ele confirma que o caminho ao vivo
+decide como o backtest:
+- **Sem ajuste:** de 01 a 07/09/2026 o backtest comprou uma vez e o replay nenhuma. O replay tem
+  dois avisos de dados que o backtest não tem (derivativos e perfil por horário indisponíveis), e
+  cada aviso reduz a confiança em 5%.
+- **Com a penalidade dos avisos zerada:** o replay fez a mesma compra, no mesmo minuto (01/09
+  15:20), com a mesma saída (stop).
+
 ## 3. Ajuste excessivo (overfitting) e tamanho da amostra
 
 1. **Parâmetros padrão escolhidos à mão.** Foram definidos antes desta revisão. **Não sei** se

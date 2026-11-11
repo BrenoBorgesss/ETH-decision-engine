@@ -400,11 +400,57 @@ Relatório completo da auditoria: `docs/AUDITORIA_BACKTEST.md`. Nova dependênci
 
 ## ETAPA 7 — SIMULAÇÃO COM DINHEIRO VIRTUAL
 
-- [ ] **7.1** Carteira virtual configurável (saldo inicial em R$ e perda máxima do dia definidos pelo usuário), separada da real.
-- [ ] **7.2** Operar com dados de mercado reais (somente leitura) no perfil intraday/spot/reversão à média.
-- [ ] **7.3** Execução realista: taxas, slippage, spread, tamanho mínimo de ordem, atraso de execução.
-- [ ] **7.4** Registrar TODA operação simulada em SQLite (horário, preço, quantidade, motivo, features, confiança, taxa, resultado em R$, cenário de mercado).
-- [ ] **7.5** Modo replay com dados históricos acelerados, reset da simulação e comparação com buy-and-hold.
+Backup antes da etapa: tag git `backup-antes-etapa-7` (aponta para `2088f2f`).
+
+- [x] **7.1** Carteira virtual configurável (saldo inicial em R$ e perda máxima do dia definidos pelo usuário), separada da real.
+  - **SIM1:** banco próprio da simulação, `data/simulacao.sqlite` (`paper.banco`), criado por `storage/sim_db.py`. Ele não tem nenhuma tabela da conta real; um teste confere isso. O paper e o replay nunca abrem o banco da conta: um teste aponta `conta.banco` para um arquivo que não pode ser criado, e ele não é. O painel lê a carteira virtual desse banco em modo somente leitura.
+  - **SIM6:** `paper.capital` (R$) e `paper.perda_max_dia_brl` (R$ fixos, substitui o percentual), também por `paper rodar --capital 500 --perda-max 15`. O par precisa ser cotado em R$ (validação) e a perda precisa ser menor que o capital. O capital de uma carteira já existente não muda sozinho; o programa avisa e indica `paper resetar`.
+  - O histórico antigo do paper (no banco da conta: 3 carteiras, 1 operação, 857 sinais) **não foi mexido nem copiado**. Contei só em modo leitura. Ver decisão pendente abaixo.
+- [x] **7.2** Operar com dados de mercado reais (somente leitura) no perfil intraday/spot/reversão à média.
+  - Execução real de `paper rodar --ciclos 6 --capital 500 --perda-max 15` (banco temporário fora de `data/`): leu as regras de ordem do ETHBRL na Binance ("mínimo R$ 10,00 por ordem, lote 0.0001"), analisou às 16:01 e 16:05 com dados ao vivo (ESPERAR: "preço não está esticado"), carteira R$ 500 / perda máxima R$ 15 gravadas. A taxa veio do config porque a chave da Binance está sendo recusada (−2015).
+  - Mesmo motor do `analisar` e do backtest (`decide`); só candles fechados; spot, só compra, VENDER = sair da posição.
+- [x] **7.3** Execução realista: taxas, slippage, spread, tamanho mínimo de ordem, atraso de execução.
+  - Taxa, meio spread e slippage (mercado e stop) já eram os do backtest (`backtest/execution.py`); confirmados por teste.
+  - **SIM5:** `paper/filters.py` aplica LOT_SIZE (mínimo e passo, arredonda para baixo), MARKET_LOT_SIZE (máximo a mercado) e NOTIONAL (valor mínimo). Valores reais do ETHBRL lidos de `/api/v3/exchangeInfo` em 11/11/2026: lote mínimo 0,0001, passo 0,0001, máximo a mercado 10,44144375 ETH, valor mínimo R$ 10. Cópia em `exemplos/filtros_binance.json` para uso sem internet. Ordem recusada não abre e fica em `paper_events`.
+  - **Atraso de execução:** `paper.atraso_execucao_s` (1 s). Depois da decisão o laço espera e relê o melhor preço; a ordem virtual é executada nesse preço novo. Ficam gravados o preço da decisão e o executado.
+  - **B1 corrigido:** a OCO virtual só confere candles de 1m que começaram depois da execução. O teste usa uma compra 5 s depois do início do minuto, com a mínima desse minuto abaixo do stop: o minuto não conta, o seguinte sim.
+- [x] **7.4** Registrar TODA operação simulada em SQLite.
+  - **SIM4:** `paper_trades` guarda:
+    - horário e preço da decisão, horário e preço da execução;
+    - quantidade já ajustada ao lote, valor em R$ e taxas;
+    - stop e alvos, confiança e regime;
+    - motivo da entrada (texto) e as 24 variáveis do momento (as mesmas do modelo desafiador);
+    - cenário de mercado: regime, hora e dia da semana locais, spread, funding, percentil de volatilidade e parcelas da confiança;
+    - decisão e execução da saída, motivo da saída e resultado em R$.
+
+    Cada decisão (também as ESPERAR) continua em `signals`.
+  - Exemplo real (replay da amostra, 08/09/2026): decisão às 10:15:05 a R$ 12.658,14; execução às 10:15:06 a R$ 12.661,94; 0,0789 ETH (R$ 999,03); stop às 10:23; resultado −R$ 4,26 com R$ 2,00 de taxas; variáveis e cenário gravados.
+- [x] **7.5** Modo replay com dados históricos acelerados, reset da simulação e comparação com buy-and-hold.
+  - **SIM3:** `paper replay --inicio AAAA-MM-DD --dias N`, também no `--demo`. `paper/replay.py` troca só o cliente da Binance por um que serve o histórico num relógio simulado; o laço do paper e o motor são os do modo ao vivo.
+    - O transporte HTTP recusa qualquer requisição e endpoint de conta não é atendido (testes).
+    - Só candles fechados; preço = abertura do minuto em curso ± meio spread da tabela de custos.
+    - Derivativos indisponíveis e perfil por horário desligado (seria olhar o futuro).
+    - Um banco por execução, recomeçado a cada vez.
+  - Velocidade: 1 dia em 30 s na amostra (~2.900× o tempo real); 7 dias com a configuração normal em 299 s (~2.000×), com 2.016 decisões.
+  - Reprodutível: duas execuções do mesmo período dão operações idênticas (teste).
+  - **Replay x backtest** (mesmos custos, mesmo período):
+    - Amostra, 08/09: replay 2 operações, +0,95%; backtest 3 operações, +0,47%.
+    - Real, 01 a 07/09: replay 0 operações; backtest 1 (−0,71%).
+    - A diferença vem dos avisos que só existem no replay (derivativos e perfil por horário), que reduzem a confiança em 5% cada.
+    - **Prova:** com `penalidade_por_aviso_dados: 0` no mesmo replay, ele faz a mesma operação do backtest. Mesmo minuto (01/09 15:20), mesma saída (stop), −0,65% contra −0,71%.
+  - **Reset:** `paper resetar` só mostra o que faria; com `--confirmar`, guarda uma cópia consistente do banco (`simulacao_antes_reset_<data>.sqlite`) e recomeça (teste).
+  - **SIM7:** o relatório do paper e o do replay mostram comprar e segurar no mesmo período com os mesmos custos, e quantas ordens foram recusadas por tamanho.
+- [ADIADO] **Painel no modo demo** (pendência da Etapa 4): o replay é o caminho para isso, mas mostrar o replay no painel é trabalho da tela (Etapa 10).
+- **Decisão pendente:** copiar o histórico antigo do paper (3 carteiras, 1 operação, 857 sinais, hoje dentro de `data/agent.sqlite`) para o banco novo da simulação? O formato antigo não tem preço de decisão, variáveis nem cenário; esses campos ficariam vazios. Não fiz sem a sua autorização.
+
+### Verificação final da Etapa 7
+- `python -m pytest -q` → `310 passed, 1 warning in 31.43s` (eram 298; +12 testes).
+- Backtest rápido de referência: SHA-256 `ac4ae271…7186df65`, igual ao da Etapa 6 (o backtest não mudou).
+- `ruff check --select F,E9` em `src` e `tests`: sem erros. Achou um erro real que os testes não pegavam: `dashboard/service.py` usava `sqlite3` sem importar, e o painel quebraria assim que existisse banco da simulação. Corrigido e coberto por teste novo. Corrigiu também 2 avisos deixados na Etapa 6 (f-string sem variável, import sem uso).
+
+### Problemas durante a Etapa 7
+- Na primeira versão, as variantes do paper eram montadas a partir do `config.yaml` puro, perdendo o `--sobrepor` e o `--demo`. No demo, a variante "padrão" analisaria o ETHUSDT de `data/history`. Corrigido com `apply_overlay`: a sobreposição de cada variante é aplicada sobre o config em uso.
+- O replay com a configuração normal ficou mais conservador que o backtest (avisos de dados que só existem nele); medido e documentado acima, não "corrigido" no código.
 
 ## ETAPA 8 — APRENDIZADO CONTÍNUO E PANORAMAS CONFIÁVEIS
 
@@ -503,3 +549,10 @@ Relatório completo da auditoria: `docs/AUDITORIA_BACKTEST.md`. Nova dependênci
 - Não tocados: `.env`, `data/history`, `data/*.sqlite`, `data/reports` (o seu relatório antigo continua lá), `logs/`, `README.md`
 - Instalado no `.venv`: `scikit-learn` 1.9.1 (com `scipy` 1.18.1 e dependências)
 - Fora do repositório (temporários): cópia do código antigo via `git worktree` (removida), scripts de auditoria e relatórios no scratchpad
+
+### Etapa 7
+- Criados: `src/cryptoagent/storage/sim_db.py`, `src/cryptoagent/paper/filters.py`, `src/cryptoagent/paper/replay.py`, `exemplos/filtros_binance.json`, `tests/test_replay.py`
+- Alterados: `config/config.yaml`, `config/demo.yaml`, `exemplos/LEIAME.md`, `src/cryptoagent/config.py`, `src/cryptoagent/storage/agent_db.py`, `src/cryptoagent/paper/book.py`, `paper/runner.py`, `paper/report.py`, `src/cryptoagent/cli/paper.py`, `cli/app.py`, `cli/modelo.py`, `src/cryptoagent/data/rest.py`, `src/cryptoagent/engine/live.py`, `src/cryptoagent/dashboard/service.py`, `scripts/medir_desempenho.py`, `tests/test_paper.py`, `tests/test_dashboard.py`, `tests/test_live.py`, `tests/test_model.py`, `docs/AUDITORIA_BACKTEST.md`, `PROGRESSO.md`
+- Removidos: nenhum
+- Não tocados: `.env`, `data/agent.sqlite` (só lido, para contar o histórico antigo do paper), `data/history`, `data/costs.sqlite`, `logs/`, `README.md`
+- Criados pelo programa fora do repositório: `data/demo/replay/*.sqlite` e `data/demo/reports` (modo demo, ignorados pelo git); bancos de teste do paper ao vivo e do replay real ficaram no scratchpad
