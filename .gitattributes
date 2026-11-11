@@ -6,3 +6,6 @@
 *.sqlite binary
 *.png binary
 *.gif binary
+
+# Biblioteca de terceiros: bytes exatos (o hash é conferido nos testes)
+src/cryptoagent/dashboard/static/vendor/*.js -text
