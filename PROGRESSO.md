@@ -8,8 +8,8 @@ Legenda: `[ ]` pendente · `[x]` concluído com evidência · `[BLOQUEADO]` · `
 
 | Etapa | Nome | Estado |
 |---|---|---|
-| 0 | Preparação | concluída — aguardando aprovação |
-| 1 | Diagnóstico | pendente |
+| 0 | Preparação | concluída e aprovada (2026-11-10) |
+| 1 | Diagnóstico | concluída — aguardando aprovação |
 | 2 | Segurança e configuração | pendente |
 | 3 | Estrutura e qualidade do código | pendente |
 | 4 | Coleta de dados | pendente |
@@ -108,11 +108,43 @@ tests/                  conftest.py + 19 arquivos test_*.py
 
 ## ETAPA 1 — DIAGNÓSTICO (somente leitura)
 
-- [ ] **1.1** Mapear estrutura, linguagem, dependências, pontos de entrada e fluxo de dados (coleta → processamento → modelo → sinal → simulação → dashboard), citando os arquivos reais.
-- [ ] **1.2** Rodar o projeto e os testes existentes; registrar erros, avisos e tempos reais.
-- [ ] **1.3** Procurar chaves/segredos no código e no histórico git (sem imprimir os valores).
-- [ ] **1.4** Gerar `DIAGNOSTICO.md` com problemas por categoria (bugs, segurança, performance, qualidade, coleta de dados, confiabilidade do modelo, simulação/aprendizado, UI/UX, documentação), cada um com arquivo/linha, prioridade e como corrigir.
-- [ ] **1.5** Propor o plano detalhado das etapas 2 a 13 ajustado ao que foi encontrado.
+- [x] **1.1** Mapear estrutura, linguagem, dependências, pontos de entrada e fluxo de dados (coleta → processamento → modelo → sinal → simulação → dashboard), citando os arquivos reais.
+  - Evidência: `DIAGNOSTICO.md`, seção 1.1 (tabela fase → arquivos). 74 arquivos `.py`, 9.007 linhas em `src/cryptoagent` (medido por script AST).
+- [x] **1.2** Rodar o projeto e os testes existentes; registrar erros, avisos e tempos reais.
+  - `python -m pytest -q --durations=10` → `213 passed, 1 warning in 23.07s` (25,79 s de relógio). Aviso: `StarletteDeprecationWarning` do TestClient.
+  - `cryptoagent --help` 1,58 s · `historico verificar` 1,39 s (0 buracos em 14 séries) · `custos resumo` 1,35 s (6 dias de coleta) · `dados status` 9,80 s ("Dados em ordem") · `paper relatorio` 12 s (0 operações virtuais fechadas).
+  - `cryptoagent backtest --rapido --pares ETHBRL` (relatório gravado no scratchpad, não em `data/reports`): 13 operações, −3,67%, drawdown −4,45%, acerto 23,1%, Sharpe −2,33; comprar e segurar +24,07%; 32 s.
+  - Erro observado: leitura de taxas da conta recusada pela Binance (código −2015); tratado pelo programa.
+  - NÃO executados, de propósito (exibem saldo/operações reais ou gravam nos bancos do usuário): `analisar`, `conta *`, `painel`, `sessao`, `sinais`, `paper rodar`, `custos coletar`, `historico baixar`, `sazonalidade analisar`. O painel não foi aberto no navegador.
+- [x] **1.3** Procurar chaves/segredos no código e no histórico git (sem imprimir os valores).
+  - `git grep` em todos os commits com 7 padrões (chave de 64 caracteres, `sk-ant-`, `AKIA`, PEM, atribuição de segredo, token GitHub, CPF): só valores fictícios de teste (`tests/test_redact.py`, `tests/test_dashboard.py:15`) e o marcador `__TOKEN__` em `index.html:137`.
+  - `.env`, `data/`, `logs/` nunca versionados (0 commits). `.env.example` sem valores. Autor: só e-mail noreply.
+  - Achado: caminho pessoal do Windows em `README.md:22,29,145` (corrigir na Etapa 12). Nenhuma chave a revogar.
+- [x] **1.4** Gerar `DIAGNOSTICO.md` com problemas por categoria (bugs, segurança, performance, qualidade, coleta de dados, confiabilidade do modelo, simulação/aprendizado, UI/UX, documentação), cada um com arquivo/linha, prioridade e como corrigir.
+  - Evidência: `DIAGNOSTICO.md`, seção 1.4. 62 problemas (9 alta, 31 média, 22 baixa), contados por script sobre as tabelas. Commit `35fced1`.
+- [x] **1.5** Propor o plano detalhado das etapas 2 a 13 ajustado ao que foi encontrado.
+  - Evidência: `DIAGNOSTICO.md`, seção 1.5. Inclui 4 decisões pendentes do usuário (D1 a D4).
+
+### Achados principais da Etapa 1
+1. O projeto já é um pacote maduro (213 testes, cliente somente leitura, config validada). Muitas tarefas do roteiro viram "confirmar", não "fazer".
+2. Não existe modelo treinado/adaptativo: a decisão é por regras fixas. A Etapa 8 é construção nova.
+3. A estratégia não tem vantagem comprovada (retorno negativo fora da amostra, 13 a 18 operações).
+4. O backtest não é reprodutível hoje: depende da taxa lida da conta e do `costs.sqlite`, que cresce (−3,652% no relatório salvo × −3,67% hoje).
+5. A chave da Binance está sendo recusada (−2015); ação do usuário.
+
+### Decisões pendentes (pedir ao usuário)
+- **D1** Manter os nomes atuais das pastas (`engine/`, `paper/`, `indicators/`) em vez de renomear? Recomendação: manter.
+- **D2** Introduzir um modelo simples (regressão logística, `scikit-learn`) como "desafiador" das regras atuais? Recomendação: sim.
+- **D3** Etapas 2 a 8 sem depender da chave; 9.3 testado com respostas simuladas. Recomendação: sim.
+- **D4** Remover `ANTHROPIC_API_KEY` (não usada)? Recomendação: sim.
+- Proposta de ordem: antecipar o congelamento de custos do backtest (M3) para o início da Etapa 3, pois é o baseline de comparação do item 3.4.
+
+### Problemas durante a Etapa 1
+- O script que atualizaria este arquivo falhou por erro de escape; o commit `35fced1` levou só o `DIAGNOSTICO.md`. Este arquivo foi atualizado em um commit separado.
+
+### Limites da Etapa 1
+- Arquivos não lidos estão listados no fim do `DIAGNOSTICO.md`; serão lidos na etapa que os tocar.
+- Lint e verificador de tipos não rodados (não instalados; etapa somente leitura).
 
 ## ETAPA 2 — SEGURANÇA E CONFIGURAÇÃO
 
@@ -214,3 +246,9 @@ tests/                  conftest.py + 19 arquivos test_*.py
 - Criados: `PROGRESSO.md`, `.git/` (repositório)
 - Alterados: nenhum
 - Removidos: nenhum
+
+### Etapa 1
+- Criados: `DIAGNOSTICO.md`
+- Alterados: `PROGRESSO.md`
+- Removidos: nenhum
+- Fora do repositório (temporários, no scratchpad da sessão): `overlay_diag.yaml`, `reports/backtest.html`, `reports/backtest.json`
