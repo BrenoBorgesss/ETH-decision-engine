@@ -54,7 +54,9 @@ def _demo_service(cfg: Config, args: argparse.Namespace) -> object:
     from cryptoagent.dashboard.demo import DemoService
     from cryptoagent.timeutils import datetime_to_ms, zone
 
-    start = datetime.fromisoformat(args.inicio or "2026-09-08T09:30").replace(tzinfo=zone(cfg.fuso.local)) + timedelta(seconds=cfg.paper.atraso_s)
+    start = datetime.fromisoformat(args.inicio or "2026-09-08T09:30").replace(tzinfo=zone(cfg.fuso.local)) + timedelta(
+        seconds=cfg.paper.atraso_s
+    )
     start_ms = datetime_to_ms(start)
     costs = load_schedules(cfg.path("exemplos/custos_demo.json"))[cfg.paper.par]
     console.print(
@@ -62,14 +64,25 @@ def _demo_service(cfg: Config, args: argparse.Namespace) -> object:
         f"{args.velocidade:g} minuto(s) simulado(s) por segundo. Nada é real."
     )
     port = args.porta or cfg.painel.porta
-    return DemoService(cfg, console, start_ms=start_ms, end_ms=start_ms + args.horas * 3_600_000, costs=costs, minutes_per_second=args.velocidade,
-                       db_name=f"painel-demo-{port}.sqlite")  # um banco por porta: duas demonstrações não disputam o mesmo arquivo
+    return DemoService(
+        cfg,
+        console,
+        start_ms=start_ms,
+        end_ms=start_ms + args.horas * 3_600_000,
+        costs=costs,
+        minutes_per_second=args.velocidade,
+        db_name=f"painel-demo-{port}.sqlite",
+    )  # um banco por porta: duas demonstrações não disputam o mesmo arquivo
 
 
 async def cmd_alert_test(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
     """Comando `alertas testar`: envia um aviso de teste. Devolve o código de saída do processo."""
     from cryptoagent.alerts.notify import Alert, Alerter
 
-    Alerter(cfg.alertas, console, cfg.fuso.local).send(Alert(now_ms(), "Teste de alerta do agente", "Se você está vendo isto, as notificações funcionam."))
-    console.print("Enviado. Se a notificação do Windows não apareceu, confira em Configurações → Sistema → Notificações se o Windows PowerShell pode notificar.")
+    Alerter(cfg.alertas, console, cfg.fuso.local).send(
+        Alert(now_ms(), "Teste de alerta do agente", "Se você está vendo isto, as notificações funcionam.")
+    )
+    console.print(
+        "Enviado. Se a notificação do Windows não apareceu, confira em Configurações → Sistema → Notificações se o Windows PowerShell pode notificar."
+    )
     return 0

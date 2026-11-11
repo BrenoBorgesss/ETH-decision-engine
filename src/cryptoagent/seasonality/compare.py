@@ -39,6 +39,7 @@ def activity_label(pct: float, low: float, high: float) -> str:
 @dataclass(frozen=True)
 class Comparison:
     """Comparação de um valor de agora com o histórico: valor, percentil, rótulo e tamanho da amostra."""
+
     name: str
     value_pct: float
     percentile: float
@@ -55,7 +56,13 @@ def candle_vs_same_hour(df_b: pd.DataFrame, days: int, low: float, high: float) 
     since = int(last["open_time"]) - days * DAY_MS
     hist = df_b[(df_b["hour"] == last["hour"]) & (df_b["open_time"] >= since) & (df_b["open_time"] < last["open_time"])]
     pct = percentile_of(float(last["range_pct"]), hist["range_pct"])
-    return Comparison(f"último candle ({int(last['hour']):02d}h)", float(last["range_pct"]), pct, activity_label(pct, low, high), len(hist))
+    return Comparison(
+        f"último candle ({int(last['hour']):02d}h)",
+        float(last["range_pct"]),
+        pct,
+        activity_label(pct, low, high),
+        len(hist),
+    )
 
 
 def day_range_vs_history(df_b: pd.DataFrame, trading_day: pd.Series, days: int, low: float, high: float) -> Comparison:
@@ -64,7 +71,14 @@ def day_range_vs_history(df_b: pd.DataFrame, trading_day: pd.Series, days: int, 
     Variação do dia = (máxima − mínima desde 00:00 de Brasília) / abertura do dia × 100.
     "Mesmo horário" = mesmo número de candles desde o início do dia.
     """
-    d = pd.DataFrame({"day": trading_day.to_numpy(), "open": df_b["open"].to_numpy(), "high": df_b["high"].to_numpy(), "low": df_b["low"].to_numpy()})
+    d = pd.DataFrame(
+        {
+            "day": trading_day.to_numpy(),
+            "open": df_b["open"].to_numpy(),
+            "high": df_b["high"].to_numpy(),
+            "low": df_b["low"].to_numpy(),
+        }
+    )
     g = d.groupby("day", sort=False)
     d["slot"] = g.cumcount()
     day_open = g["open"].transform("first")
@@ -80,16 +94,23 @@ def day_range_vs_history(df_b: pd.DataFrame, trading_day: pd.Series, days: int, 
 @dataclass
 class ContextFactor:
     """Fator que multiplica a confiança por causa do horário, com os motivos."""
+
     factor: float
     reasons: list[str] = field(default_factory=list)
 
 
-def context_multiplier(hour_class: str | None, hour_pattern_validated: bool, activity: str | None, s: Sazonalidade) -> ContextFactor:
+def context_multiplier(
+    hour_class: str | None, hour_pattern_validated: bool, activity: str | None, s: Sazonalidade
+) -> ContextFactor:
     """Multiplicador de confiança da análise por horário (sempre <= 1: só reduz, nunca cria sinal)."""
     ctx = ContextFactor(1.0)
-    label = {"compensa": "compensa", "neutro": "neutro", "nao_compensa": "não compensa"}.get(hour_class or "", hour_class)
+    label = {"compensa": "compensa", "neutro": "neutro", "nao_compensa": "não compensa"}.get(
+        hour_class or "", hour_class
+    )
+
     def fmt(x: float) -> str:
         return f"{x:g}".replace(".", ",")
+
     if hour_class and hour_pattern_validated:
         mult = {"compensa": s.mult_compensa, "neutro": s.mult_neutro, "nao_compensa": s.mult_nao_compensa}[hour_class]
         ctx.factor *= mult

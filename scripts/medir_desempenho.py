@@ -36,10 +36,16 @@ def peak_memory_mb() -> float:
 
         class Counters(ctypes.Structure):
             _fields_ = [
-                ("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD), ("PeakWorkingSetSize", ctypes.c_size_t),
-                ("WorkingSetSize", ctypes.c_size_t), ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
-                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
-                ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t),
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
             ]
 
         counters = Counters()
@@ -75,6 +81,7 @@ def load_cfg(demo: bool):  # noqa: ANN201
 
 def sec_inicializacao(demo: bool) -> dict:
     """Tempo para o programa começar: importar o pacote e responder a --version."""
+
     def run(args: list[str]) -> None:
         subprocess.run([sys.executable, *args], check=True, capture_output=True, cwd=ROOT)
 
@@ -110,7 +117,12 @@ def sec_validacao(demo: bool) -> dict:
 
     cfg = load_cfg(demo)
     df = HistoryStore(cfg.path(cfg.historico.pasta)).load(cfg.mercado.simbolo_analise, "1m")
-    return {"repeticoes": 5, "linhas": len(df), "s": median_s(lambda: clean_klines(df, "1m"), 5), "pico_memoria_mb": peak_memory_mb()}
+    return {
+        "repeticoes": 5,
+        "linhas": len(df),
+        "s": median_s(lambda: clean_klines(df, "1m"), 5),
+        "pico_memoria_mb": peak_memory_mb(),
+    }
 
 
 def sec_indicadores(demo: bool) -> dict:
@@ -126,7 +138,10 @@ def sec_indicadores(demo: bool) -> dict:
     live_total = 0.0
     for tf in cfg.estrategia.timeframes:
         df = store.load(sym, tf)
-        out["historico"][tf] = {"linhas": len(df), "s": median_s(lambda df=df: compute_indicators(df, cfg.indicadores, cfg.regime, **kw), 3)}
+        out["historico"][tf] = {
+            "linhas": len(df),
+            "s": median_s(lambda df=df: compute_indicators(df, cfg.indicadores, cfg.regime, **kw), 3),
+        }
         last = df.tail(1000).reset_index(drop=True)
         t = median_s(lambda last=last: compute_indicators(last, cfg.indicadores, cfg.regime, **kw), 30)
         out["ao_vivo_1000_candles"][tf] = t
@@ -146,8 +161,15 @@ def sec_backtest(demo: bool) -> dict:
     bt = cfg.backtest
     pair = "ETHBRL"
     costs = build_schedule(
-        pair, cfg.custos.taxa_padrao_taker, cfg.sazonalidade.spread_padrao_pct.get(pair, 0.05), None, cfg.fuso.local,
-        min_samples=bt.amostras_min_spread_hora, slip_market=bt.slippage_mercado_pct, slip_stop=bt.slippage_stop_pct, fee_source="do config",
+        pair,
+        cfg.custos.taxa_padrao_taker,
+        cfg.sazonalidade.spread_padrao_pct.get(pair, 0.05),
+        None,
+        cfg.fuso.local,
+        min_samples=bt.amostras_min_spread_hora,
+        slip_market=bt.slippage_mercado_pct,
+        slip_stop=bt.slippage_stop_pct,
+        fee_source="do config",
     )
     t0 = time.perf_counter()
     data = load_backtest_data(cfg, pair, season_cost_pct=costs.mean_roundtrip_pct)
@@ -207,7 +229,9 @@ def sec_ao_vivo(demo: bool) -> dict:
         clock = FakeClock(start)
         server = FakeBinance(clock, latency_s=latency_s)
         times = []
-        async with BinanceReadOnlyClient(cfg.binance, Secrets(), transport=server.transport(), sleep=no_sleep, clock=clock) as client:
+        async with BinanceReadOnlyClient(
+            cfg.binance, Secrets(), transport=server.transport(), sleep=no_sleep, clock=clock
+        ) as client:
             for _ in range(n):
                 t0 = time.perf_counter()
                 await live.analyze_live(cfg, Secrets(), client, sqlite3.connect(":memory:"), paper=paper)
@@ -232,14 +256,21 @@ def sec_ao_vivo(demo: bool) -> dict:
 def main() -> int:
     """Roda as seções pedidas (cada uma em seu processo) e grava o JSON. Devolve o código de saída."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--demo", action="store_true", help="mede na amostra do repositório em vez do histórico completo")
+    parser.add_argument(
+        "--demo", action="store_true", help="mede na amostra do repositório em vez do histórico completo"
+    )
     parser.add_argument("--saida", type=Path, default=None, help="arquivo JSON de saída")
-    parser.add_argument("--secao", choices=SECTIONS, default=None, help="(uso interno) roda só uma seção e imprime o JSON")
+    parser.add_argument(
+        "--secao", choices=SECTIONS, default=None, help="(uso interno) roda só uma seção e imprime o JSON"
+    )
     args = parser.parse_args()
     if args.secao:
         print(json.dumps(globals()[f"sec_{args.secao}"](args.demo)))
         return 0
-    result: dict = {"dados": "amostra do repositório (demo)" if args.demo else "histórico completo", "python": sys.version.split()[0]}
+    result: dict = {
+        "dados": "amostra do repositório (demo)" if args.demo else "histórico completo",
+        "python": sys.version.split()[0],
+    }
     for name in SECTIONS:
         cmd = [sys.executable, str(Path(__file__).resolve()), "--secao", name, *(["--demo"] if args.demo else [])]
         proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", cwd=ROOT)

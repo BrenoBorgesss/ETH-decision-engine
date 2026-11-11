@@ -35,28 +35,61 @@ async def cmd_history_download(cfg: Config, secrets: Secrets, args: argparse.Nam
     months = args.meses or cfg.historico.meses
     plan = _history_plan(cfg, args.simbolos)
     table = Table(title=f"Histórico ({months} meses + mês atual)")
-    for col in ("Par", "Intervalo", "Arquivos novos", "Já tinha", "Via REST", "Linhas", "De (UTC)", "Até (UTC)", "Candles faltando", "Problemas"):
+    for col in (
+        "Par",
+        "Intervalo",
+        "Arquivos novos",
+        "Já tinha",
+        "Via REST",
+        "Linhas",
+        "De (UTC)",
+        "Até (UTC)",
+        "Candles faltando",
+        "Problemas",
+    ):
         table.add_column(col)
     h = cfg.historico
     retry = RetryPolicy(
-        attempts=h.tentativas_download, base_s=h.espera_entre_tentativas_s, max_s=h.espera_max_s,
-        retry_after_default_s=cfg.binance.espera_429_padrao_s, retry_after_max_s=cfg.binance.espera_429_max_s,
+        attempts=h.tentativas_download,
+        base_s=h.espera_entre_tentativas_s,
+        max_s=h.espera_max_s,
+        retry_after_default_s=cfg.binance.espera_429_padrao_s,
+        retry_after_max_s=cfg.binance.espera_429_max_s,
     )
-    async with httpx.AsyncClient(timeout=h.timeout_download_s, follow_redirects=True) as http, BinanceReadOnlyClient(cfg.binance, secrets) as client:
+    async with (
+        httpx.AsyncClient(timeout=h.timeout_download_s, follow_redirects=True) as http,
+        BinanceReadOnlyClient(cfg.binance, secrets) as client,
+    ):
         await client.sync_time()
         for symbol, intervals in plan.items():
             for interval in intervals:
                 console.print(f"Baixando {symbol} {interval}...")
                 stats = await history.download_history(
-                    store, http, cfg.binance.dados_historicos_url, symbol, interval, months, concurrency=h.downloads_simultaneos, retry=retry, outlier_sigmas=h.outlier_desvios,
+                    store,
+                    http,
+                    cfg.binance.dados_historicos_url,
+                    symbol,
+                    interval,
+                    months,
+                    concurrency=h.downloads_simultaneos,
+                    retry=retry,
+                    outlier_sigmas=h.outlier_desvios,
                 )
                 stats.rows_from_rest = await history.update_from_rest(
-                    store, client, symbol, interval, months=months, now=client.server_now_ms(), max_requests=h.max_consultas_rest
+                    store,
+                    client,
+                    symbol,
+                    interval,
+                    months=months,
+                    now=client.server_now_ms(),
+                    max_requests=h.max_consultas_rest,
                 )
                 final = history.summarize(store, symbol, interval, h.outlier_desvios)
                 problems = []
                 if stats.missing:
-                    problems.append(f"sem arquivo: {', '.join(stats.missing[:3])}{'...' if len(stats.missing) > 3 else ''}")
+                    problems.append(
+                        f"sem arquivo: {', '.join(stats.missing[:3])}{'...' if len(stats.missing) > 3 else ''}"
+                    )
                 if stats.checksum_failures:
                     problems.append(f"checksum falhou: {', '.join(stats.checksum_failures)}")
                 if stats.invalid_rows:
@@ -82,7 +115,18 @@ async def cmd_history_check(cfg: Config, secrets: Secrets, args: argparse.Namesp
     """Comando `historico verificar`: mostra a cobertura e os buracos do histórico já baixado. Devolve o código de saída do processo."""
     store = history.HistoryStore(cfg.path(cfg.historico.pasta))
     table = Table(title="Cobertura e qualidade do histórico")
-    for col in ("Par", "Intervalo", "Linhas", "De (UTC)", "Até (UTC)", "Inválidos", "Outliers", "Buracos", "Maiores buracos (UTC)", "Atraso"):
+    for col in (
+        "Par",
+        "Intervalo",
+        "Linhas",
+        "De (UTC)",
+        "Até (UTC)",
+        "Inválidos",
+        "Outliers",
+        "Buracos",
+        "Maiores buracos (UTC)",
+        "Atraso",
+    ):
         table.add_column(col)
     all_stats = [
         history.summarize(store, symbol, interval, cfg.historico.outlier_desvios)
@@ -102,7 +146,13 @@ async def cmd_history_check(cfg: Config, secrets: Secrets, args: argparse.Namesp
             num(s.rows_total, 0),
             format_local(s.first_ms, "UTC", "%Y-%m-%d %H:%M"),
             format_local(s.last_ms, "UTC", "%Y-%m-%d %H:%M"),
-            (f"[red]{q.invalid_rows + q.duplicates + q.out_of_order}[/]" if q.invalid_rows + q.duplicates + q.out_of_order else "0") if q else "-",
+            (
+                f"[red]{q.invalid_rows + q.duplicates + q.out_of_order}[/]"
+                if q.invalid_rows + q.duplicates + q.out_of_order
+                else "0"
+            )
+            if q
+            else "-",
             str(len(q.outliers)) if q else "-",
             f"{num(s.missing_candles, 0)} candles em {len(s.gaps)}",
             ", ".join(f"{format_local(g.start_ms, 'UTC', '%Y-%m-%d %H:%M')} ({g.missing})" for g in biggest) or "-",
@@ -115,8 +165,12 @@ async def cmd_history_check(cfg: Config, secrets: Secrets, args: argparse.Namesp
         "Atraso: candles que faltam para a série alcançar a mais recente.[/]"
     )
     if lag:
-        console.print("[yellow]As séries terminam em momentos diferentes. Para alinhar: cryptoagent historico baixar[/]")
+        console.print(
+            "[yellow]As séries terminam em momentos diferentes. Para alinhar: cryptoagent historico baixar[/]"
+        )
     if invalid_total:
-        console.print(f"[red]{invalid_total} linha(s) com problema no histórico gravado. Baixe de novo: apague o arquivo do par/intervalo e rode cryptoagent historico baixar[/]")
+        console.print(
+            f"[red]{invalid_total} linha(s) com problema no histórico gravado. Baixe de novo: apague o arquivo do par/intervalo e rode cryptoagent historico baixar[/]"
+        )
         return 2
     return 0

@@ -31,6 +31,7 @@ BINS = [(0, 40), (40, 60), (60, 80), (80, 101)]
 @dataclass
 class SignalOutcome:
     """O que o mercado fez depois de um sinal: desfecho (ver OUTCOMES) e os movimentos máximos a favor e contra."""
+
     signal_id: int
     action: str
     confidence: float
@@ -58,8 +59,13 @@ def signal_cost_pct(s: object) -> float | None:
     return (a - rr * b) / (1 + rr)
 
 
-def evaluate_signals(signals: pd.DataFrame, bars_1m: pd.DataFrame, horizon_h: float, now: int | None = None,
-                     default_cost_pct: float = 0.0) -> list[SignalOutcome]:
+def evaluate_signals(
+    signals: pd.DataFrame,
+    bars_1m: pd.DataFrame,
+    horizon_h: float,
+    now: int | None = None,
+    default_cost_pct: float = 0.0,
+) -> list[SignalOutcome]:
     """Para cada sinal com entrada/stop/alvo: o que aconteceu nas `horizon_h` horas seguintes (candles de 1m do par).
     Chegar ao alvo só conta como acerto se o alvo pagar o custo de ida e volta."""
     now = now or now_ms()
@@ -85,13 +91,23 @@ def evaluate_signals(signals: pd.DataFrame, bars_1m: pd.DataFrame, horizon_h: fl
                 outcome = "stop primeiro"
         else:
             outcome = "aguardando" if end > now else "nenhum"
-        out.append(SignalOutcome(int(s.id), s.action, float(s.confidence), outcome, (hi.max() / s.entry - 1) * 100, (lo.min() / s.entry - 1) * 100))
+        out.append(
+            SignalOutcome(
+                int(s.id),
+                s.action,
+                float(s.confidence),
+                outcome,
+                (hi.max() / s.entry - 1) * 100,
+                (lo.min() / s.entry - 1) * 100,
+            )
+        )
     return out
 
 
 @dataclass
 class VariantReport:
     """Relatório de uma variante do paper trading: patrimônio, métricas, desfecho dos sinais e calibração."""
+
     variant: str
     started_ms: int
     equity: float
@@ -106,7 +122,9 @@ class VariantReport:
     gates: list[GateStat] = field(default_factory=list)  # só na variante de estudo
     initial_capital: float = 0.0
     end_ms: int = 0
-    buy_hold: dict = field(default_factory=dict)  # comprar e segurar do início da carteira até agora, com os mesmos custos
+    buy_hold: dict = field(
+        default_factory=dict
+    )  # comprar e segurar do início da carteira até agora, com os mesmos custos
     rejected_orders: int = 0  # ordens virtuais recusadas pelas regras de tamanho do par
 
 
@@ -142,7 +160,11 @@ def _group(pnls: list[float]) -> tuple[int, float | None, float | None]:
 
 def gate_stats(rows: list[sqlite3.Row]) -> list[GateStat]:
     """Para cada trava de estratégia: resultado médio (% líquido, com taxas) com e sem ela ter disparado."""
-    trades = [(json.loads(r["bypassed_json"]), float(r["pnl_pct"])) for r in rows if r["bypassed_json"] is not None and r["pnl_pct"] is not None]
+    trades = [
+        (json.loads(r["bypassed_json"]), float(r["pnl_pct"]))
+        for r in rows
+        if r["bypassed_json"] is not None and r["pnl_pct"] is not None
+    ]
     out = []
     for key in GATE_PT:
         if key in COST_GATES:
@@ -154,9 +176,20 @@ def gate_stats(rows: list[sqlite3.Row]) -> list[GateStat]:
     return out
 
 
-def variant_report(conn: sqlite3.Connection, variant: str, capital: float, bars_1m: pd.DataFrame, horizon_h: float, min_trades: int,
-                   backtest_json: dict | None, trade_symbol: str, *, now: int | None = None, costs: tuple[float, float, float] | None = None,
-                   tz: str = "America/Sao_Paulo") -> VariantReport:
+def variant_report(
+    conn: sqlite3.Connection,
+    variant: str,
+    capital: float,
+    bars_1m: pd.DataFrame,
+    horizon_h: float,
+    min_trades: int,
+    backtest_json: dict | None,
+    trade_symbol: str,
+    *,
+    now: int | None = None,
+    costs: tuple[float, float, float] | None = None,
+    tz: str = "America/Sao_Paulo",
+) -> VariantReport:
     """Monta o relatório de uma variante a partir do banco e dos candles de 1m do par de operação.
 
     `now`: fim do período (o replay passa o fim simulado). `costs` = (taxa, meio spread, slippage %) para comparar
@@ -167,23 +200,44 @@ def variant_report(conn: sqlite3.Connection, variant: str, capital: float, bars_
     started = int(st["started_ms"]) if st else now
     if st is not None and "initial_capital" in st.keys():
         capital = float(st["initial_capital"])
-    rows = conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL ORDER BY entry_ms", (variant,)).fetchall()
+    rows = conn.execute(
+        "SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL ORDER BY entry_ms", (variant,)
+    ).fetchall()
     open_row = conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NULL", (variant,)).fetchone()
     trades = to_backtest_trades(rows)
     metrics = compute_metrics(trades, started, now, capital, tz)
-    sig = pd.read_sql_query("SELECT * FROM signals WHERE mode = 'paper' AND variant = ? ORDER BY time_ms", conn, params=(variant,))
+    sig = pd.read_sql_query(
+        "SELECT * FROM signals WHERE mode = 'paper' AND variant = ? ORDER BY time_ms", conn, params=(variant,)
+    )
     rep = VariantReport(
-        variant, started, float(st["equity"]) if st else capital, dict(open_row) if open_row else None, metrics,
+        variant,
+        started,
+        float(st["equity"]) if st else capital,
+        dict(open_row) if open_row else None,
+        metrics,
         sig["action"].value_counts().to_dict() if not sig.empty else {},
     )
     rep.initial_capital, rep.end_ms = capital, now
     if costs is not None and not bars_1m.empty:
         fee, half, slip = costs
-        rep.buy_hold = buy_and_hold(bars_1m["open_time"].to_numpy(), bars_1m["close"].to_numpy(), started, now, fee=fee, half_spread=half, slip_pct=slip)
-    has_events = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'paper_events'").fetchone()
+        rep.buy_hold = buy_and_hold(
+            bars_1m["open_time"].to_numpy(),
+            bars_1m["close"].to_numpy(),
+            started,
+            now,
+            fee=fee,
+            half_spread=half,
+            slip_pct=slip,
+        )
+    has_events = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'paper_events'"
+    ).fetchone()
     if has_events:
-        rep.rejected_orders = int(conn.execute(
-            "SELECT COUNT(*) FROM paper_events WHERE variant = ? AND kind = 'ordem_recusada'", (variant,)).fetchone()[0])
+        rep.rejected_orders = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM paper_events WHERE variant = ? AND kind = 'ordem_recusada'", (variant,)
+            ).fetchone()[0]
+        )
     outs = evaluate_signals(sig, bars_1m, horizon_h, now=now)
     for o in outs:
         key = o.action if o.action != "ESPERAR" else "ESPERAR (com níveis)"
@@ -193,7 +247,13 @@ def variant_report(conn: sqlite3.Connection, variant: str, capital: float, bars_
     for lo, hi in BINS:
         group = [o for o in decided if lo <= o.confidence < hi]
         if group:
-            rep.calibration.append((f"{lo}–{min(hi, 100)}%", len(group), sum(o.outcome == "alvo com lucro" for o in group) / len(group) * 100))
+            rep.calibration.append(
+                (
+                    f"{lo}–{min(hi, 100)}%",
+                    len(group),
+                    sum(o.outcome == "alvo com lucro" for o in group) / len(group) * 100,
+                )
+            )
     if backtest_json and trade_symbol in backtest_json:
         bm = (backtest_json[trade_symbol].get("padrao") or {}).get("metricas", {})
         rep.backtest_expectancy_pct = bm.get("expectativa_pct")

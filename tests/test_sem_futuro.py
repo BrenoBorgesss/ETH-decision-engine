@@ -21,7 +21,9 @@ CFG = load_config(ROOT / "config" / "config.yaml", ROOT / DEMO_RELATIVE)
 
 
 def indicators(df: pd.DataFrame) -> pd.DataFrame:
-    return compute_indicators(df, CFG.indicadores, CFG.regime, tz_name=CFG.fuso.local, day_start=CFG.fuso.inicio_dia_local)
+    return compute_indicators(
+        df, CFG.indicadores, CFG.regime, tz_name=CFG.fuso.local, day_start=CFG.fuso.inicio_dia_local
+    )
 
 
 def assert_same_past(full: pd.DataFrame, part: pd.DataFrame, rows: int) -> None:

@@ -25,7 +25,11 @@ from cryptoagent.fmt import num, pct
 
 PANORAMA_FILE = "panorama.json"
 PERIODS = ((0, 6, "madrugada"), (6, 12, "manhã"), (12, 18, "tarde"), (18, 24, "noite"))
-VOL_BANDS = ((0, 33.34, "volatilidade baixa"), (33.34, 66.67, "volatilidade média"), (66.67, 100.01, "volatilidade alta"))
+VOL_BANDS = (
+    (0, 33.34, "volatilidade baixa"),
+    (33.34, 66.67, "volatilidade média"),
+    (66.67, 100.01, "volatilidade alta"),
+)
 CONF_BINS = (0, 40, 55, 70, 85, 101)
 
 
@@ -85,8 +89,15 @@ def build(dataset: pd.DataFrame, *, until_ms: int, model_calibration: list[dict]
     bins = pd.cut(df["confianca_regras"], CONF_BINS, right=False)
     for interval, g in df.groupby(bins, observed=True):
         lo, hi = wilson(int((g["pnl_pct"] > 0).sum()), len(g))
-        calib.append({"faixa": f"{int(interval.left)}–{min(int(interval.right), 100)}", "casos": len(g), "confianca_media": float(g["confianca_regras"].mean()),
-                      "acerto": float((g["pnl_pct"] > 0).mean()), "acerto_ic95": [lo, hi]})
+        calib.append(
+            {
+                "faixa": f"{int(interval.left)}–{min(int(interval.right), 100)}",
+                "casos": len(g),
+                "confianca_media": float(g["confianca_regras"].mean()),
+                "acerto": float((g["pnl_pct"] > 0).mean()),
+                "acerto_ic95": [lo, hi],
+            }
+        )
     return {
         "ate_ms": until_ms,
         "momentos": len(df),
@@ -116,13 +127,16 @@ def load(folder: Path) -> dict | None:
 @dataclass(frozen=True)
 class MomentView:
     """O panorama do momento atual: o cenário, as estatísticas dele e o fator de "cenário inédito"."""
+
     scenario: str
     stats: dict | None
     factor: float
     reason: str
 
 
-def moment(panorama: dict | None, regime: str | None, hour: float, atr_pctl: float | None, *, min_cases: int, floor: float) -> MomentView:
+def moment(
+    panorama: dict | None, regime: str | None, hour: float, atr_pctl: float | None, *, min_cases: int, floor: float
+) -> MomentView:
     """Estatísticas do cenário de agora e o fator de confiança: 1 com casos suficientes, menor quanto menos casos houver."""
     key = scenario_key(regime, hour, atr_pctl)
     if panorama is None:
@@ -132,7 +146,12 @@ def moment(panorama: dict | None, regime: str | None, hour: float, atr_pctl: flo
     if n >= min_cases:
         return MomentView(key, stats, 1.0, "")
     factor = floor + (1 - floor) * n / min_cases
-    return MomentView(key, stats, factor, f"cenário pouco visto no histórico ({key}: {n} caso(s), mínimo {min_cases}): × {num(factor, 2)}")
+    return MomentView(
+        key,
+        stats,
+        factor,
+        f"cenário pouco visto no histórico ({key}: {n} caso(s), mínimo {min_cases}): × {num(factor, 2)}",
+    )
 
 
 # ------------------------------------------------------------------ relatório HTML
@@ -155,24 +174,43 @@ def calibration_svg(points: list[tuple[float, float, float, float, int]], title:
     `points` = (previsto, acerto, ic_baixo, ic_alto, casos). A diagonal é a calibração perfeita.
     """
     w, h, pad = 420, 320, 44
+
     def sx(x: float) -> float:
         return pad + x * (w - 2 * pad)
+
     def sy(y: float) -> float:
         return h - pad - y * (h - 2 * pad)
+
     out = [f"<svg viewBox='0 0 {w} {h}' role='img' aria-label='{html.escape(title)}'>"]
     for v in (0, 0.25, 0.5, 0.75, 1):
-        out.append(f"<line x1='{sx(0):.0f}' x2='{sx(1):.0f}' y1='{sy(v):.0f}' y2='{sy(v):.0f}' stroke='currentColor' stroke-opacity='.12'/>")
-        out.append(f"<text x='{pad - 6}' y='{sy(v) + 4:.0f}' font-size='11' text-anchor='end' fill='currentColor' opacity='.6'>{v:.0%}</text>")
-        out.append(f"<text x='{sx(v):.0f}' y='{h - pad + 16}' font-size='11' text-anchor='middle' fill='currentColor' opacity='.6'>{v:.0%}</text>")
-    out.append(f"<line x1='{sx(0):.0f}' y1='{sy(0):.0f}' x2='{sx(1):.0f}' y2='{sy(1):.0f}' stroke='currentColor' stroke-opacity='.35' stroke-dasharray='4 4'/>")
+        out.append(
+            f"<line x1='{sx(0):.0f}' x2='{sx(1):.0f}' y1='{sy(v):.0f}' y2='{sy(v):.0f}' stroke='currentColor' stroke-opacity='.12'/>"
+        )
+        out.append(
+            f"<text x='{pad - 6}' y='{sy(v) + 4:.0f}' font-size='11' text-anchor='end' fill='currentColor' opacity='.6'>{v:.0%}</text>"
+        )
+        out.append(
+            f"<text x='{sx(v):.0f}' y='{h - pad + 16}' font-size='11' text-anchor='middle' fill='currentColor' opacity='.6'>{v:.0%}</text>"
+        )
+    out.append(
+        f"<line x1='{sx(0):.0f}' y1='{sy(0):.0f}' x2='{sx(1):.0f}' y2='{sy(1):.0f}' stroke='currentColor' stroke-opacity='.35' stroke-dasharray='4 4'/>"
+    )
     for x, y, lo, hi, n in points:
         if any(math.isnan(v) for v in (x, y)):
             continue
         if not (math.isnan(lo) or math.isnan(hi)):
-            out.append(f"<line x1='{sx(x):.1f}' x2='{sx(x):.1f}' y1='{sy(lo):.1f}' y2='{sy(hi):.1f}' stroke='var(--accent)' stroke-width='2' stroke-opacity='.5'/>")
-        out.append(f"<circle cx='{sx(x):.1f}' cy='{sy(y):.1f}' r='{3 + min(6, math.sqrt(n) / 3):.1f}' fill='var(--accent)'><title>{n} casos</title></circle>")
-    out.append(f"<text x='{w / 2:.0f}' y='{h - 6}' font-size='12' text-anchor='middle' fill='currentColor'>previsto</text>")
-    out.append(f"<text x='14' y='{h / 2:.0f}' font-size='12' text-anchor='middle' fill='currentColor' transform='rotate(-90 14 {h / 2:.0f})'>acerto real</text>")
+            out.append(
+                f"<line x1='{sx(x):.1f}' x2='{sx(x):.1f}' y1='{sy(lo):.1f}' y2='{sy(hi):.1f}' stroke='var(--accent)' stroke-width='2' stroke-opacity='.5'/>"
+            )
+        out.append(
+            f"<circle cx='{sx(x):.1f}' cy='{sy(y):.1f}' r='{3 + min(6, math.sqrt(n) / 3):.1f}' fill='var(--accent)'><title>{n} casos</title></circle>"
+        )
+    out.append(
+        f"<text x='{w / 2:.0f}' y='{h - 6}' font-size='12' text-anchor='middle' fill='currentColor'>previsto</text>"
+    )
+    out.append(
+        f"<text x='14' y='{h / 2:.0f}' font-size='12' text-anchor='middle' fill='currentColor' transform='rotate(-90 14 {h / 2:.0f})'>acerto real</text>"
+    )
     out.append("</svg>")
     return "".join(out)
 
@@ -189,7 +227,10 @@ def render_html(panorama: dict, cycle_html: str, path: Path, *, generated: str) 
             f"<td>{pct(s['ganho_medio_pct'], 2, sign=True)}</td><td>{pct(s['perda_media_pct'], 2, sign=True)}</td>"
             f"<td class='{cls}'>{pct(s['media_pct'], 3, sign=True)}</td><td>{pct(s['media_ic95_pct'][0], 3, sign=True)} a {pct(s['media_ic95_pct'][1], 3, sign=True)}</td></tr>"
         )
-    rules_pts = [(c["confianca_media"] / 100, c["acerto"], *c["acerto_ic95"], c["casos"]) for c in panorama.get("calibracao_regras", [])]
+    rules_pts = [
+        (c["confianca_media"] / 100, c["acerto"], *c["acerto_ic95"], c["casos"])
+        for c in panorama.get("calibracao_regras", [])
+    ]
     model_pts = []
     for c in panorama.get("calibracao_modelo", []):
         lo, hi = wilson(round(c["acerto_real"] * c["momentos"]), c["momentos"])
@@ -203,7 +244,8 @@ def render_html(panorama: dict, cycle_html: str, path: Path, *, generated: str) 
         "<h2>Panorama por cenário (momentos candidatos do histórico)</h2>",
         f"<p>Geral: {g.get('casos', 0)} momentos, acerto {pct((g.get('acerto') or 0) * 100, 1)}, média por operação {pct(g.get('media_pct'), 3, sign=True)}.</p>",
         "<div class='scroll'><table><tr><th>Cenário</th><th>Casos</th><th>Acerto (IC 95%)</th><th>Ganho médio</th><th>Perda média</th><th>Média por operação</th><th>IC 95% da média</th></tr>",
-        *rows, "</table></div>",
+        *rows,
+        "</table></div>",
         "<h2>Calibração</h2><p class='muted'>Na diagonal, a confiança acerta na mesma proporção que promete. Barras: intervalo de 95%.</p>",
         "<div style='display:flex;flex-wrap:wrap;gap:24px'>",
         f"<figure style='margin:0'>{calibration_svg(rules_pts, 'Confiança das regras')}<figcaption>Confiança das regras (0–100%)</figcaption></figure>",
@@ -227,4 +269,3 @@ def as_lines(view: MomentView) -> list[str]:
         f"perda média {pct(s['perda_media_pct'], 2, sign=True)}, média por operação {pct(s['media_pct'], 3, sign=True)} "
         f"(IC 95%: {pct(s['media_ic95_pct'][0], 3, sign=True)} a {pct(s['media_ic95_pct'][1], 3, sign=True)})."
     ]
-

@@ -20,12 +20,14 @@ from cryptoagent.timeutils import local_trading_day, now_ms
 
 class SessionError(ValueError):
     """Resposta inválida nas perguntas do dia."""
+
     pass
 
 
 @dataclass(frozen=True)
 class DailySession:
     """Sessão de um dia de operação: capital, perda máxima, par e moeda do saldo."""
+
     day: date
     capital_brl: float
     max_loss_brl: float

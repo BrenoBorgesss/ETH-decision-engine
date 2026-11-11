@@ -57,6 +57,7 @@ class PaperView:
 @dataclass
 class LiveResult:
     """Resultado de uma análise ao vivo: decisão, contexto, conta, saúde dos dados, idades e latência."""
+
     decision: Decision
     ctx: DecisionContext | None
     account: AccountStatus | None
@@ -74,7 +75,9 @@ class LiveResult:
     def market_extras(self) -> dict:
         """Desequilíbrio do livro, funding e spread do momento, para gravar junto com o sinal."""
         m = self.ctx.market if self.ctx else None
-        return {"book_imbalance": m.book_imbalance, "funding_pct": m.funding_rate, "spread_pct": m.spread_pct} if m else {}
+        return (
+            {"book_imbalance": m.book_imbalance, "funding_pct": m.funding_rate, "spread_pct": m.spread_pct} if m else {}
+        )
 
 
 # Indicadores já calculados por (par, timeframe): reaproveitados enquanto os candles fechados não mudam.
@@ -103,7 +106,12 @@ async def _fetch_funding(client: BinanceReadOnlyClient, sym: str) -> ApiResponse
 
 
 def _prepare_frames(
-    cfg: Config, sym: str, sources: dict[str, tuple[pd.DataFrame, str]], server_now: int, health: HealthReport, ages: dict[str, float]
+    cfg: Config,
+    sym: str,
+    sources: dict[str, tuple[pd.DataFrame, str]],
+    server_now: int,
+    health: HealthReport,
+    ages: dict[str, float],
 ) -> dict[str, pd.DataFrame]:
     """Fica só com candles FECHADOS, valida, calcula os indicadores (com cache) e registra a saúde de cada timeframe."""
     frames: dict[str, pd.DataFrame] = {}
@@ -113,7 +121,9 @@ def _prepare_frames(
         quality = inspect_klines(df, tf, now_ms=server_now)
         if not quality.ok:  # candle inválido é problema crítico: o sinal vira ESPERAR
             health.add(check_quality(f"qualidade dos candles {tf}", quality, source))
-        frames[tf] = INDICATOR_CACHE.compute((sym, tf), df, cfg.indicadores, cfg.regime, tz_name=cfg.fuso.local, day_start=cfg.fuso.inicio_dia_local)
+        frames[tf] = INDICATOR_CACHE.compute(
+            (sym, tf), df, cfg.indicadores, cfg.regime, tz_name=cfg.fuso.local, day_start=cfg.fuso.inicio_dia_local
+        )
         last_close = int(df["close_time"].iloc[-1]) if not df.empty else None
         c = check_candle(f"candles {tf}", last_close, tf, server_now, cfg.saude_dados.candle_tolerancia_s, source)
         health.add(c)
@@ -124,6 +134,7 @@ def _prepare_frames(
 @dataclass(frozen=True)
 class _Quotes:
     """Preços de agora no par de análise e no de operação, e o desequilíbrio do livro."""
+
     a_bid: float
     a_ask: float
     t_bid: float
@@ -156,7 +167,10 @@ async def _fetch_quotes(
 ) -> _Quotes:
     """Busca em paralelo o melhor preço dos dois pares e o livro, e registra a idade de cada preço."""
     sd = cfg.saude_dados
-    wanted = [client.get("/api/v3/ticker/bookTicker", {"symbol": sym}), client.get("/api/v3/depth", {"symbol": sym, "limit": 20})]
+    wanted = [
+        client.get("/api/v3/ticker/bookTicker", {"symbol": sym}),
+        client.get("/api/v3/depth", {"symbol": sym, "limit": 20}),
+    ]
     if trade_sym != sym:
         wanted.append(client.get("/api/v3/ticker/bookTicker", {"symbol": trade_sym}))
     bt, depth, *rest = await asyncio.gather(*wanted)
@@ -170,7 +184,9 @@ async def _fetch_quotes(
         ages["preco_operacao_s"] = (client.local_now_ms() - bt2.received_ms) / 1000
     else:
         t_bid, t_ask = a_bid, a_ask
-    imbalance = book_imbalance([(float(a), float(b)) for a, b in depth.data["bids"]], [(float(a), float(b)) for a, b in depth.data["asks"]])  # type: ignore[index]
+    imbalance = book_imbalance(
+        [(float(a), float(b)) for a, b in depth.data["bids"]], [(float(a), float(b)) for a, b in depth.data["asks"]]
+    )  # type: ignore[index]
     return _Quotes(a_bid, a_ask, t_bid, t_ask, imbalance)
 
 
@@ -182,8 +198,13 @@ def _structure_levels(cfg: Config, frames: dict[str, pd.DataFrame]) -> list[Leve
     levels = []
     if pos_idx >= 0 and s15["atr"].notna().iloc[-1]:
         levels = support_resistance(
-            s15, s15, at_pos=pos_idx, atr_value=float(s15["atr"].iloc[-1]), tolerance_atr=cfg.indicadores.sr_tolerancia_atr,
-            lookback=cfg.indicadores.sr_janela_barras, max_levels=cfg.indicadores.sr_max_niveis,
+            s15,
+            s15,
+            at_pos=pos_idx,
+            atr_value=float(s15["atr"].iloc[-1]),
+            tolerance_atr=cfg.indicadores.sr_tolerancia_atr,
+            lookback=cfg.indicadores.sr_janela_barras,
+            max_levels=cfg.indicadores.sr_max_niveis,
         ) + previous_day_levels(s15, pos_idx, tz, cfg.fuso.inicio_dia_local, days=s15["trading_day"])
     return levels
 
@@ -202,9 +223,14 @@ async def _season_context(
         try:
             await history.update_from_rest(store, client, trade_sym, tf_s, months=cfg.historico.meses, now=server_now)
             hist = store.load(trade_sym, tf_s)
-            hist = hist[hist["open_time"] >= int(hist["open_time"].iloc[-1]) - (cfg.sazonalidade.dias_comparacao + 2) * 86_400_000]
+            hist = hist[
+                hist["open_time"]
+                >= int(hist["open_time"].iloc[-1]) - (cfg.sazonalidade.dias_comparacao + 2) * 86_400_000
+            ]
             hb = add_buckets(hist, tz, cfg.indicadores.atr)
-            comp = candle_vs_same_hour(hb, cfg.sazonalidade.dias_comparacao, cfg.sazonalidade.percentil_baixo, cfg.sazonalidade.percentil_alto)
+            comp = candle_vs_same_hour(
+                hb, cfg.sazonalidade.dias_comparacao, cfg.sazonalidade.percentil_baixo, cfg.sazonalidade.percentil_alto
+            )
             hour = int(hb["hour"].iloc[-1])
             hrow = next(h for h in profiles[trade_sym]["hours"] if h["hour"] == hour)
             ctxf = context_multiplier(hrow["class"], hrow["validated"], comp.label, cfg.sazonalidade)
@@ -214,7 +240,9 @@ async def _season_context(
         except (BinanceError, StopIteration, IndexError) as exc:
             health.add(Check("análise por horário", False, f"indisponível: {redact(exc)}", critical=False))
     else:
-        health.add(Check("análise por horário", False, "sem perfil (rode: cryptoagent sazonalidade analisar)", critical=False))
+        health.add(
+            Check("análise por horário", False, "sem perfil (rode: cryptoagent sazonalidade analisar)", critical=False)
+        )
     return season, hour_note
 
 
@@ -256,19 +284,38 @@ async def analyze_live(
 
     # ---- 1ª leva, em paralelo: candles que não vieram do WebSocket e derivativos
     server_now = client.server_now_ms()
-    sources, funding_resp = await asyncio.gather(_fetch_candles(cfg, client, sym, candles or {}), _fetch_funding(client, sym))
+    sources, funding_resp = await asyncio.gather(
+        _fetch_candles(cfg, client, sym, candles or {}), _fetch_funding(client, sym)
+    )
     frames = _prepare_frames(cfg, sym, sources, server_now, health, ages)
 
     # ---- 2ª leva, em paralelo e por último, para chegarem frescos: preços (análise e operação) e livro
     q = await _fetch_quotes(cfg, client, sym, trade_sym, health, ages)
-    a_mid, t_mid, t_bid, t_ask, ratio, spread_pct, imbalance = q.a_mid, q.t_mid, q.t_bid, q.t_ask, q.ratio, q.spread_pct, q.imbalance
+    a_mid, t_mid, t_bid, t_ask, ratio, spread_pct, imbalance = (
+        q.a_mid,
+        q.t_mid,
+        q.t_bid,
+        q.t_ask,
+        q.ratio,
+        q.spread_pct,
+        q.imbalance,
+    )
 
     funding = None
     if isinstance(funding_resp, BinanceError):  # derivativos são só contexto: falha vira aviso, não bloqueia
         health.add(Check("derivativos", False, redact(funding_resp), critical=False))
     else:
         funding = float(funding_resp.data["lastFundingRate"]) * 100  # type: ignore[index]
-        health.add(check_age("derivativos", funding_resp.received_ms, client.local_now_ms(), sd.derivativos_max_s, funding_resp.source, critical=False))
+        health.add(
+            check_age(
+                "derivativos",
+                funding_resp.received_ms,
+                client.local_now_ms(),
+                sd.derivativos_max_s,
+                funding_resp.source,
+                critical=False,
+            )
+        )
 
     levels = _structure_levels(cfg, frames)
 
@@ -285,13 +332,25 @@ async def analyze_live(
     setup = frames[p.tf_setup]
     local = ms_to_local(server_now, cfg.fuso.local)
     moment = moment_view(
-        str(setup["regime"].iloc[-1]) if len(setup) else None, local.hour + local.minute / 60,
-        float(setup["atr_pctl"].iloc[-1]) if len(setup) and pd.notna(setup["atr_pctl"].iloc[-1]) else None, cfg, learning,
+        str(setup["regime"].iloc[-1]) if len(setup) else None,
+        local.hour + local.minute / 60,
+        float(setup["atr_pctl"].iloc[-1]) if len(setup) and pd.notna(setup["atr_pctl"].iloc[-1]) else None,
+        cfg,
+        learning,
     )
     novelty = SeasonView(moment.factor, [moment.reason] if moment.reason else [])
     if learning.drift_summary:
-        health.add(Check("estabilidade dos dados", False, f"mudança de regime no último ciclo de aprendizado ({learning.drift_summary})", critical=False))
-    champion_name = f"v{learning.champion.id} {learning.champion.name}" if learning.champion else "regras (config atual)"
+        health.add(
+            Check(
+                "estabilidade dos dados",
+                False,
+                f"mudança de regime no último ciclo de aprendizado ({learning.drift_summary})",
+                critical=False,
+            )
+        )
+    champion_name = (
+        f"v{learning.champion.id} {learning.champion.name}" if learning.champion else "regras (config atual)"
+    )
 
     # ---- posição e risco: carteira virtual (paper) ou conta real
     if paper is not None:
@@ -300,32 +359,58 @@ async def analyze_live(
         position = _real_position(conn, account, trade_sym, ratio, t_mid, server_now)
         risk = _real_risk(cfg, client, account, trade_sym, health, champion_metrics(learning) if use_champion else None)
     market = MarketView(server_now, a_mid, frames, levels, spread_pct, imbalance, funding)
-    ctx = DecisionContext(sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True, novelty=novelty)
+    ctx = DecisionContext(
+        sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True, novelty=novelty
+    )
     decision = decide(ctx, p, spread_max_pct=cfg.custos.spread_max_pct)
     if use_champion:
         decision = apply_model_champion(decision, ctx, cfg, learning)
     if account is not None:
         ages["saldo_s"] = (client.local_now_ms() - account.balances_ms) / 1000 if account.balances_ms else -1
-    return LiveResult(decision, ctx, account, health, ratio, ages, (time.perf_counter() - t0) * 1000, hour_note, t_bid, t_ask, moment, champion_name)
+    return LiveResult(
+        decision,
+        ctx,
+        account,
+        health,
+        ratio,
+        ages,
+        (time.perf_counter() - t0) * 1000,
+        hour_note,
+        t_bid,
+        t_ask,
+        moment,
+        champion_name,
+    )
 
 
-def _paper_position_and_risk(paper: PaperView, ratio: float, server_now: int, health: HealthReport) -> tuple[PositionView | None, RiskView]:
+def _paper_position_and_risk(
+    paper: PaperView, ratio: float, server_now: int, health: HealthReport
+) -> tuple[PositionView | None, RiskView]:
     """Posição e risco da carteira VIRTUAL, com os preços traduzidos para o par de análise."""
     position = None
     if paper.qty:
         position = PositionView(
-            qty=paper.qty, avg_cost=paper.entry_price / ratio, opened_ms=paper.opened_ms or server_now,
-            stop=paper.stop / ratio if paper.stop else None, target1=paper.target1 / ratio if paper.target1 else None,
-            target2=paper.target2 / ratio if paper.target2 else None, source=paper.source,
+            qty=paper.qty,
+            avg_cost=paper.entry_price / ratio,
+            opened_ms=paper.opened_ms or server_now,
+            stop=paper.stop / ratio if paper.stop else None,
+            target1=paper.target1 / ratio if paper.target1 else None,
+            target2=paper.target2 / ratio if paper.target2 else None,
+            source=paper.source,
         )
     risk = RiskView(
-        blocked_reasons=health.problems, risk_per_trade_brl=paper.risk_per_trade, capital_brl=paper.capital,
-        data_warnings=health.warnings, daily_limit_reason=paper.daily_limit_reason,
+        blocked_reasons=health.problems,
+        risk_per_trade_brl=paper.risk_per_trade,
+        capital_brl=paper.capital,
+        data_warnings=health.warnings,
+        daily_limit_reason=paper.daily_limit_reason,
     )
     return position, risk
 
 
-def _real_position(conn: sqlite3.Connection, account: AccountStatus, trade_sym: str, ratio: float, t_mid: float, server_now: int) -> PositionView | None:
+def _real_position(
+    conn: sqlite3.Connection, account: AccountStatus, trade_sym: str, ratio: float, t_mid: float, server_now: int
+) -> PositionView | None:
     """Posição da operação na conta real (pelo histórico de operações, conferido com o saldo), com stop e alvos do sinal associado."""
     if account.day is None or account.day.open_qty <= 1e-9:
         return None
@@ -341,12 +426,20 @@ def _real_position(conn: sqlite3.Connection, account: AccountStatus, trade_sym: 
         qty=account.day.open_qty,
         avg_cost=(account.day.avg_cost_real or account.bid or t_mid) / ratio,
         opened_ms=account.day.opened_ms or server_now,
-        stop=stop, target1=t1, target2=t2, source=source,
+        stop=stop,
+        target1=t1,
+        target2=t2,
+        source=source,
     )
 
 
 def _real_risk(
-    cfg: Config, client: BinanceReadOnlyClient, account: AccountStatus, trade_sym: str, health: HealthReport, champion: dict | None
+    cfg: Config,
+    client: BinanceReadOnlyClient,
+    account: AccountStatus,
+    trade_sym: str,
+    health: HealthReport,
+    champion: dict | None,
 ) -> RiskView:
     """Risco da conta real: travas da conta e dos dados, perda máxima do dia (à parte: ainda permite vender) e confiabilidade."""
     limit_reason = next((r for r in account.reasons if r.startswith("PERDA MÁXIMA")), None)

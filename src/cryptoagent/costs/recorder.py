@@ -34,6 +34,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class BookState:
     """Último estado conhecido do livro de um par: melhor compra e venda, níveis de profundidade e quando cada um chegou."""
+
     symbol: str
     bid: float | None = None
     ask: float | None = None
@@ -72,7 +73,9 @@ def quote_sizes(symbol: str, sizes_brl: list[float], fx_usdtbrl: float | None) -
     return out
 
 
-def build_sample(book: BookState, now: int, sizes: dict[str, float | None], fx_usdtbrl: float | None, ticker_max_age_ms: int) -> dict:
+def build_sample(
+    book: BookState, now: int, sizes: dict[str, float | None], fx_usdtbrl: float | None, ticker_max_age_ms: int
+) -> dict:
     """Uma linha de custos para um par, a partir do estado atual do livro."""
     ticker_fresh = book.ticker_ms is not None and now - book.ticker_ms <= ticker_max_age_ms and book.bid and book.ask
     if ticker_fresh:
@@ -117,14 +120,19 @@ def build_sample(book: BookState, now: int, sizes: dict[str, float | None], fx_u
 
 class CostRecorder:
     """Coletor de custos: recebe o livro pelo WebSocket (com a API REST como reserva) e grava amostras de spread, profundidade e slippage no SQLite."""
-    def __init__(self, cfg: Config, client: BinanceReadOnlyClient, conn: sqlite3.Connection, *, console: Console | None = None) -> None:
+
+    def __init__(
+        self, cfg: Config, client: BinanceReadOnlyClient, conn: sqlite3.Connection, *, console: Console | None = None
+    ) -> None:
         self.cfg = cfg
         self.client = client
         self.conn = conn
         self.console = console or Console()
         self.symbols = cfg.mercado.simbolos_monitorados
         self.books = {s: BookState(s) for s in self.symbols}
-        streams = [f"{s.lower()}@bookTicker" for s in self.symbols] + [f"{s.lower()}@depth20@1000ms" for s in self.symbols]
+        streams = [f"{s.lower()}@bookTicker" for s in self.symbols] + [
+            f"{s.lower()}@depth20@1000ms" for s in self.symbols
+        ]
         self.stream = BinanceStream(cfg.binance.ws_url, streams, self.on_message, name="custos")
         self.samples_written = 0
         self.rest_fallbacks = 0

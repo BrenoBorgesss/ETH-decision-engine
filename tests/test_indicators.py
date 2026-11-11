@@ -27,13 +27,60 @@ from cryptoagent.timeutils import UTC, datetime_to_ms
 
 # Exemplo clássico de RSI(14) da StockCharts (ChartSchool), com os valores publicados.
 STOCKCHARTS_CLOSES = [
-    44.3389, 44.0902, 44.1497, 43.6124, 44.3278, 44.8264, 45.0955, 45.4245, 45.8433, 46.0826, 45.8931,
-    46.0328, 45.6140, 46.2820, 46.2820, 46.0028, 46.0328, 46.4116, 46.2222, 45.6439, 46.2122, 46.2521,
-    45.7137, 46.4515, 45.7835, 45.3548, 44.0288, 44.1783, 44.2181, 44.5672, 43.4205, 42.6628, 43.1314,
+    44.3389,
+    44.0902,
+    44.1497,
+    43.6124,
+    44.3278,
+    44.8264,
+    45.0955,
+    45.4245,
+    45.8433,
+    46.0826,
+    45.8931,
+    46.0328,
+    45.6140,
+    46.2820,
+    46.2820,
+    46.0028,
+    46.0328,
+    46.4116,
+    46.2222,
+    45.6439,
+    46.2122,
+    46.2521,
+    45.7137,
+    46.4515,
+    45.7835,
+    45.3548,
+    44.0288,
+    44.1783,
+    44.2181,
+    44.5672,
+    43.4205,
+    42.6628,
+    43.1314,
 ]
 STOCKCHARTS_RSI = [
-    70.53, 66.32, 66.55, 69.41, 66.36, 57.97, 62.93, 63.26, 56.06, 62.38, 54.71, 50.42, 39.99, 41.46, 41.87, 45.46,
-    37.30, 33.08, 37.77,
+    70.53,
+    66.32,
+    66.55,
+    69.41,
+    66.36,
+    57.97,
+    62.93,
+    63.26,
+    56.06,
+    62.38,
+    54.71,
+    50.42,
+    39.99,
+    41.46,
+    41.87,
+    45.46,
+    37.30,
+    33.08,
+    37.77,
 ]
 
 
@@ -292,9 +339,12 @@ def test_nivel_nao_escorrega_com_pivos_encadeados():
     # pivôs a cada 0,4 (tolerância 0,5): antes tudo virava UM nível de 100 a 104
     prices = [100 + 0.4 * i for i in range(11)]
     sw = pd.DataFrame(
-        {"swing_high": np.nan, "swing_high_pos": np.nan, "swing_low": prices, "swing_low_pos": range(11)}, index=range(11)
+        {"swing_high": np.nan, "swing_high_pos": np.nan, "swing_low": prices, "swing_low_pos": range(11)},
+        index=range(11),
     )
-    levels = support_resistance(pd.DataFrame(index=sw.index), sw, at_pos=10, atr_value=1.0, tolerance_atr=0.5, max_levels=20)
+    levels = support_resistance(
+        pd.DataFrame(index=sw.index), sw, at_pos=10, atr_value=1.0, tolerance_atr=0.5, max_levels=20
+    )
     assert len(levels) > 3
     assert all(lv.touches <= 3 for lv in levels)
 
@@ -345,7 +395,19 @@ def test_compute_indicators_tem_valores_validos_depois_do_aquecimento():
     p = Indicadores()
     out = compute_indicators(candles(1500), p, Regime())
     tail = out.iloc[p.warmup_bars :]
-    for col in ("ema_200", "rsi", "macd", "stochrsi_k", "atr", "bb_pctb", "adx", "vwap", "dist_vwap_atr", "rvol", "atr_pctl"):
+    for col in (
+        "ema_200",
+        "rsi",
+        "macd",
+        "stochrsi_k",
+        "atr",
+        "bb_pctb",
+        "adx",
+        "vwap",
+        "dist_vwap_atr",
+        "rvol",
+        "atr_pctl",
+    ):
         assert tail[col].notna().all(), col
     assert tail["rsi"].between(0, 100).all()
     assert set(tail["regime"]) <= {"tendencia_alta", "tendencia_baixa", "lateral", "alta_volatilidade", "transicao"}

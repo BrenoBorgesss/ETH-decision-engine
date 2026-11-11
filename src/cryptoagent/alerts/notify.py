@@ -40,6 +40,7 @@ $n = [Windows.UI.Notifications.ToastNotification]::new($t)
 @dataclass(frozen=True)
 class Alert:
     """Um aviso: horário, título, texto e se é urgente."""
+
     time_ms: int
     title: str
     body: str
@@ -51,8 +52,12 @@ def alert_for_change(prev_action: str | None, d: Decision, trade_price: float) -
     if prev_action == d.action or (prev_action is None and d.action == "ESPERAR"):
         return None
     urgent = d.action == "VENDER" and d.exit_reason == "stop"
-    detail = (d.reasons_for[0] if d.action != "ESPERAR" and d.reasons_for else (d.blocks[0] if d.blocks else "")).strip()
-    title = f"{d.action} {d.trade_symbol} a {num(trade_price)} ({num(d.confidence, 0)}%)" + (" — URGENTE" if urgent else "")
+    detail = (
+        d.reasons_for[0] if d.action != "ESPERAR" and d.reasons_for else (d.blocks[0] if d.blocks else "")
+    ).strip()
+    title = f"{d.action} {d.trade_symbol} a {num(trade_price)} ({num(d.confidence, 0)}%)" + (
+        " — URGENTE" if urgent else ""
+    )
     body = (f"Antes: {prev_action}. " if prev_action else "") + detail[:180]
     return Alert(d.time_ms, title, body, urgent)
 
@@ -60,6 +65,7 @@ def alert_for_change(prev_action: str | None, d: Decision, trade_price: float) -
 @dataclass
 class Alerter:
     """Envia avisos (terminal, bipe e notificação do Windows, conforme o config) e guarda os 30 mais recentes para o painel."""
+
     cfg: Alertas
     console: Console
     tz: str = "America/Sao_Paulo"
@@ -75,7 +81,9 @@ class Alerter:
         if self.cfg.terminal:
             style = "bold white on red" if alert.urgent else "bold black on cyan"
             bell = "\a" if self.cfg.som else ""
-            self.console.print(f"{bell}[{style}] ALERTA [/] {format_local(alert.time_ms, self.tz)} {alert.title} — {alert.body}")
+            self.console.print(
+                f"{bell}[{style}] ALERTA [/] {format_local(alert.time_ms, self.tz)} {alert.title} — {alert.body}"
+            )
         if self.cfg.windows and sys.platform == "win32":
             self._toast(alert)
 
@@ -87,7 +95,10 @@ class Alerter:
             env = {**clean, "CA_TITLE": alert.title[:120], "CA_BODY": alert.body[:240]}
             subprocess.Popen(
                 ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", _TOAST_PS],
-                env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except OSError as exc:  # notificação é conveniência: falhar aqui não pode derrubar o agente
             log.warning("Notificação do Windows falhou: %s", exc)
@@ -101,7 +112,14 @@ class Alerter:
         day = format_local(d.time_ms, self.tz, "%Y-%m-%d")
         if limit and self._limit_day != day:
             self._limit_day = day
-            self.send(Alert(d.time_ms, "Perda máxima do dia atingida", "Só ESPERAR até 00:00 (Brasília). Confira a ordem de stop de posições abertas.", True))
+            self.send(
+                Alert(
+                    d.time_ms,
+                    "Perda máxima do dia atingida",
+                    "Só ESPERAR até 00:00 (Brasília). Confira a ordem de stop de posições abertas.",
+                    True,
+                )
+            )
 
     def on_health(self, ok: bool, problems: list[str]) -> None:
         """Avisa quando os dados ficam ruins por mais de 1 minuto e quando voltam ao normal."""

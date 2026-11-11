@@ -124,7 +124,12 @@ def test_erro_nao_expoe_url_assinada_nem_segredos(caplog):
 
 
 def test_429_espera_retry_after_e_tenta_de_novo():
-    responses = iter([httpx.Response(429, headers={"Retry-After": "7"}, json={"code": -1003, "msg": "too many"}), httpx.Response(200, json={"ok": 1})])
+    responses = iter(
+        [
+            httpx.Response(429, headers={"Retry-After": "7"}, json={"code": -1003, "msg": "too many"}),
+            httpx.Response(200, json={"ok": 1}),
+        ]
+    )
     client, sleeps = make_client(lambda req: next(responses))
     resp = run(client.get("/api/v3/ping"))
     assert resp.data == {"ok": 1}
@@ -204,7 +209,23 @@ def test_relogio_da_binance_corrige_pc_atrasado():
 
 
 def test_klines_retorna_dataframe_tipado():
-    rows = [[1_800_000_000_000 + i * 60_000, "100", "101", "99", "100.5", "10", 1_800_000_059_999 + i * 60_000, "1000", 50, "6", "600", "0"] for i in range(3)]
+    rows = [
+        [
+            1_800_000_000_000 + i * 60_000,
+            "100",
+            "101",
+            "99",
+            "100.5",
+            "10",
+            1_800_000_059_999 + i * 60_000,
+            "1000",
+            50,
+            "6",
+            "600",
+            "0",
+        ]
+        for i in range(3)
+    ]
     client, _ = make_client(lambda req: httpx.Response(200, json=rows))
     df, resp = run(client.klines("ETHUSDT", "1m", limit=3))
     assert len(df) == 3 and df["close"].dtype == "float64" and df["open_time"].dtype == "int64"

@@ -23,7 +23,9 @@ HOUR_MS = 3_600_000
 START = datetime_to_ms(datetime(2025, 1, 1, 3, 0, tzinfo=UTC))  # 00:00 de 01/01/2025 em Brasília (quarta)
 
 
-def synthetic(days=400, step=900_000, seed=1, busy_hours=(14, 15), busy_until_ms=None, base=0.0015, busy=0.006, day_shape=0.0):
+def synthetic(
+    days=400, step=900_000, seed=1, busy_hours=(14, 15), busy_until_ms=None, base=0.0015, busy=0.006, day_shape=0.0
+):
     """Candles de 15m em que algumas horas (Brasília) têm amplitude bem maior.
 
     `day_shape` > 0 dá um formato ao dia (amplitude crescendo ao longo das horas), como no mercado real.
@@ -132,7 +134,10 @@ def test_ultimo_candle_comparado_so_com_o_passado_da_mesma_hora():
     c = candle_vs_same_hour(b, days=20, low=20, high=80)
     assert c.label == "acima do normal" and c.percentile == 100
     last_hour = b["hour"].iloc[-1]
-    assert c.sample_size == ((b["hour"] == last_hour) & (b["open_time"] >= b["open_time"].iloc[-1] - 20 * 86_400_000)).sum() - 1
+    assert (
+        c.sample_size
+        == ((b["hour"] == last_hour) & (b["open_time"] >= b["open_time"].iloc[-1] - 20 * 86_400_000)).sum() - 1
+    )
 
 
 def test_variacao_do_dia_ate_o_mesmo_horario():

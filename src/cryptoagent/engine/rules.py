@@ -38,6 +38,7 @@ def data_problems(ctx: DecisionContext, p: Estrategia) -> list[str]:
 @dataclass
 class TrendView:
     """Leitura dos timeframes maiores: se bloqueia a compra, o fator de confirmação e as observações."""
+
     blocks_buy: bool
     factor: float  # fator de confirmação dos timeframes maiores (multiplica a confiança)
     notes_for: list[str] = field(default_factory=list)
@@ -56,14 +57,10 @@ def higher_timeframes(ctx: DecisionContext, p: Estrategia) -> TrendView:
 
     if strong_down_1h:
         view.blocks_buy = True
-        view.block_reason = (
-            f"queda forte no {p.tf_confirmacao}: ADX {h1['adx']:.0f} (>= {p.adx_queda_forte_1h:g}) com −DI {h1['minus_di']:.0f} > +DI {h1['plus_di']:.0f}"
-        )
+        view.block_reason = f"queda forte no {p.tf_confirmacao}: ADX {h1['adx']:.0f} (>= {p.adx_queda_forte_1h:g}) com −DI {h1['minus_di']:.0f} > +DI {h1['plus_di']:.0f}"
     elif bearish_4h and structure_down_1h:
         view.blocks_buy = True
-        view.block_reason = (
-            f"queda sustentada: EMA50 < EMA200 caindo no {p.tf_contexto} e topos/fundos descendentes abaixo da EMA50 no {p.tf_confirmacao}"
-        )
+        view.block_reason = f"queda sustentada: EMA50 < EMA200 caindo no {p.tf_contexto} e topos/fundos descendentes abaixo da EMA50 no {p.tf_confirmacao}"
 
     # confirmação: cada timeframe maior é favorável, neutro ou contra
     def state_4h() -> str:
@@ -153,8 +150,10 @@ def exit_check(ctx: DecisionContext, p: Estrategia, *, ratio: float = 1.0) -> tu
     if pos is None:
         return None
     price = ctx.market.price
+
     def tp(x: float) -> str:
         return num(x * ratio)
+
     s15 = ctx.market.last(p.tf_setup)
     g5 = ctx.market.last(p.tf_gatilho)
     if pos.stop is not None and price <= pos.stop:
@@ -174,7 +173,11 @@ def exit_check(ctx: DecisionContext, p: Estrategia, *, ratio: float = 1.0) -> tu
         return "invalidacao", f"leitura invalidada: {trend.block_reason}", 85.0
     held_min = (ctx.market.time_ms - pos.opened_ms) / 60_000
     if held_min >= p.tempo_max_min:
-        return "tempo", f"posição aberta há {held_min:.0f} min sem chegar ao alvo (limite {p.tempo_max_min:.0f} min): reversão que não acontece rápido costuma não acontecer", 75.0
+        return (
+            "tempo",
+            f"posição aberta há {held_min:.0f} min sem chegar ao alvo (limite {p.tempo_max_min:.0f} min): reversão que não acontece rápido costuma não acontecer",
+            75.0,
+        )
     return None
 
 

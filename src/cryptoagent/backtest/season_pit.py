@@ -36,6 +36,7 @@ def same_hour_percentiles(b: pd.DataFrame, days: int) -> np.ndarray:
 @dataclass
 class SeasonPIT:
     """Análise por horário "ponto no tempo": para cada mês, o perfil que se conhecia até ali, para o backtest não usar informação do futuro."""
+
     month_starts: np.ndarray  # ms
     hour_info: list[dict[int, tuple[str, bool]]]  # por mês: hora -> (classe, padrão validado até ali)
     candle_close: np.ndarray  # close_time dos candles do perfil
@@ -56,17 +57,24 @@ class SeasonPIT:
             m_ms = int(m.value // 1_000_000)
             past = b[b["open_time"] < m_ms]
             info: dict[int, tuple[str, bool]] = {}
-            if len(past) > 0 and (m_ms - int(past["open_time"].iloc[0])) >= (s.meses_treino + s.meses_teste) * 28 * DAY_MS:
+            if (
+                len(past) > 0
+                and (m_ms - int(past["open_time"].iloc[0])) >= (s.meses_treino + s.meses_teste) * 28 * DAY_MS
+            ):
                 report = validate(past, cost_pct, s)
                 kept = {(p.key, p.claim) for p in report.kept("hora")}
                 recent = past[past["open_time"] >= m_ms - window]
-                classes = classify(bucket_stats(recent, ["hour"], cost_pct, s.custo_folga), s.pct_min_compensa, s.pct_max_nao_compensa)
+                classes = classify(
+                    bucket_stats(recent, ["hour"], cost_pct, s.custo_folga), s.pct_min_compensa, s.pct_max_nao_compensa
+                )
                 info = {int(h): (c, (f"{int(h):02d}h", c) in kept) for h, c in classes.items()}
             starts.append(m_ms)
             infos.append(info)
         pct = same_hour_percentiles(b, s.dias_comparacao)
         activity = [activity_label(x, s.percentil_baixo, s.percentil_alto) for x in pct]
-        return cls(np.array(starts, dtype="int64"), infos, b["close_time"].to_numpy(), b["hour"].to_numpy(), activity, s)
+        return cls(
+            np.array(starts, dtype="int64"), infos, b["close_time"].to_numpy(), b["hour"].to_numpy(), activity, s
+        )
 
     def factor_at(self, t_ms: int) -> tuple[float, list[str]]:
         """Fator de confiança do horário no instante t (só com o que se sabia até t)."""

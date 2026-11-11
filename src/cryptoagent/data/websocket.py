@@ -28,10 +28,13 @@ Handler = Callable[[str, dict, int], Awaitable[None] | None]
 
 class BinanceStream:
     """Conexão WebSocket com a Binance para vários streams, com reconexão automática. Só recebe dados; nunca envia ordens."""
+
     MAX_CONNECTION_S = 23 * 3600
     SILENCE_TIMEOUT_S = 30
 
-    def __init__(self, ws_url: str, streams: list[str], handler: Handler, *, name: str = "ws", max_backoff_s: float = 60) -> None:
+    def __init__(
+        self, ws_url: str, streams: list[str], handler: Handler, *, name: str = "ws", max_backoff_s: float = 60
+    ) -> None:
         if not streams:
             raise ValueError("nenhum stream informado")
         self.url = f"{ws_url}/stream?streams=" + "/".join(streams)

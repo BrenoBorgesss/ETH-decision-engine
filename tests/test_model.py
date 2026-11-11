@@ -60,7 +60,9 @@ def test_treino_e_reprodutivel_e_o_arquivo_salvo_preve_igual_ao_scikit_learn(dem
     loaded = LogisticModel.load(path)
     assert loaded == m1
     X = ds[list(FEATURES)].to_numpy(dtype=float)
-    ref = LogisticRegression(C=0.5, max_iter=2000, random_state=42).fit((X - np.array(m1.mean)) / np.array(m1.scale), ds["rotulo"])
+    ref = LogisticRegression(C=0.5, max_iter=2000, random_state=42).fit(
+        (X - np.array(m1.mean)) / np.array(m1.scale), ds["rotulo"]
+    )
     expected = ref.predict_proba((X - np.array(m1.mean)) / np.array(m1.scale))[:, 1]
     assert np.allclose(loaded.predict_proba(ds), expected, atol=1e-12)
     one = ds.iloc[3][list(FEATURES)].to_dict()

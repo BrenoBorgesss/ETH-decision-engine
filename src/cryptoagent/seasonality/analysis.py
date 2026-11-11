@@ -21,6 +21,7 @@ DAY_MS = 86_400_000
 @dataclass
 class SymbolAnalysis:
     """Análise por horário de um par: perfis por hora e por dia, mapa de calor e validação fora da amostra."""
+
     symbol: str
     timeframe: str
     cost: CostModel
@@ -51,7 +52,18 @@ def analyze_symbol(df: pd.DataFrame, symbol: str, cfg: Config, cost: CostModel) 
     heat = bucket_stats(recent, ["weekday", "hour"], cost.breakeven_pct, s.custo_folga)
     weekdays = bucket_stats(recent, ["weekday"], cost.breakeven_pct, s.custo_folga)
     return SymbolAnalysis(
-        symbol, s.timeframe, cost, len(df_b), int(df_b["open_time"].iloc[0]), last_ms, window_start, hours, heat, weekdays, report, s.custo_folga
+        symbol,
+        s.timeframe,
+        cost,
+        len(df_b),
+        int(df_b["open_time"].iloc[0]),
+        last_ms,
+        window_start,
+        hours,
+        heat,
+        weekdays,
+        report,
+        s.custo_folga,
     )
 
 
@@ -61,13 +73,20 @@ def analyze_symbol(df: pd.DataFrame, symbol: str, cfg: Config, cost: CostModel) 
 def to_dict(a: SymbolAnalysis) -> dict:
     """Análise de um par como dicionário só com tipos de JSON."""
     v = a.validation
+
     def grid(col: str) -> list[list[float]]:
         return [[float(a.heat[col].get((d, h), float("nan"))) for h in range(24)] for d in range(7)]
+
     return {
         "symbol": a.symbol,
         "timeframe": a.timeframe,
         "generated_ms": now_ms(),
-        "data": {"candles": a.n_candles, "first_ms": a.first_ms, "last_ms": a.last_ms, "window_start_ms": a.window_start_ms},
+        "data": {
+            "candles": a.n_candles,
+            "first_ms": a.first_ms,
+            "last_ms": a.last_ms,
+            "window_start_ms": a.window_start_ms,
+        },
         "cost": {
             "fee_pct_side": a.cost.fee_pct_side,
             "spread_pct": a.cost.spread_pct,
@@ -86,13 +105,25 @@ def to_dict(a: SymbolAnalysis) -> dict:
             }
             for h, r in a.hours.iterrows()
         ],
-        "heatmap": {"weekdays": WEEKDAYS_PT, "range_median": grid("range_median"), "pct_above_cost": grid("pct_above_cost")},
+        "heatmap": {
+            "weekdays": WEEKDAYS_PT,
+            "range_median": grid("range_median"),
+            "pct_above_cost": grid("pct_above_cost"),
+        },
         "validation": {
             "folds": len(v.spearman),
             "spearman": v.spearman,
             "profile_repeats": v.profile_repeats,
             "patterns": [
-                {"kind": p.kind, "key": p.key, "claim": p.claim, "claims": p.claims, "held": p.held, "hold_rate": p.hold_rate, "kept": p.kept}
+                {
+                    "kind": p.kind,
+                    "key": p.key,
+                    "claim": p.claim,
+                    "claims": p.claims,
+                    "held": p.held,
+                    "hold_rate": p.hold_rate,
+                    "kept": p.kept,
+                }
                 for p in v.patterns
             ],
         },
@@ -102,7 +133,9 @@ def to_dict(a: SymbolAnalysis) -> dict:
 def save_json(analyses: list[SymbolAnalysis], path: Path) -> None:
     """Grava a análise de todos os pares em JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({a.symbol: to_dict(a) for a in analyses}, ensure_ascii=False, indent=1), encoding="utf-8")
+    path.write_text(
+        json.dumps({a.symbol: to_dict(a) for a in analyses}, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
 
 
 def load_profiles(path: Path) -> dict:
@@ -173,10 +206,25 @@ def render_html(analyses: list[SymbolAnalysis], path: Path, tz: str) -> None:
             f"<p class='muted'>Perfil: {format_local(a.window_start_ms, tz, '%d/%m/%Y')} a {format_local(a.last_ms, tz, '%d/%m/%Y')} "
             f"| {a.n_candles:,} candles no histórico total.</p>"
         )
-        parts.append(_heat_table(d["heatmap"]["pct_above_cost"], "% dos candles que passam do custo com folga (mais escuro = mais espaço para as taxas)"))
-        parts.append(_heat_table(d["heatmap"]["range_median"], "Amplitude mediana do candle, em centésimos de % (ex.: 35 = 0,35%)", fmt_scale=100))
+        parts.append(
+            _heat_table(
+                d["heatmap"]["pct_above_cost"],
+                "% dos candles que passam do custo com folga (mais escuro = mais espaço para as taxas)",
+            )
+        )
+        parts.append(
+            _heat_table(
+                d["heatmap"]["range_median"],
+                "Amplitude mediana do candle, em centésimos de % (ex.: 35 = 0,35%)",
+                fmt_scale=100,
+            )
+        )
         sp = ", ".join(f"{x:.2f}" for x in v.spearman)
-        verdict = "<span class='ok'>se repete</span>" if v.profile_repeats else "<span class='bad'>NÃO se repete o suficiente</span>"
+        verdict = (
+            "<span class='ok'>se repete</span>"
+            if v.profile_repeats
+            else "<span class='bad'>NÃO se repete o suficiente</span>"
+        )
         parts.append(
             f"<div class='note'>Formato do dia fora da amostra: {verdict} "
             f"(correlação de Spearman treino x teste em {len(v.spearman)} meses: {sp}).</div>"
@@ -191,11 +239,16 @@ def render_html(analyses: list[SymbolAnalysis], path: Path, tz: str) -> None:
                 if p.kind == kind
             )
             if kind == "hora_dia" and len(disc) + len(kept) > 40:
-                rows = "".join(
-                    f"<tr><td>{html.escape(p.key)}</td><td>{p.claim.replace('_', ' ')}</td><td>{p.held}/{p.claims}</td><td>{p.hold_rate:.0f}%</td><td class='ok'>mantido</td></tr>"
-                    for p in kept
-                ) + f"<tr><td colspan='5' class='muted'>+ {len(disc)} descartados (lista completa no JSON)</td></tr>"
-            parts.append(f"<div class='scroll'><table class='list'><tr><th>Grupo</th><th>Afirmação</th><th>Confirmou</th><th>Taxa</th><th>Resultado</th></tr>{rows}</table></div>")
+                rows = (
+                    "".join(
+                        f"<tr><td>{html.escape(p.key)}</td><td>{p.claim.replace('_', ' ')}</td><td>{p.held}/{p.claims}</td><td>{p.hold_rate:.0f}%</td><td class='ok'>mantido</td></tr>"
+                        for p in kept
+                    )
+                    + f"<tr><td colspan='5' class='muted'>+ {len(disc)} descartados (lista completa no JSON)</td></tr>"
+                )
+            parts.append(
+                f"<div class='scroll'><table class='list'><tr><th>Grupo</th><th>Afirmação</th><th>Confirmou</th><th>Taxa</th><th>Resultado</th></tr>{rows}</table></div>"
+            )
     parts.append("</main></body></html>")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(parts), encoding="utf-8")

@@ -55,7 +55,14 @@ async def cmd_season_analyze(cfg: Config, secrets: Secrets, args: argparse.Names
         for col in ("Hora", "Amplitude mediana", "% acima do custo", "Volume médio", "Classe", "Padrão validado?"):
             t.add_column(col)
         for h, r in a.hours.iterrows():
-            t.add_row(f"{int(h):02d}h", f"{r['range_median']:.3f}%", f"{r['pct_above_cost']:.0f}%", f"{r['quote_vol_mean']:,.0f}", CLASS_PT[r["class"]], "[green]sim[/]" if r["validated"] else "[dim]não[/]")
+            t.add_row(
+                f"{int(h):02d}h",
+                f"{r['range_median']:.3f}%",
+                f"{r['pct_above_cost']:.0f}%",
+                f"{r['quote_vol_mean']:,.0f}",
+                CLASS_PT[r["class"]],
+                "[green]sim[/]" if r["validated"] else "[dim]não[/]",
+            )
         console.print(t)
         w = Table(title="Por dia da semana")
         for col in ("Dia", "Amplitude mediana", "% acima do custo"):
@@ -73,19 +80,27 @@ async def cmd_season_analyze(cfg: Config, secrets: Secrets, args: argparse.Names
             console.print(f"  {label}: [green]{len(kept)} mantidos[/], [red]{len(disc)} descartados[/]")
             if kind != "hora_dia":
                 for p in kept:
-                    console.print(f"    [green]✓[/] {p.key} {p.claim.replace('_', ' ')} (confirmou {p.held}/{p.claims})")
+                    console.print(
+                        f"    [green]✓[/] {p.key} {p.claim.replace('_', ' ')} (confirmou {p.held}/{p.claims})"
+                    )
                 for p in disc:
                     console.print(f"    [red]✗[/] {p.key} {p.claim.replace('_', ' ')} (confirmou {p.held}/{p.claims})")
             else:
                 for p in kept[:15]:
-                    console.print(f"    [green]✓[/] {p.key} {p.claim.replace('_', ' ')} (confirmou {p.held}/{p.claims})")
+                    console.print(
+                        f"    [green]✓[/] {p.key} {p.claim.replace('_', ' ')} (confirmou {p.held}/{p.claims})"
+                    )
     if not analyses:
         return 1
     json_path, html_path = _season_paths(cfg)
     save_json(analyses, json_path)
     render_html(analyses, html_path, tz)
-    console.print(f"\nMapa de calor e lista completa de padrões: [bold]{html_path}[/]\nDados para o agente: {json_path}")
-    console.print("[dim]Isto é filtro/contexto: reduz a confiança em horários parados; nunca é motivo sozinho para comprar ou vender.[/]")
+    console.print(
+        f"\nMapa de calor e lista completa de padrões: [bold]{html_path}[/]\nDados para o agente: {json_path}"
+    )
+    console.print(
+        "[dim]Isto é filtro/contexto: reduz a confiança em horários parados; nunca é motivo sozinho para comprar ou vender.[/]"
+    )
     return 0
 
 
@@ -105,18 +120,28 @@ async def cmd_season_now(cfg: Config, secrets: Secrets, args: argparse.Namespace
     store = history.HistoryStore(cfg.path(cfg.historico.pasta))
     async with BinanceReadOnlyClient(cfg.binance, secrets) as client:
         await client.sync_time()
-        await history.update_from_rest(store, client, sym, s.timeframe, months=cfg.historico.meses, now=client.server_now_ms())
+        await history.update_from_rest(
+            store, client, sym, s.timeframe, months=cfg.historico.meses, now=client.server_now_ms()
+        )
     df = store.load(sym, s.timeframe)
     df = df[df["open_time"] >= int(df["open_time"].iloc[-1]) - (s.dias_comparacao + 2) * 86_400_000]
     df_b = add_buckets(df, tz, cfg.indicadores.atr)
     candle = candle_vs_same_hour(df_b, s.dias_comparacao, s.percentil_baixo, s.percentil_alto)
-    day = day_range_vs_history(df_b, local_trading_day_series(df_b["open_time"], tz, cfg.fuso.inicio_dia_local), s.dias_comparacao, s.percentil_baixo, s.percentil_alto)
+    day = day_range_vs_history(
+        df_b,
+        local_trading_day_series(df_b["open_time"], tz, cfg.fuso.inicio_dia_local),
+        s.dias_comparacao,
+        s.percentil_baixo,
+        s.percentil_alto,
+    )
     hour = int(df_b["hour"].iloc[-1])
     prof = profiles[sym]
     hrow = next(h for h in prof["hours"] if h["hour"] == hour)
     ctx = context_multiplier(hrow["class"], hrow["validated"], candle.label, s)
 
-    t = Table(title=f"{sym} agora x histórico (últimos {s.dias_comparacao} dias) | candle de {format_local(int(df_b['open_time'].iloc[-1]), tz)} (Brasília)")
+    t = Table(
+        title=f"{sym} agora x histórico (últimos {s.dias_comparacao} dias) | candle de {format_local(int(df_b['open_time'].iloc[-1]), tz)} (Brasília)"
+    )
     for col in ("Medida", "Agora", "Percentil", "Leitura", "Amostra"):
         t.add_column(col)
     for c in (candle, day):

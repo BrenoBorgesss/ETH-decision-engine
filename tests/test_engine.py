@@ -31,8 +31,17 @@ def good_frames(price=100.0):
     h4 = frame(3, close=105.0, ema_50=104.0, ema_200=100.0, ema_50_slope=0.1)
     h1 = frame(3, close=102.0, ema_50=101.0, adx=15.0, plus_di=22.0, minus_di=18.0, structure="mista", regime="lateral")
     s15 = frame(
-        10, close=price, vwap=103.0, atr=1.0, dist_vwap_atr=-3.0, bb_pctb=-0.2, bb_mid=102.0, bb_upper=104.0, rsi=22.0,
-        regime="lateral", bull_div=False,
+        10,
+        close=price,
+        vwap=103.0,
+        atr=1.0,
+        dist_vwap_atr=-3.0,
+        bb_pctb=-0.2,
+        bb_mid=102.0,
+        bb_upper=104.0,
+        rsi=22.0,
+        regime="lateral",
+        bull_div=False,
     )
     g5 = frame(
         14,
@@ -55,7 +64,9 @@ def good_frames(price=100.0):
 def ctx(frames=None, *, blocked=(), position=None, season=1.0, cost=0.2, warnings=(), price=99.6, levels=()):
     market = MarketView(T, price, frames or good_frames(), list(levels), spread_pct=0.01)
     risk = RiskView(list(blocked), risk_per_trade_brl=10.0, capital_brl=1000.0, data_warnings=list(warnings))
-    return DecisionContext("ETHUSDT", "ETHBRL", 5.0, market, risk, cost, position, SeasonView(season, ["horário x"] if season != 1 else []))
+    return DecisionContext(
+        "ETHUSDT", "ETHBRL", 5.0, market, risk, cost, position, SeasonView(season, ["horário x"] if season != 1 else [])
+    )
 
 
 def test_cenario_de_livro_gera_comprar_com_niveis_coerentes():
@@ -111,7 +122,9 @@ def test_spread_alto_vira_esperar():
 
 def test_queda_forte_no_1h_bloqueia_compra():
     f = good_frames()
-    f["1h"] = frame(3, close=95.0, ema_50=101.0, adx=40.0, plus_di=10.0, minus_di=35.0, structure="baixa", regime="tendencia_baixa")
+    f["1h"] = frame(
+        3, close=95.0, ema_50=101.0, adx=40.0, plus_di=10.0, minus_di=35.0, structure="baixa", regime="tendencia_baixa"
+    )
     d = decide(ctx(f), P)
     assert d.action == "ESPERAR" and any("queda forte" in b for b in d.blocks)
 
@@ -119,7 +132,9 @@ def test_queda_forte_no_1h_bloqueia_compra():
 def test_queda_sustentada_4h_com_estrutura_de_baixa_no_1h_bloqueia():
     f = good_frames()
     f["4h"] = frame(3, close=95.0, ema_50=98.0, ema_200=100.0, ema_50_slope=-0.3)
-    f["1h"] = frame(3, close=95.0, ema_50=97.0, adx=22.0, plus_di=15.0, minus_di=20.0, structure="baixa", regime="transicao")
+    f["1h"] = frame(
+        3, close=95.0, ema_50=97.0, adx=22.0, plus_di=15.0, minus_di=20.0, structure="baixa", regime="transicao"
+    )
     d = decide(ctx(f), P)
     assert any("queda sustentada" in b for b in d.blocks)
 
@@ -176,7 +191,9 @@ def test_sem_esticamento_nao_compra():
 
 
 def pos(**kw):
-    base = dict(qty=0.1, avg_cost=99.0, opened_ms=T - 30 * MIN, stop=98.0, target1=102.0, target2=104.0, source="sinal #1")
+    base = dict(
+        qty=0.1, avg_cost=99.0, opened_ms=T - 30 * MIN, stop=98.0, target1=102.0, target2=104.0, source="sinal #1"
+    )
     base.update(kw)
     return PositionView(**base)
 
@@ -207,7 +224,9 @@ def test_com_posicao_esticado_para_cima_vender():
 
 def test_com_posicao_invalidacao_por_queda_forte_vender():
     f = good_frames()
-    f["1h"] = frame(3, close=95.0, ema_50=101.0, adx=40.0, plus_di=10.0, minus_di=35.0, structure="baixa", regime="tendencia_baixa")
+    f["1h"] = frame(
+        3, close=95.0, ema_50=101.0, adx=40.0, plus_di=10.0, minus_di=35.0, structure="baixa", regime="tendencia_baixa"
+    )
     d = decide(ctx(f, position=pos(), price=99.0), P)
     assert d.action == "VENDER" and d.exit_reason == "invalidacao"
 
@@ -237,7 +256,9 @@ def test_perda_maxima_com_posicao_permite_vender_no_stop():
 def test_perda_maxima_com_posicao_permite_vender_por_tempo_e_invalidacao():
     assert decide(limit_ctx(position=pos(opened_ms=T - 200 * MIN), price=100.0), P).exit_reason == "tempo"
     f = good_frames()
-    f["1h"] = frame(3, close=95.0, ema_50=101.0, adx=40.0, plus_di=10.0, minus_di=35.0, structure="baixa", regime="tendencia_baixa")
+    f["1h"] = frame(
+        3, close=95.0, ema_50=101.0, adx=40.0, plus_di=10.0, minus_di=35.0, structure="baixa", regime="tendencia_baixa"
+    )
     assert decide(limit_ctx(frames=f, position=pos(), price=99.0), P).exit_reason == "invalidacao"
 
 
@@ -296,4 +317,9 @@ def test_com_posicao_os_suportes_e_resistencias_nao_mudam_a_decisao():
     ]
     for c in cenarios:
         sem, com = decide(ctx(**c), P), decide(ctx(levels=niveis, **c), P)
-        assert (sem.action, sem.exit_reason, sem.confidence, sem.blocks) == (com.action, com.exit_reason, com.confidence, com.blocks)
+        assert (sem.action, sem.exit_reason, sem.confidence, sem.blocks) == (
+            com.action,
+            com.exit_reason,
+            com.confidence,
+            com.blocks,
+        )

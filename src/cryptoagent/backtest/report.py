@@ -48,8 +48,10 @@ def _clean(obj: object) -> object:
 
 def to_dict(r: PairReport) -> dict:
     """Relatório de um par como dicionário só com tipos de JSON."""
+
     def v(x: Variant | None) -> dict | None:
         return {"nome": x.name, "metricas": x.metrics, "nota": x.note} if x else None
+
     return _clean(
         {
             "par": r.pair,
@@ -108,7 +110,9 @@ def _row(v: Variant | None, highlight: bool = False) -> str:
         for k, _, _ in COLS
     )
     name = f"<b>{html.escape(v.name)}</b>" if highlight else html.escape(v.name)
-    return f"<tr><td>{name}{'<br><span class=muted>' + html.escape(v.note) + '</span>' if v.note else ''}</td>{cells}</tr>"
+    return (
+        f"<tr><td>{name}{'<br><span class=muted>' + html.escape(v.note) + '</span>' if v.note else ''}</td>{cells}</tr>"
+    )
 
 
 def _table(rows: list[Variant | None], highlight_first: bool = False) -> str:
@@ -127,10 +131,13 @@ def _equity_svg(r: PairReport, capital: float) -> str:
     w, h, pad = 900, 220, 30
     x0, x1 = r.oos_start, r.oos_end
     y0, y1 = min(ys + [capital]) * 0.995, max(ys + [capital]) * 1.005
+
     def sx(x: float) -> float:
         return pad + (x - x0) / (x1 - x0) * (w - 2 * pad)
+
     def sy(y: float) -> float:
         return h - pad - (y - y0) / (y1 - y0) * (h - 2 * pad)
+
     pts = " ".join(f"{sx(x):.1f},{sy(y):.1f}" for x, y in zip(xs, ys))
     base = sy(capital)
     return (
@@ -143,7 +150,9 @@ def _equity_svg(r: PairReport, capital: float) -> str:
     )
 
 
-def render_html(reports: list[PairReport], path: Path, *, capital: float, tz: str, train_months: int, default_distance: float) -> None:
+def render_html(
+    reports: list[PairReport], path: Path, *, capital: float, tz: str, train_months: int, default_distance: float
+) -> None:
     """Gera a página HTML do relatório de backtest."""
     out = [
         "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
@@ -164,13 +173,21 @@ def render_html(reports: list[PairReport], path: Path, *, capital: float, tz: st
         out.append("<h3>Resultado principal (fora da amostra)</h3>")
         out.append(_table([r.default, r.walkforward, r.naive], highlight_first=True))
         bh = r.buy_hold or {}
-        out.append(f"<p>Comprar e segurar {r.pair} no mesmo período: retorno <b>{pct(bh.get('retorno_total_pct'), 2, sign=True)}</b>, drawdown {pct(bh.get('drawdown_max_pct'), 2)}.</p>")
+        out.append(
+            f"<p>Comprar e segurar {r.pair} no mesmo período: retorno <b>{pct(bh.get('retorno_total_pct'), 2, sign=True)}</b>, drawdown {pct(bh.get('drawdown_max_pct'), 2)}.</p>"
+        )
         out.append("<h3>Curva de patrimônio (parâmetros padrão, fora da amostra)</h3>" + _equity_svg(r, capital))
         if r.default.metrics.get("saidas"):
-            out.append("<p class='muted'>Saídas: " + ", ".join(f"{html.escape(k)} {v}" for k, v in r.default.metrics["saidas"].items()) + "</p>")
+            out.append(
+                "<p class='muted'>Saídas: "
+                + ", ".join(f"{html.escape(k)} {v}" for k, v in r.default.metrics["saidas"].items())
+                + "</p>"
+            )
 
         out.append("<h3>Trava de distância mínima até o alvo (operações por dia)</h3>")
-        out.append(_table([Variant(f"trava padrão ({num(default_distance, 1)}× o custo)", r.default.metrics), *r.distances]))
+        out.append(
+            _table([Variant(f"trava padrão ({num(default_distance, 1)}× o custo)", r.default.metrics), *r.distances])
+        )
 
         if r.target_coverage:
             tc = r.target_coverage
@@ -180,9 +197,15 @@ def render_html(reports: list[PairReport], path: Path, *, capital: float, tz: st
                 f"Mediana: alvo a {num(tc['mediana_multiplos'], 2)}× o custo.</div>"
             )
         if r.wf_choices:
-            out.append("<h3>Walk-forward: o que foi escolhido em cada mês (só com dados do treino)</h3><div class='scroll'><table><tr><th>Mês de teste</th><th>Parâmetros escolhidos</th><th>Ops. treino</th><th>Média treino</th><th>Ops. teste</th><th>Média teste</th><th>Retorno teste</th></tr>")
+            out.append(
+                "<h3>Walk-forward: o que foi escolhido em cada mês (só com dados do treino)</h3><div class='scroll'><table><tr><th>Mês de teste</th><th>Parâmetros escolhidos</th><th>Ops. treino</th><th>Média treino</th><th>Ops. teste</th><th>Média teste</th><th>Retorno teste</th></tr>"
+            )
             for ch in r.wf_choices:
-                esc = ch["escolha"] if isinstance(ch["escolha"], str) else ", ".join(f"{k}={num(v, 2)}" for k, v in ch["escolha"].items())
+                esc = (
+                    ch["escolha"]
+                    if isinstance(ch["escolha"], str)
+                    else ", ".join(f"{k}={num(v, 2)}" for k, v in ch["escolha"].items())
+                )
                 out.append(
                     f"<tr><td>{format_local(ch['teste_inicio'], 'UTC', '%m/%Y')}</td><td>{html.escape(esc)}</td><td>{ch.get('treino_ops', 0)}</td>"
                     f"<td>{pct(ch.get('treino_expectativa_pct'), 3, sign=True)}</td><td>{ch.get('teste_ops', '-')}</td>"
@@ -190,11 +213,16 @@ def render_html(reports: list[PairReport], path: Path, *, capital: float, tz: st
                 )
             out.append("</table></div>")
         if r.ablation:
-            out.append("<h3>Ablação: o que cada sinal extra acrescenta (fora da amostra)</h3>" + _table(r.ablation, highlight_first=True))
+            out.append(
+                "<h3>Ablação: o que cada sinal extra acrescenta (fora da amostra)</h3>"
+                + _table(r.ablation, highlight_first=True)
+            )
             for k, why in r.untestable.items():
                 out.append(f"<p class='muted'>{html.escape(k)}: {html.escape(why)}.</p>")
         if r.block_counts:
-            out.append("<h3>Por que a estratégia esperou (motivos nas barras candidatas; uma barra pode ter vários)</h3><div class='scroll'><table><tr><th>Motivo</th><th>Vezes</th></tr>")
+            out.append(
+                "<h3>Por que a estratégia esperou (motivos nas barras candidatas; uma barra pode ter vários)</h3><div class='scroll'><table><tr><th>Motivo</th><th>Vezes</th></tr>"
+            )
             out += [f"<tr><td>{html.escape(k)}</td><td>{v:,}</td></tr>" for k, v in r.block_counts.items()]
             out.append("</table></div>")
     out.append("</main></body></html>")

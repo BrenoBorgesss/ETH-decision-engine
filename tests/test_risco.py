@@ -32,8 +32,18 @@ T_HOJE = datetime_to_ms(datetime(2026, 9, 1, 13, 0, tzinfo=UTC))  # 10:00 em Bra
 
 def trade(i, side, price, qty, t):
     quote = price * qty
-    return {"id": i, "orderId": i, "price": str(price), "qty": str(qty), "quoteQty": str(quote), "commission": f"{quote * 0.001:.8f}",
-            "commissionAsset": "BRL", "time": t, "isBuyer": side == "buy", "isMaker": False}
+    return {
+        "id": i,
+        "orderId": i,
+        "price": str(price),
+        "qty": str(qty),
+        "quoteQty": str(quote),
+        "commission": f"{quote * 0.001:.8f}",
+        "commissionAsset": "BRL",
+        "time": t,
+        "isBuyer": side == "buy",
+        "isMaker": False,
+    }
 
 
 def analyze(tmp_path, *, trades=(), balances=None, session=(1000.0, 30.0), validar=False):
@@ -44,16 +54,29 @@ def analyze(tmp_path, *, trades=(), balances=None, session=(1000.0, 30.0), valid
     cfg.confiabilidade.exigir_validacao = validar
     conn = agent_db.connect(tmp_path / "agent.sqlite")
     if session:
-        daily.save_session(conn, date(2026, 9, 1), capital_brl=session[0], max_loss_brl=session[1], par_operacao="ETHBRL", saldo_em="BRL",
-                           candidates=cfg.mercado.pares_candidatos, now=NOW)
+        daily.save_session(
+            conn,
+            date(2026, 9, 1),
+            capital_brl=session[0],
+            max_loss_brl=session[1],
+            par_operacao="ETHBRL",
+            saldo_em="BRL",
+            candidates=cfg.mercado.pares_candidatos,
+            now=NOW,
+        )
     clock = FakeClock(NOW)
-    server = FakeBinance(clock, account={"balances": balances or [{"asset": "BRL", "free": "1000", "locked": "0"}], "trades": list(trades)})
+    server = FakeBinance(
+        clock,
+        account={"balances": balances or [{"asset": "BRL", "free": "1000", "locked": "0"}], "trades": list(trades)},
+    )
 
     async def go():
         async def nosleep(_s):
             return None
 
-        async with BinanceReadOnlyClient(cfg.binance, SECRETS, transport=server.transport(), sleep=nosleep, clock=clock) as client:
+        async with BinanceReadOnlyClient(
+            cfg.binance, SECRETS, transport=server.transport(), sleep=nosleep, clock=clock
+        ) as client:
             return await live.analyze_live(cfg, SECRETS, client, conn)
 
     try:
@@ -77,7 +100,9 @@ def test_com_a_sessao_do_dia_e_setup_de_compra_o_agente_compra_com_o_risco_infor
     assert d.action == "COMPRAR", d.blocks
     assert res.account.limits.risk_per_trade_brl == pytest.approx(10)  # R$ 30 ÷ 3
     # tamanho: no stop, perde no máximo o risco por operação (e nunca aplica mais que o capital efetivo)
-    assert d.levels.size_brl == pytest.approx(min(10 / (d.levels.risk_net_pct / 100), res.account.effective_capital_brl))
+    assert d.levels.size_brl == pytest.approx(
+        min(10 / (d.levels.risk_net_pct / 100), res.account.effective_capital_brl)
+    )
     assert d.levels.size_brl * d.levels.risk_net_pct / 100 <= 10 + 1e-9
 
 
@@ -85,7 +110,10 @@ def test_com_a_sessao_do_dia_e_setup_de_compra_o_agente_compra_com_o_risco_infor
 
 
 def test_perda_maxima_atingida_bloqueia_a_compra_mas_mostra_a_leitura(tmp_path):
-    perdedoras = [trade(1, "buy", 13000, 0.05, T_HOJE), trade(2, "sell", 12000, 0.05, T_HOJE + 60_000)]  # −R$ 50 + taxas
+    perdedoras = [
+        trade(1, "buy", 13000, 0.05, T_HOJE),
+        trade(2, "sell", 12000, 0.05, T_HOJE + 60_000),
+    ]  # −R$ 50 + taxas
     res = analyze(tmp_path, trades=perdedoras)
     d = res.decision
     assert res.account.limits.blocked and res.account.pnl_brl < -30
@@ -96,7 +124,10 @@ def test_perda_maxima_atingida_bloqueia_a_compra_mas_mostra_a_leitura(tmp_path):
 def test_perda_maxima_atingida_ainda_permite_vender_para_reduzir_o_risco(tmp_path):
     # comprou caro hoje: posição aberta com prejuízo maior que a perda máxima e preço abaixo do stop pelas regras
     compra = [trade(1, "buy", 14000, 0.05, T_HOJE)]
-    saldo = [{"asset": "BRL", "free": "300", "locked": "0"}, {"asset": "ETH", "free": "0.05", "locked": "0"}]  # taxa paga em BRL
+    saldo = [
+        {"asset": "BRL", "free": "300", "locked": "0"},
+        {"asset": "ETH", "free": "0.05", "locked": "0"},
+    ]  # taxa paga em BRL
     res = analyze(tmp_path, trades=compra, balances=saldo)
     d = res.decision
     assert res.account.limits.blocked
@@ -109,7 +140,9 @@ def test_perda_maxima_atingida_ainda_permite_vender_para_reduzir_o_risco(tmp_pat
 
 def test_posicao_que_nao_existe_no_saldo_bloqueia(tmp_path):
     compra = [trade(1, "buy", 12500, 0.05, T_HOJE)]
-    res = analyze(tmp_path, trades=compra, balances=[{"asset": "BRL", "free": "400", "locked": "0"}])  # o ETH não está na conta
+    res = analyze(
+        tmp_path, trades=compra, balances=[{"asset": "BRL", "free": "400", "locked": "0"}]
+    )  # o ETH não está na conta
     assert res.decision.action == "ESPERAR"
     assert any("maior que o saldo de ETH" in b for b in res.decision.blocks)
 
@@ -130,8 +163,16 @@ def test_sem_posicao_o_motor_nunca_manda_vender():
         f["15m"]["dist_vwap_atr"] = float(rng.uniform(-4, 4))
         f["15m"]["rsi"] = float(rng.uniform(5, 95))
         f["5m"]["rsi"] = float(rng.uniform(5, 95))
-        f["1h"] = frame(3, close=100.0, ema_50=float(rng.uniform(95, 105)), adx=float(rng.uniform(5, 50)), plus_di=float(rng.uniform(5, 40)),
-                        minus_di=float(rng.uniform(5, 40)), structure="mista", regime="lateral")
+        f["1h"] = frame(
+            3,
+            close=100.0,
+            ema_50=float(rng.uniform(95, 105)),
+            adx=float(rng.uniform(5, 50)),
+            plus_di=float(rng.uniform(5, 40)),
+            minus_di=float(rng.uniform(5, 40)),
+            structure="mista",
+            regime="lateral",
+        )
         d = decide(ctx(f, price=float(rng.uniform(95, 105))), P)
         assert d.action in ("COMPRAR", "ESPERAR")
 
@@ -156,7 +197,9 @@ def test_simulacao_bloqueia_novas_compras_depois_da_perda_maxima_do_dia(tmp_path
     _, lines = run_replay(cfg, db, ms(2026, 9, 8, 9), ms(2026, 9, 8, 13))
     conn = sqlite3.connect(db)
     trades = conn.execute("SELECT exit_reason, pnl FROM paper_trades").fetchall()
-    bloqueados = conn.execute("SELECT COUNT(*) FROM signals WHERE details_json LIKE '%PERDA MÁXIMA DO DIA ATINGIDA%'").fetchone()[0]
+    bloqueados = conn.execute(
+        "SELECT COUNT(*) FROM signals WHERE details_json LIKE '%PERDA MÁXIMA DO DIA ATINGIDA%'"
+    ).fetchone()[0]
     conn.close()
     assert [t[0] for t in trades] == ["stop"] and trades[0][1] <= -3
     assert bloqueados > 0  # depois do stop, as análises seguintes ficaram travadas pela perda máxima virtual

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class LimitStatus:
     """Situação dos limites do dia: resultado, quanto da perda máxima já foi usado, quanto resta e o risco por operação."""
+
     capital_brl: float
     max_loss_brl: float
     pnl_brl: float
@@ -23,7 +24,9 @@ class LimitStatus:
         return min(100.0, self.loss_used_brl / self.max_loss_brl * 100) if self.max_loss_brl else 100.0
 
 
-def evaluate_limits(capital_brl: float, max_loss_brl: float, pnl_brl: float, *, divisor: float, profit_extends: bool = False) -> LimitStatus:
+def evaluate_limits(
+    capital_brl: float, max_loss_brl: float, pnl_brl: float, *, divisor: float, profit_extends: bool = False
+) -> LimitStatus:
     """
     - Perda consumida = quanto o resultado do dia está negativo.
     - Com `profit_extends=False` (padrão), lucro do dia NÃO aumenta a perda permitida.

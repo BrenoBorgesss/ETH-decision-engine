@@ -61,7 +61,10 @@ def setup_logging(cfg: Config, secrets: Secrets) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
 
     file_handler = RotatingFileHandler(
-        log_dir / LOG_FILE, maxBytes=int(cfg.logs.tamanho_max_mb * 1_000_000), backupCount=cfg.logs.arquivos_antigos, encoding="utf-8"
+        log_dir / LOG_FILE,
+        maxBytes=int(cfg.logs.tamanho_max_mb * 1_000_000),
+        backupCount=cfg.logs.arquivos_antigos,
+        encoding="utf-8",
     )
     file_handler.setFormatter(build_formatter(cfg.logs.formato))
 

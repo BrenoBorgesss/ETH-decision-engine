@@ -35,7 +35,11 @@ async def cmd_account_permissions(cfg: Config, secrets: Secrets, args: argparse.
     t.add_column("Situação")
     for key, value in sorted(perms.flags.items()):
         if key == "ipRestrict":
-            t.add_row("restrição por IP", "sim" if value else "não", "[green]bom[/]" if value else "[yellow]recomendado ligar[/]")
+            t.add_row(
+                "restrição por IP",
+                "sim" if value else "não",
+                "[green]bom[/]" if value else "[yellow]recomendado ligar[/]",
+            )
             continue
         bad = key in perms.forbidden
         t.add_row(LABELS.get(key, key), "sim" if value else "não", "[red]PROIBIDA[/]" if bad else "[green]ok[/]")
@@ -50,7 +54,9 @@ async def cmd_account_permissions(cfg: Config, secrets: Secrets, args: argparse.
 
 def _print_account(st: AccountStatus, cfg: Config) -> None:
     tz = cfg.fuso.local
-    console.print(f"Modo da conta: [bold]{st.mode}[/] ({'verificado pela Binance' if st.verified else 'NÃO verificado'})")
+    console.print(
+        f"Modo da conta: [bold]{st.mode}[/] ({'verificado pela Binance' if st.verified else 'NÃO verificado'})"
+    )
     if st.session:
         console.print(_session_table(st.session, cfg))
     if st.balances is not None and st.symbol:
@@ -67,8 +73,14 @@ def _print_account(st: AccountStatus, cfg: Config) -> None:
     if st.commission:
         c = st.commission
         origem = "lidas da sua conta" if c.from_account else "do config (leitura falhou)"
-        bnb = f"desconto BNB ligado (paga {c.bnb_discount_factor * 100:.0f}% da taxa)" if c.bnb_discount_enabled else "desconto BNB desligado"
-        console.print(f"Taxas {origem}: maker {c.maker * 100:.4f}% | taker {c.taker * 100:.4f}% | {bnb} | taxa usada para avaliar a saída: {st.exit_fee_rate * 100:.4f}%")
+        bnb = (
+            f"desconto BNB ligado (paga {c.bnb_discount_factor * 100:.0f}% da taxa)"
+            if c.bnb_discount_enabled
+            else "desconto BNB desligado"
+        )
+        console.print(
+            f"Taxas {origem}: maker {c.maker * 100:.4f}% | taker {c.taker * 100:.4f}% | {bnb} | taxa usada para avaliar a saída: {st.exit_fee_rate * 100:.4f}%"
+        )
     if st.day and st.symbol:
         d = st.day
         base, quote = split_symbol(st.symbol)
@@ -76,12 +88,19 @@ def _print_account(st: AccountStatus, cfg: Config) -> None:
         t = Table(title=f"Operação de hoje em {st.symbol}")
         t.add_column("Item")
         t.add_column("Valor")
-        t.add_row("Posição de operação aberta", f"{d.open_qty:.6f} {base}" + (f" (custo médio real {d.avg_cost_real:,.2f} {quote})" if d.avg_cost_real else ""))
+        t.add_row(
+            "Posição de operação aberta",
+            f"{d.open_qty:.6f} {base}"
+            + (f" (custo médio real {d.avg_cost_real:,.2f} {quote})" if d.avg_cost_real else ""),
+        )
         if d.carried_qty > 1e-12:
             t.add_row("Veio de ontem", f"{d.carried_qty:.6f} {base}, reavaliado a {d.day_start_price:,.2f} (00:00)")
         t.add_row("Operações hoje", str(d.trades_today))
         t.add_row("Realizado hoje", f"{d.realized_quote:+,.2f} {quote}")
-        t.add_row("Posição aberta (saída agora)", f"{d.unrealized_quote:+,.2f} {quote} (bid {d.mark_price:,.2f}, já com taxa de venda)")
+        t.add_row(
+            "Posição aberta (saída agora)",
+            f"{d.unrealized_quote:+,.2f} {quote} (bid {d.mark_price:,.2f}, já com taxa de venda)",
+        )
         t.add_row("Taxas pagas hoje", f"{d.fees_quote:,.2f} {quote}")
         if quote == "USDT":
             t.add_row("Câmbio usado", f"USDTBRL {to_brl:,.4f}")
@@ -102,7 +121,9 @@ def _print_account(st: AccountStatus, cfg: Config) -> None:
         for r in st.reasons:
             console.print(f"  • {escape(r)}")
     else:
-        console.print("[bold green]Conta em ordem: limites permitem sinais.[/] (A decisão em si: cryptoagent analisar.)")
+        console.print(
+            "[bold green]Conta em ordem: limites permitem sinais.[/] (A decisão em si: cryptoagent analisar.)"
+        )
 
 
 async def cmd_account_status(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:

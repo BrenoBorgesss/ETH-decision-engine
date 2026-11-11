@@ -16,6 +16,7 @@ from cryptoagent.costs.roundtrip import LegCosts, round_trip
 @dataclass(frozen=True)
 class CostModel:
     """Custo de operar um par: taxa por lado, spread e quanto o preço precisa andar para empatar a ida e volta."""
+
     symbol: str
     fee_pct_side: float  # taxa por lado, em %
     spread_pct: float  # spread total (compra − venda), em % do preço
@@ -29,7 +30,12 @@ def measured_spread(db_path: Path, symbol: str) -> tuple[float, int] | None:
         return None
     conn = sqlite3.connect(db_path)
     try:
-        rows = [r[0] for r in conn.execute("SELECT spread_pct FROM book_samples WHERE symbol = ? AND spread_pct IS NOT NULL", (symbol,))]
+        rows = [
+            r[0]
+            for r in conn.execute(
+                "SELECT spread_pct FROM book_samples WHERE symbol = ? AND spread_pct IS NOT NULL", (symbol,)
+            )
+        ]
     except sqlite3.Error:
         return None
     finally:
@@ -40,7 +46,9 @@ def measured_spread(db_path: Path, symbol: str) -> tuple[float, int] | None:
     return rows[len(rows) // 2], len(rows)
 
 
-def build_cost_model(symbol: str, fee_side: float, default_spreads: dict[str, float], db_path: Path | None) -> CostModel:
+def build_cost_model(
+    symbol: str, fee_side: float, default_spreads: dict[str, float], db_path: Path | None
+) -> CostModel:
     """Monta o custo do par com o spread mediano da coleta ao vivo, ou com o valor padrão do config se ainda não há coleta."""
     measured = measured_spread(db_path, symbol) if db_path else None
     if measured:

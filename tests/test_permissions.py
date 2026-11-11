@@ -29,7 +29,15 @@ def test_chave_somente_leitura_passa():
 
 @pytest.mark.parametrize(
     "flag",
-    ["enableSpotAndMarginTrading", "enableWithdrawals", "enableInternalTransfer", "permitsUniversalTransfer", "enableFutures", "enableMargin", "enableFixApiTrade"],
+    [
+        "enableSpotAndMarginTrading",
+        "enableWithdrawals",
+        "enableInternalTransfer",
+        "permitsUniversalTransfer",
+        "enableFutures",
+        "enableMargin",
+        "enableFixApiTrade",
+    ],
 )
 def test_qualquer_permissao_de_acao_e_recusada(flag):
     check = evaluate_restrictions({**READ_ONLY, flag: True})

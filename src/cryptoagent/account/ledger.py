@@ -26,6 +26,7 @@ EPS = 1e-12
 @dataclass(frozen=True)
 class LedgerTrade:
     """Uma operação (compra ou venda) no formato usado para calcular posição e resultado, venha da Binance ou do diário manual."""
+
     trade_id: str
     time_ms: int
     side: Literal["buy", "sell"]
@@ -46,6 +47,7 @@ class LedgerTrade:
 @dataclass
 class Lot:
     """Lote de compra ainda aberto: quantidade restante e custo por unidade já com a taxa."""
+
     qty: float
     cost: float  # custo por ETH em moeda de cotação, já com a taxa da compra
     trade_id: str
@@ -55,6 +57,7 @@ class Lot:
 @dataclass
 class Attribution:
     """Quanto de uma operação entrou na posição da operação e quanto foi ignorado, com o resultado realizado."""
+
     trade_id: str
     op_qty: float  # quanto entrou/saiu da operação
     ignored_qty: float  # quanto ficou fora (teto atingido ou ETH de fora da operação)
@@ -63,6 +66,7 @@ class Attribution:
 
 class OperationLedger:
     """Livro da posição da operação: lotes em ordem de compra (FIFO), limitados por um teto em ETH ou em moeda. O que passa do teto é ignorado."""
+
     def __init__(self, cap_base: float | None = None, cap_quote: float | None = None) -> None:
         if cap_base is not None and cap_base <= 0:
             raise ValueError("teto em ETH precisa ser positivo")
@@ -164,6 +168,7 @@ class MissingDayStartPrice(Exception):
 @dataclass(frozen=True)
 class DayResult:
     """Resultado do dia de operação: realizado, não realizado, taxas, posição aberta e o que ficou fora do teto."""
+
     realized_quote: float
     unrealized_quote: float
     fees_quote: float

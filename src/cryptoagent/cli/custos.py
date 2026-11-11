@@ -55,7 +55,19 @@ async def cmd_costs_summary(cfg: Config, secrets: Secrets, args: argparse.Namesp
         conn.close()
     tz = cfg.fuso.local
     table = Table(title="Coleta de custos (order book ao vivo)")
-    for col in ("Par", "Amostras", "De", "Até (Brasília)", "Dias", "Fins de semana", "Cobertura", "Via REST", "Spread médio", "Mediano", "P95"):
+    for col in (
+        "Par",
+        "Amostras",
+        "De",
+        "Até (Brasília)",
+        "Dias",
+        "Fins de semana",
+        "Cobertura",
+        "Via REST",
+        "Spread médio",
+        "Mediano",
+        "P95",
+    ):
         table.add_column(col)
     for r in rows:
         table.add_row(
@@ -75,5 +87,7 @@ async def cmd_costs_summary(cfg: Config, secrets: Secrets, args: argparse.Namesp
     days = min((r.local_days for r in rows), default=0)
     need = cfg.custos.dias_minimos_para_conclusao
     if days < need:
-        console.print(f"[yellow]Só {days} dia(s) de coleta (mínimo {need}). Ainda NÃO dá para tirar conclusões sobre custos.[/]")
+        console.print(
+            f"[yellow]Só {days} dia(s) de coleta (mínimo {need}). Ainda NÃO dá para tirar conclusões sobre custos.[/]"
+        )
     return 0

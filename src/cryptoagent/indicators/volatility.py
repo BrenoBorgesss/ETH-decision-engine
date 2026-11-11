@@ -13,7 +13,9 @@ def true_range(df: pd.DataFrame) -> pd.Series:
     No primeiro candle (sem anterior) vale máxima − mínima.
     """
     prev_close = df["close"].shift(1)
-    ranges = pd.concat([df["high"] - df["low"], (df["high"] - prev_close).abs(), (df["low"] - prev_close).abs()], axis=1)
+    ranges = pd.concat(
+        [df["high"] - df["low"], (df["high"] - prev_close).abs(), (df["low"] - prev_close).abs()], axis=1
+    )
     return ranges.max(axis=1, skipna=True)
 
 

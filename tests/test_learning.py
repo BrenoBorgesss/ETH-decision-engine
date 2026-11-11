@@ -67,7 +67,11 @@ def test_registro_guarda_versoes_avaliacoes_e_troca_de_campeao(tmp_path):
     reg = regmod.Registry()
     v1 = reg.add("regras", "regras", None, 1, state="campeao")
     v2 = reg.add("modelo", "modelo", "modelo_logistico", 2)
-    v2.evaluations.append(regmod.Evaluation(1, 3, 3, 0, 3, {"expectativa_pct": float("nan"), "operacoes": 3}, "p", "d", "rejeitado", ["x"]))
+    v2.evaluations.append(
+        regmod.Evaluation(
+            1, 3, 3, 0, 3, {"expectativa_pct": float("nan"), "operacoes": 3}, "p", "d", "rejeitado", ["x"]
+        )
+    )
     old = reg.promote(v2, 5)
     assert old is v1 and v1.state == "aposentado" and reg.champion is v2 and v2.promoted_ms == 5
     regmod.save(tmp_path, reg)
@@ -105,7 +109,12 @@ def test_drift_so_alerta_quando_o_ultimo_periodo_e_incomum():
     day = 86_400_000
     t = np.sort(rng.integers(0, 180 * day, 600))
     base = pd.DataFrame({"t_ms": t, **{f: rng.normal(0, 1, len(t)) for f in feats}})
-    falsos = sum(candidate_drift(base.assign(**{f: rng.normal(0, 1, len(t)) for f in feats}), feats, 180 * day, 30, 150, 0.25).alert for _ in range(10))
+    falsos = sum(
+        candidate_drift(
+            base.assign(**{f: rng.normal(0, 1, len(t)) for f in feats}), feats, 180 * day, 30, 150, 0.25
+        ).alert
+        for _ in range(10)
+    )
     assert falsos <= 1  # nada mudou: no máximo um alarme falso em 10
     mudou = base.copy()
     mudou.loc[mudou["t_ms"] >= 150 * day, "x3"] += 2.0
@@ -128,13 +137,21 @@ def test_wilson_e_estatisticas_de_um_grupo():
     assert lo == pytest.approx(0.2189, abs=1e-3) and hi == pytest.approx(0.3958, abs=1e-3)
     assert all(math.isnan(x) for x in pano.wilson(0, 0))
     g = pano.group_stats(pd.DataFrame({"pnl_pct": [1.0, -0.5, -0.5, 2.0]}))
-    assert g["casos"] == 4 and g["acerto"] == 0.5 and g["ganho_medio_pct"] == 1.5 and g["perda_media_pct"] == -0.5 and g["media_pct"] == 0.5
+    assert (
+        g["casos"] == 4
+        and g["acerto"] == 0.5
+        and g["ganho_medio_pct"] == 1.5
+        and g["perda_media_pct"] == -0.5
+        and g["media_pct"] == 0.5
+    )
 
 
 def test_cenario_inedito_reduz_a_confianca_aos_poucos():
     pan = {"cenarios": {pano.scenario_key("lateral", 10, 50): {"casos": 15}}}
     assert pano.moment(pan, "lateral", 10.5, 50, min_cases=30, floor=0.7).factor == pytest.approx(0.85)
-    assert pano.moment(pan, "lateral", 20, 50, min_cases=30, floor=0.7).factor == pytest.approx(0.7)  # noite: nenhum caso
+    assert pano.moment(pan, "lateral", 20, 50, min_cases=30, floor=0.7).factor == pytest.approx(
+        0.7
+    )  # noite: nenhum caso
     pan["cenarios"][pano.scenario_key("lateral", 10, 50)]["casos"] = 30
     assert pano.moment(pan, "lateral", 10, 50, min_cases=30, floor=0.7).factor == 1
     assert pano.moment(None, "lateral", 10, 50, min_cases=30, floor=0.7).factor == 1  # sem ciclo: nada muda
@@ -199,9 +216,17 @@ def test_ciclo_avalia_campeao_e_desafiante_e_grava_tudo(demo):
     r = run_cycle(demo, COSTS, until_ms=until, clock_ms=until, progress=lambda m: None)
     assert r.number == 1 and not r.promoted
     names = {e.version.id: e.version.last.decision for e in r.entries}
-    assert names[1] == "campeão (referência)" and names[2] in ("rejeitado", "promovido", "aprovado, mas outro desafiante foi melhor")
+    assert names[1] == "campeão (referência)" and names[2] in (
+        "rejeitado",
+        "promovido",
+        "aprovado, mas outro desafiante foi melhor",
+    )
     folder = Path(demo.aprendizado.pasta)
-    assert (folder / "registro.json").is_file() and (folder / "panorama.json").is_file() and (folder / "aprendizado.html").is_file()
+    assert (
+        (folder / "registro.json").is_file()
+        and (folder / "panorama.json").is_file()
+        and (folder / "aprendizado.html").is_file()
+    )
     assert list((folder / "modelos").glob("modelo-ciclo001.json"))
     pan = pano.load(folder)
     assert pan["momentos"] == r.dataset_size and pan["calibracao_regras"]
@@ -258,8 +283,10 @@ def test_reavaliacao_automatica_dispara_na_virada_do_dia_e_por_operacoes(tmp_pat
         auto.maybe_start(day1)  # primeira vez: só marca o dia
         await asyncio.sleep(0)
         for i in range(2):
-            conn.execute("INSERT INTO paper_trades (variant, symbol, decision_ms, decision_price, entry_ms, entry_price, qty, size, fee_in, "
-                         "equity_at_entry, checked_until_ms, exit_ms, pnl) VALUES ('padrao','ETHBRL',1,1,1,1,1,1,0,1,1,2,0)")
+            conn.execute(
+                "INSERT INTO paper_trades (variant, symbol, decision_ms, decision_price, entry_ms, entry_price, qty, size, fee_in, "
+                "equity_at_entry, checked_until_ms, exit_ms, pnl) VALUES ('padrao','ETHBRL',1,1,1,1,1,1,0,1,1,2,0)"
+            )
         conn.commit()
         auto.maybe_start(day1 + 60_000)
         await auto.task
@@ -270,4 +297,7 @@ def test_reavaliacao_automatica_dispara_na_virada_do_dia_e_por_operacoes(tmp_pat
     asyncio.run(go())
     from cryptoagent.timeutils import local_trading_day
 
-    assert started == ["2 operações virtuais fechadas", f"fim do dia {local_trading_day(1_788_300_000_000, cfg.fuso.local).isoformat()}"]
+    assert started == [
+        "2 operações virtuais fechadas",
+        f"fim do dia {local_trading_day(1_788_300_000_000, cfg.fuso.local).isoformat()}",
+    ]

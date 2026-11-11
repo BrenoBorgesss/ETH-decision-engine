@@ -53,7 +53,9 @@ def test_segredos_sao_so_os_da_binance(tmp_path, monkeypatch):
     assert names == ["BINANCE_API_KEY", "BINANCE_API_SECRET"]
     assert all(line.endswith("=") for line in example.splitlines() if line and not line.startswith("#"))  # sem valores
 
-    (tmp_path / ".env").write_text("BINANCE_API_KEY=chave-de-teste-123\nBINANCE_API_SECRET=segredo-de-teste-456\n", encoding="utf-8")
+    (tmp_path / ".env").write_text(
+        "BINANCE_API_KEY=chave-de-teste-123\nBINANCE_API_SECRET=segredo-de-teste-456\n", encoding="utf-8"
+    )
     monkeypatch.delenv("BINANCE_API_KEY", raising=False)
     monkeypatch.delenv("BINANCE_API_SECRET", raising=False)
     s = load_secrets(tmp_path)
@@ -72,9 +74,20 @@ def test_sem_env_o_agente_roda_sem_chave(tmp_path, monkeypatch):
 def test_constantes_que_viraram_config_mantem_os_valores_antigos():
     """Etapa 2.3: números que estavam fixos no código. Os padrões são os valores de antes."""
     for cfg in (Config(), load_config(ROOT / "config" / "config.yaml")):
-        assert cfg.binance.candles_por_consulta == {"1m": 500, "5m": 1000, "15m": 1000, "1h": 1000, "4h": 1000, "1d": 500}
+        assert cfg.binance.candles_por_consulta == {
+            "1m": 500,
+            "5m": 1000,
+            "15m": 1000,
+            "1h": 1000,
+            "4h": 1000,
+            "1d": 500,
+        }
         assert cfg.binance.candles_por_consulta_padrao == 1000
-        assert (cfg.historico.timeout_download_s, cfg.historico.tentativas_download, cfg.historico.espera_entre_tentativas_s) == (60, 3, 1.5)
+        assert (
+            cfg.historico.timeout_download_s,
+            cfg.historico.tentativas_download,
+            cfg.historico.espera_entre_tentativas_s,
+        ) == (60, 3, 1.5)
         e = cfg.estrategia
         assert (e.stop_posicao_sem_sinal_atr_5m, e.adx_vies_baixa_1h, e.penalidade_por_aviso_dados) == (2.0, 20, 0.05)
         assert (cfg.painel.buffer_candles, cfg.painel.min_candles_ws) == (1100, 300)
@@ -91,7 +104,20 @@ def test_validacao_dos_campos_novos():
 
 
 def kline(t, close, closed):
-    return {"t": t, "T": t + 59_999, "o": "1", "h": "2", "l": "0.5", "c": str(close), "v": "10", "q": "15", "n": 3, "V": "4", "Q": "6", "x": closed}
+    return {
+        "t": t,
+        "T": t + 59_999,
+        "o": "1",
+        "h": "2",
+        "l": "0.5",
+        "c": str(close),
+        "v": "10",
+        "q": "15",
+        "n": 3,
+        "V": "4",
+        "Q": "6",
+        "x": closed,
+    }
 
 
 def test_buffer_de_candles():
@@ -114,7 +140,9 @@ def test_tamanhos_de_ordem_convertidos_pelo_cambio():
 
 
 def test_amostra_de_custos():
-    book = BookState("ETHBRL", bids=[(99.0, 10.0), (98.0, 10.0)], asks=[(101.0, 10.0), (102.0, 10.0)], depth_ms=NOW - 500)
+    book = BookState(
+        "ETHBRL", bids=[(99.0, 10.0), (98.0, 10.0)], asks=[(101.0, 10.0), (102.0, 10.0)], depth_ms=NOW - 500
+    )
     row = build_sample(book, NOW, {"500": 500.0, "5000": 5000.0}, 5.5, 5000)
     assert row["source"] == "ws"  # sem bookTicker fresco, usa o topo do depth
     assert row["spread_pct"] == pytest.approx(2.0)

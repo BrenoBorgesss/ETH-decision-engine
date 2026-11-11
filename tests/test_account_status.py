@@ -24,8 +24,30 @@ SECRETS = Secrets(binance_api_key=SecretStr("k" * 20), binance_api_secret=Secret
 READ_ONLY = {"ipRestrict": True, "enableReading": True, "enableWithdrawals": False, "enableSpotAndMarginTrading": False}
 
 TRADES_ETHBRL = [
-    {"id": 1, "orderId": 10, "price": "11800", "qty": "0.05", "quoteQty": "590", "commission": "0.00005", "commissionAsset": "ETH", "time": T_TRADE, "isBuyer": True, "isMaker": False},
-    {"id": 2, "orderId": 11, "price": "12100", "qty": "0.02", "quoteQty": "242", "commission": "0.242", "commissionAsset": "BRL", "time": T_TRADE + 60_000, "isBuyer": False, "isMaker": False},
+    {
+        "id": 1,
+        "orderId": 10,
+        "price": "11800",
+        "qty": "0.05",
+        "quoteQty": "590",
+        "commission": "0.00005",
+        "commissionAsset": "ETH",
+        "time": T_TRADE,
+        "isBuyer": True,
+        "isMaker": False,
+    },
+    {
+        "id": 2,
+        "orderId": 11,
+        "price": "12100",
+        "qty": "0.02",
+        "quoteQty": "242",
+        "commission": "0.242",
+        "commissionAsset": "BRL",
+        "time": T_TRADE + 60_000,
+        "isBuyer": False,
+        "isMaker": False,
+    },
 ]
 
 
@@ -34,7 +56,10 @@ class FakeBinance:
         self.restrictions = restrictions or READ_ONLY
         self.trades = TRADES_ETHBRL if trades is None else trades
         self.account_status = account_status
-        self.balances = balances or [{"asset": "BRL", "free": "500", "locked": "0"}, {"asset": "ETH", "free": "2.02995", "locked": "0"}]
+        self.balances = balances or [
+            {"asset": "BRL", "free": "500", "locked": "0"},
+            {"asset": "ETH", "free": "2.02995", "locked": "0"},
+        ]
         self.paths = []
 
     def handler(self, req: httpx.Request) -> httpx.Response:
@@ -59,10 +84,18 @@ class FakeBinance:
                 return httpx.Response(self.account_status, json={"code": -1000, "msg": "erro interno"})
             return httpx.Response(200, json={"balances": self.balances})
         if path == "/api/v3/account/commission":
-            return httpx.Response(200, json={"standardCommission": {"maker": "0.001", "taker": "0.001"}, "discount": {"enabledAccount": False}})
+            return httpx.Response(
+                200,
+                json={
+                    "standardCommission": {"maker": "0.001", "taker": "0.001"},
+                    "discount": {"enabledAccount": False},
+                },
+            )
         if path == "/api/v3/myTrades":
             start, end = int(q.get("startTime", 0)), int(q.get("endTime", 10**15))
-            return httpx.Response(200, json=[t for t in self.trades if start <= t["time"] <= end and q["symbol"] == q["symbol"]])
+            return httpx.Response(
+                200, json=[t for t in self.trades if start <= t["time"] <= end and q["symbol"] == q["symbol"]]
+            )
         return httpx.Response(404, json={"code": -1, "msg": "rota não simulada"})
 
 
@@ -73,16 +106,29 @@ def conn(tmp_path):
     c.close()
 
 
-def refresh(conn, fake, *, secrets=SECRETS, cfg=None, session=True, par="ETHBRL", saldo="BRL", capital=1000, max_loss=30):
+def refresh(
+    conn, fake, *, secrets=SECRETS, cfg=None, session=True, par="ETHBRL", saldo="BRL", capital=1000, max_loss=30
+):
     cfg = cfg or Config()
     if session:
-        daily.save_session(conn, date(2026, 10, 22), capital_brl=capital, max_loss_brl=max_loss, par_operacao=par, saldo_em=saldo, candidates=cfg.mercado.pares_candidatos, now=NOW)
+        daily.save_session(
+            conn,
+            date(2026, 10, 22),
+            capital_brl=capital,
+            max_loss_brl=max_loss,
+            par_operacao=par,
+            saldo_em=saldo,
+            candidates=cfg.mercado.pares_candidatos,
+            now=NOW,
+        )
 
     async def nosleep(_):
         return None
 
     async def go():
-        async with BinanceReadOnlyClient(cfg.binance, secrets, transport=httpx.MockTransport(fake.handler), sleep=nosleep, clock=lambda: NOW) as client:
+        async with BinanceReadOnlyClient(
+            cfg.binance, secrets, transport=httpx.MockTransport(fake.handler), sleep=nosleep, clock=lambda: NOW
+        ) as client:
             return await AccountMonitor(cfg, secrets, client, conn).refresh()
 
     return asyncio.run(go())
@@ -141,8 +187,28 @@ def test_falha_na_leitura_do_saldo_bloqueia(conn):
 
 def test_perda_maxima_atingida_bloqueia(conn):
     losing = [
-        {"id": 1, "orderId": 1, "price": "12000", "qty": "0.05", "quoteQty": "600", "commission": "0.6", "commissionAsset": "BRL", "time": T_TRADE, "isBuyer": True},
-        {"id": 2, "orderId": 2, "price": "11300", "qty": "0.05", "quoteQty": "565", "commission": "0.565", "commissionAsset": "BRL", "time": T_TRADE + 1, "isBuyer": False},
+        {
+            "id": 1,
+            "orderId": 1,
+            "price": "12000",
+            "qty": "0.05",
+            "quoteQty": "600",
+            "commission": "0.6",
+            "commissionAsset": "BRL",
+            "time": T_TRADE,
+            "isBuyer": True,
+        },
+        {
+            "id": 2,
+            "orderId": 2,
+            "price": "11300",
+            "qty": "0.05",
+            "quoteQty": "565",
+            "commission": "0.565",
+            "commissionAsset": "BRL",
+            "time": T_TRADE + 1,
+            "isBuyer": False,
+        },
     ]
     st = refresh(conn, FakeBinance(trades=losing), max_loss=30)
     assert st.pnl_brl == pytest.approx(565 - 0.565 - 600.6)
@@ -151,8 +217,23 @@ def test_perda_maxima_atingida_bloqueia(conn):
 
 
 def test_ethusdt_converte_resultado_pelo_cambio(conn):
-    trades = [{"id": 5, "orderId": 5, "price": "2390", "qty": "0.1", "quoteQty": "239", "commission": "0.239", "commissionAsset": "USDT", "time": T_TRADE, "isBuyer": True}]
-    fake = FakeBinance(trades=trades, balances=[{"asset": "USDT", "free": "100", "locked": "0"}, {"asset": "ETH", "free": "0.1", "locked": "0"}])
+    trades = [
+        {
+            "id": 5,
+            "orderId": 5,
+            "price": "2390",
+            "qty": "0.1",
+            "quoteQty": "239",
+            "commission": "0.239",
+            "commissionAsset": "USDT",
+            "time": T_TRADE,
+            "isBuyer": True,
+        }
+    ]
+    fake = FakeBinance(
+        trades=trades,
+        balances=[{"asset": "USDT", "free": "100", "locked": "0"}, {"asset": "ETH", "free": "0.1", "locked": "0"}],
+    )
     cfg = Config.model_validate({"capital_operacao": {"modo": "brl", "valor": 5000}})
     st = refresh(conn, fake, par="ETHUSDT", saldo="USDT", cfg=cfg)
     fx = (5.0 + 5.02) / 2
@@ -163,8 +244,28 @@ def test_ethusdt_converte_resultado_pelo_cambio(conn):
 
 def test_teto_do_capital_de_operacao_em_reais_vale_tambem_no_ethusdt(conn):
     # Teto de R$ 1.000 = 1000 / 5,01 USDT. A compra de 239,239 USDT passa do teto: só parte entra.
-    trades = [{"id": 5, "orderId": 5, "price": "2390", "qty": "0.1", "quoteQty": "239", "commission": "0.239", "commissionAsset": "USDT", "time": T_TRADE, "isBuyer": True}]
-    st = refresh(conn, FakeBinance(trades=trades, balances=[{"asset": "USDT", "free": "100", "locked": "0"}, {"asset": "ETH", "free": "0.1", "locked": "0"}]), par="ETHUSDT", saldo="USDT")
+    trades = [
+        {
+            "id": 5,
+            "orderId": 5,
+            "price": "2390",
+            "qty": "0.1",
+            "quoteQty": "239",
+            "commission": "0.239",
+            "commissionAsset": "USDT",
+            "time": T_TRADE,
+            "isBuyer": True,
+        }
+    ]
+    st = refresh(
+        conn,
+        FakeBinance(
+            trades=trades,
+            balances=[{"asset": "USDT", "free": "100", "locked": "0"}, {"asset": "ETH", "free": "0.1", "locked": "0"}],
+        ),
+        par="ETHUSDT",
+        saldo="USDT",
+    )
     cap_usdt = 1000 / ((5.0 + 5.02) / 2)
     assert st.day.open_qty == pytest.approx(cap_usdt / 2392.39)
     assert st.day.ignored_buy_qty == pytest.approx(0.1 - cap_usdt / 2392.39)
@@ -198,7 +299,17 @@ def test_comissao_com_desconto_bnb():
 def test_sincronizacao_em_janelas_de_24h_e_sem_duplicar(conn):
     day = 86_400_000
     trades = [
-        {"id": i, "orderId": i, "price": "100", "qty": "1", "quoteQty": "100", "commission": "0.1", "commissionAsset": "BRL", "time": DAY_START + i * day // 2, "isBuyer": True}
+        {
+            "id": i,
+            "orderId": i,
+            "price": "100",
+            "qty": "1",
+            "quoteQty": "100",
+            "commission": "0.1",
+            "commissionAsset": "BRL",
+            "time": DAY_START + i * day // 2,
+            "isBuyer": True,
+        }
         for i in range(5)
     ]
     fake = FakeBinance(trades=trades)
@@ -218,8 +329,18 @@ def test_sincronizacao_em_janelas_de_24h_e_sem_duplicar(conn):
         return None
 
     async def go(now):
-        async with BinanceReadOnlyClient(Config().binance, SECRETS, transport=httpx.MockTransport(handler), sleep=nosleep, clock=lambda: now) as client:
-            return await sync_trades(client, conn, "ETHBRL", server_now_ms=now, start_ms=DAY_START, price_at=price_at, fallback_fee_rate=0.001)
+        async with BinanceReadOnlyClient(
+            Config().binance, SECRETS, transport=httpx.MockTransport(handler), sleep=nosleep, clock=lambda: now
+        ) as client:
+            return await sync_trades(
+                client,
+                conn,
+                "ETHBRL",
+                server_now_ms=now,
+                start_ms=DAY_START,
+                price_at=price_at,
+                fallback_fee_rate=0.001,
+            )
 
     asyncio.run(go(DAY_START + 2 * day + 1000))
     assert len(windows) == 3
@@ -235,14 +356,18 @@ def test_posicao_conferida_com_o_saldo_de_eth(conn):
     """9.3: a posição vem do histórico de operações, mas precisa existir no saldo de ETH lido da conta."""
     st = refresh(conn, FakeBinance())
     assert st.reasons == [] and any("2.00000000 ETH na conta estão fora da operação" in w for w in st.warnings)
-    sumiu = FakeBinance(balances=[{"asset": "BRL", "free": "500", "locked": "0"}, {"asset": "ETH", "free": "0.01", "locked": "0"}])
+    sumiu = FakeBinance(
+        balances=[{"asset": "BRL", "free": "500", "locked": "0"}, {"asset": "ETH", "free": "0.01", "locked": "0"}]
+    )
     st = refresh(conn, sumiu)
     assert st.blocked and any("maior que o saldo de ETH na conta" in r for r in st.reasons)
     assert st.limits is None  # nada é calculado em cima de uma posição que não existe
 
 
 def test_eth_em_ordem_aberta_conta_como_saldo(conn):
-    travado = FakeBinance(balances=[{"asset": "BRL", "free": "500", "locked": "0"}, {"asset": "ETH", "free": "0", "locked": "0.02995"}])
+    travado = FakeBinance(
+        balances=[{"asset": "BRL", "free": "500", "locked": "0"}, {"asset": "ETH", "free": "0", "locked": "0.02995"}]
+    )
     st = refresh(conn, travado)
     assert st.reasons == [] and st.day.open_qty == pytest.approx(0.02995)
 

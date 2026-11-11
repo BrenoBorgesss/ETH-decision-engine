@@ -26,6 +26,7 @@ from cryptoagent.seasonality.profiles import WEEKDAYS_PT, bucket_stats, classify
 @dataclass(frozen=True)
 class Fold:
     """Uma janela do walk-forward: período de treino e período de teste (fins exclusivos)."""
+
     train_start_ms: int
     train_end_ms: int  # exclusivo
     test_start_ms: int
@@ -35,6 +36,7 @@ class Fold:
 @dataclass
 class PatternResult:
     """Um padrão de horário e quantas vezes ele se confirmou fora da amostra."""
+
     kind: str  # "hora", "dia_semana", "hora_dia"
     key: str  # ex.: "14h", "dom", "dom 14h"
     claim: str  # "compensa", "nao_compensa", "mais_volatil", "menos_volatil"
@@ -52,6 +54,7 @@ class PatternResult:
 @dataclass
 class ValidationReport:
     """Resultado da validação walk-forward dos padrões de horário."""
+
     folds: list[Fold]
     spearman: list[float]
     patterns: list[PatternResult] = field(default_factory=list)
@@ -84,8 +87,10 @@ def _month_starts(first_ms: int, last_ms: int) -> list[pd.Timestamp]:
 def make_folds(open_times: pd.Series, train_months: int, test_months: int) -> list[Fold]:
     """Janelas por mês-calendário (UTC). O teste vem sempre DEPOIS do treino, sem sobreposição."""
     months = _month_starts(int(open_times.min()), int(open_times.max()))
+
     def to_ms(ts: pd.Timestamp) -> int:
         return int(ts.value // 1_000_000)
+
     folds = []
     i = 0
     # o fim do teste (months[i + treino + teste]) precisa existir: só usa meses de teste completos
@@ -140,7 +145,11 @@ def validate(df_b: pd.DataFrame, cost_pct: float, s: Sazonalidade) -> Validation
                 claim = "mais_volatil" if dev > 0 else "menos_volatil"
                 test_dev = d_te[key]
                 held = (test_dev > dev_min / 2) if dev > 0 else (test_dev < -dev_min / 2)
-                label = WEEKDAYS_PT[int(key)] if kind == "dia_semana" else f"{WEEKDAYS_PT[int(key[0])]} {_hour_label(int(key[1]))}"
+                label = (
+                    WEEKDAYS_PT[int(key)]
+                    if kind == "dia_semana"
+                    else f"{WEEKDAYS_PT[int(key[0])]} {_hour_label(int(key[1]))}"
+                )
                 record(kind, label, claim, bool(held))
 
     n_folds = len(report.spearman)

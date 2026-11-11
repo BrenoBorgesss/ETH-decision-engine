@@ -38,7 +38,9 @@ from cryptoagent.timeutils import format_local, now_ms, zone
 log = logging.getLogger(__name__)
 
 # Texto exato pedido para o aviso do painel (aparece em destaque no topo e no rodapé).
-DISCLAIMER_PAINEL = "Ferramenta educacional, não é recomendação financeira. Resultados simulados não garantem resultados reais."
+DISCLAIMER_PAINEL = (
+    "Ferramenta educacional, não é recomendação financeira. Resultados simulados não garantem resultados reais."
+)
 
 
 def _clean(obj: object) -> object:
@@ -58,13 +60,16 @@ def _clean(obj: object) -> object:
 
 class LiveService:
     """Serviço ao vivo do painel: mantém os candles do WebSocket, roda a análise, dispara os avisos e monta o estado mostrado na página."""
+
     def __init__(self, cfg: Config, secrets: Secrets, console: Console) -> None:
         self.cfg, self.secrets, self.console = cfg, secrets, console
         p = cfg.estrategia
         self.sym = cfg.mercado.simbolo_analise
         self.buffers = {tf: CandleBuffer(self.sym, tf, maxlen=cfg.painel.buffer_candles) for tf in p.timeframes}
         self.tickers: dict[str, tuple[float, float, int]] = {}
-        streams = [f"{self.sym.lower()}@kline_{tf}" for tf in self.buffers] + [f"{s.lower()}@bookTicker" for s in cfg.mercado.simbolos_monitorados]
+        streams = [f"{self.sym.lower()}@kline_{tf}" for tf in self.buffers] + [
+            f"{s.lower()}@bookTicker" for s in cfg.mercado.simbolos_monitorados
+        ]
         self.stream = BinanceStream(cfg.binance.ws_url, streams, self.on_message, name="painel")
         self.trigger = asyncio.Event()
         self.stop = asyncio.Event()
@@ -106,7 +111,9 @@ class LiveService:
     def ws_fresh(self) -> bool:
         """True se o WebSocket está conectado e recebeu mensagem dentro do limite de silêncio."""
         last = self.stream.last_message_ms
-        return self.stream.connected and last is not None and now_ms() - last <= self.cfg.painel.ws_silencio_max_s * 1000
+        return (
+            self.stream.connected and last is not None and now_ms() - last <= self.cfg.painel.ws_silencio_max_s * 1000
+        )
 
     async def backfill(self, tfs: set[str]) -> None:
         """Recarrega pela API REST os candles dos timeframes dados."""
@@ -151,7 +158,13 @@ class LiveService:
         self.error = None
         d = res.decision
         self.last_signal_id = save_signal(
-            self.conn, d, ratio=res.ratio, mode="ao_vivo", data_ages=res.data_ages, latency_ms=res.latency_ms, market_extras=res.market_extras
+            self.conn,
+            d,
+            ratio=res.ratio,
+            mode="ao_vivo",
+            data_ages=res.data_ages,
+            latency_ms=res.latency_ms,
+            market_extras=res.market_extras,
         )
         self.alerter.on_decision(self.prev_action, d, d.price * res.ratio)
         self.alerter.on_health(res.health.ok, res.health.problems)
@@ -185,7 +198,11 @@ class LiveService:
             self.client = client
             await client.sync_time()
             await self.backfill(set(self.buffers))
-            tasks = [asyncio.create_task(self.stream.run(self.stop)), asyncio.create_task(self.analysis_loop()), *extra_tasks]
+            tasks = [
+                asyncio.create_task(self.stream.run(self.stop)),
+                asyncio.create_task(self.analysis_loop()),
+                *extra_tasks,
+            ]
             try:
                 await self.stop.wait()
             finally:
@@ -247,10 +264,19 @@ class LiveService:
             "invalidacao": d.invalidation,
             "posicao": d.position_note,
             "saida": d.exit_reason,
-            "niveis": None if lv is None else {
-                "entrada": lv.entry * r, "stop": lv.stop * r, "alvo1": lv.target1 * r, "alvo2": lv.target2 * r,
-                "rr": lv.rr, "ganho_pct": lv.reward_net_pct, "risco_pct": lv.risk_net_pct, "tamanho_brl": lv.size_brl,
-                "origem_alvo1": lv.target1_source, "perda_no_stop": lv.size_brl * lv.risk_net_pct / 100 if lv.size_brl else None,
+            "niveis": None
+            if lv is None
+            else {
+                "entrada": lv.entry * r,
+                "stop": lv.stop * r,
+                "alvo1": lv.target1 * r,
+                "alvo2": lv.target2 * r,
+                "rr": lv.rr,
+                "ganho_pct": lv.reward_net_pct,
+                "risco_pct": lv.risk_net_pct,
+                "tamanho_brl": lv.size_brl,
+                "origem_alvo1": lv.target1_source,
+                "perda_no_stop": lv.size_brl * lv.risk_net_pct / 100 if lv.size_brl else None,
             },
         }
         out["saude"] = {
@@ -259,8 +285,11 @@ class LiveService:
             "idades": res.data_ages,
             "latencia_ms": res.latency_ms,
         }
-        out["custos"] = {"spread_pct": res.ctx.market.spread_pct if res.ctx else None, "spread_max_pct": cfg.custos.spread_max_pct,
-                         "custo_ida_volta_pct": res.ctx.cost_pct if res.ctx else None}
+        out["custos"] = {
+            "spread_pct": res.ctx.market.spread_pct if res.ctx else None,
+            "spread_max_pct": cfg.custos.spread_max_pct,
+            "custo_ida_volta_pct": res.ctx.cost_pct if res.ctx else None,
+        }
         out["horario"] = res.hour_note
         acc = res.account
         if acc is not None:
@@ -269,30 +298,51 @@ class LiveService:
                 "verificado": acc.verified,
                 "sessao": asdict(acc.session) if acc.session else None,
                 "limites": asdict(acc.limits) if acc.limits else None,
-                "dia": None if acc.day is None else {
-                    "posicao": acc.day.open_qty, "custo_medio": acc.day.avg_cost_real, "realizado": acc.day.realized_quote,
-                    "aberto": acc.day.unrealized_quote, "operacoes": acc.day.trades_today, "taxas": acc.day.fees_quote,
+                "dia": None
+                if acc.day is None
+                else {
+                    "posicao": acc.day.open_qty,
+                    "custo_medio": acc.day.avg_cost_real,
+                    "realizado": acc.day.realized_quote,
+                    "aberto": acc.day.unrealized_quote,
+                    "operacoes": acc.day.trades_today,
+                    "taxas": acc.day.fees_quote,
                 },
                 "avisos": acc.warnings,
                 "travas": acc.reasons,
                 "moeda": acc.quote_asset,
             }
-        out["sinais"] = [dict(x) for x in self.signal_conn.execute(
-            "SELECT id, time_ms, trade_symbol, action, confidence, price, stop, target1 FROM signals WHERE mode = ? ORDER BY id DESC LIMIT 15",
-            (self.signal_mode,),
-        )]
+        out["sinais"] = [
+            dict(x)
+            for x in self.signal_conn.execute(
+                "SELECT id, time_ms, trade_symbol, action, confidence, price, stop, target1 FROM signals WHERE mode = ? ORDER BY id DESC LIMIT 15",
+                (self.signal_mode,),
+            )
+        ]
         if self.mode == "real":
-            out["compras"] = [dict(x) for x in self.conn.execute(
-                "SELECT symbol, trade_id, time_ms, price, qty, signal_id, association FROM account_trades WHERE is_buyer = 1 ORDER BY time_ms DESC LIMIT 10"
-            )]
-            out["sinais_compra"] = [dict(x) for x in self.conn.execute(
-                "SELECT id, time_ms, price FROM signals WHERE mode = 'ao_vivo' AND action = 'COMPRAR' ORDER BY id DESC LIMIT 10"
-            )]
+            out["compras"] = [
+                dict(x)
+                for x in self.conn.execute(
+                    "SELECT symbol, trade_id, time_ms, price, qty, signal_id, association FROM account_trades WHERE is_buyer = 1 ORDER BY time_ms DESC LIMIT 10"
+                )
+            ]
+            out["sinais_compra"] = [
+                dict(x)
+                for x in self.conn.execute(
+                    "SELECT id, time_ms, price FROM signals WHERE mode = 'ao_vivo' AND action = 'COMPRAR' ORDER BY id DESC LIMIT 10"
+                )
+            ]
         out["paper"] = self._paper_summary()
         out["carteira_virtual"] = self.virtual_wallet()
-        out["panorama"] = None if res.moment is None or not res.moment.stats else {
-            "cenario": res.moment.scenario, **res.moment.stats, "fator": res.moment.factor,
-        }
+        out["panorama"] = (
+            None
+            if res.moment is None or not res.moment.stats
+            else {
+                "cenario": res.moment.scenario,
+                **res.moment.stats,
+                "fator": res.moment.factor,
+            }
+        )
         out["campeao"] = res.champion
         return _clean(out)
 
@@ -308,12 +358,15 @@ class LiveService:
         conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)  # só leitura
         conn.row_factory = sqlite3.Row
         try:
-            return [dict(x) for x in conn.execute(
-                """SELECT s.variant, s.equity, s.started_ms,
+            return [
+                dict(x)
+                for x in conn.execute(
+                    """SELECT s.variant, s.equity, s.started_ms,
                           (SELECT COUNT(*) FROM paper_trades t WHERE t.variant = s.variant AND t.exit_ms IS NOT NULL) AS fechadas,
                           (SELECT COUNT(*) FROM paper_trades t WHERE t.variant = s.variant AND t.exit_ms IS NULL) AS abertas
                    FROM paper_state s"""
-            )]
+                )
+            ]
         except sqlite3.Error:
             return []
         finally:
@@ -327,16 +380,31 @@ class LiveService:
         f = res.ctx.market.frames[tf].tail(self.cfg.painel.candles_grafico)
         z = zone(self.cfg.fuso.local)
         # o gráfico mostra o horário de Brasília: soma o deslocamento local de cada candle
-        offsets = [int(pd.Timestamp(t, unit="ms", tz="UTC").tz_convert(z).utcoffset().total_seconds()) for t in f["open_time"]]
+        offsets = [
+            int(pd.Timestamp(t, unit="ms", tz="UTC").tz_convert(z).utcoffset().total_seconds()) for t in f["open_time"]
+        ]
         cols = ["open", "high", "low", "close", "ema_20", "ema_50", "ema_200", "bb_upper", "bb_mid", "bb_lower", "vwap"]
         rows = [
-            {"t": int(t // 1000) + off, **{c: (float(row[c]) if pd.notna(row[c]) else None) for c in cols if c in f.columns}}
+            {
+                "t": int(t // 1000) + off,
+                **{c: (float(row[c]) if pd.notna(row[c]) else None) for c in cols if c in f.columns},
+            }
             for t, off, (_, row) in zip(f["open_time"], offsets, f.iterrows())
         ]
         lv = res.decision.levels
         levels = {} if lv is None else {"entrada": lv.entry, "stop": lv.stop, "alvo1": lv.target1, "alvo2": lv.target2}
-        return _clean({"tf": tf, "simbolo": self.sym, "candles": rows, "niveis": levels, "marcadores": self._markers(f, tf),
-                       "suportes": [{"preco": x.price, "origem": x.source} for x in (res.ctx.market.levels if res.ctx else [])]})
+        return _clean(
+            {
+                "tf": tf,
+                "simbolo": self.sym,
+                "candles": rows,
+                "niveis": levels,
+                "marcadores": self._markers(f, tf),
+                "suportes": [
+                    {"preco": x.price, "origem": x.source} for x in (res.ctx.market.levels if res.ctx else [])
+                ],
+            }
+        )
 
     def _markers(self, frame: pd.DataFrame, tf: str) -> list[dict]:
         """Sinais COMPRAR e VENDER marcados no candle em que foram dados (horário local, como o gráfico)."""
@@ -361,7 +429,11 @@ class LiveService:
         """Aba Simulação: carteiras virtuais, operações, curva de capital, versões e calibração."""
         from cryptoagent.dashboard.views import simulation_payload
 
-        return _clean(simulation_payload(self.sim_db_path, self.cfg.path(self.cfg.aprendizado.pasta), self.cfg.fuso.local, end_ms=self.now()))
+        return _clean(
+            simulation_payload(
+                self.sim_db_path, self.cfg.path(self.cfg.aprendizado.pasta), self.cfg.fuso.local, end_ms=self.now()
+            )
+        )
 
     def journal_payload(self) -> dict:
         """Aba Operações reais: o diário manual e o resultado por dia."""
@@ -376,14 +448,27 @@ class LiveService:
 
         side = {"compra": "buy", "venda": "sell"}[str(data["lado"])]
         qty, price = float(data["qtd"]), float(data["preco"])
-        fee = float(data["taxa"]) if data.get("taxa") not in (None, "") else qty * price * self.cfg.custos.taxa_padrao_taker
+        fee = (
+            float(data["taxa"])
+            if data.get("taxa") not in (None, "")
+            else qty * price * self.cfg.custos.taxa_padrao_taker
+        )
         when = None
         if data.get("quando"):
             from datetime import datetime
 
             when = datetime_to_ms(datetime.fromisoformat(str(data["quando"])).replace(tzinfo=zone(self.cfg.fuso.local)))
         par = str(data.get("par") or self.cfg.mercado.par_operacao or self.cfg.paper.par).upper()
-        tid = journal.add_manual_trade(self.conn, symbol=par, side=side, qty=qty, price=price, fee_quote=fee, time_ms=when, note=str(data.get("nota") or ""))
+        tid = journal.add_manual_trade(
+            self.conn,
+            symbol=par,
+            side=side,
+            qty=qty,
+            price=price,
+            fee_quote=fee,
+            time_ms=when,
+            note=str(data.get("nota") or ""),
+        )
         return {"id": tid}
 
     def remove_journal(self, data: dict) -> None:
@@ -400,7 +485,15 @@ class LiveService:
         prof = profiles.get(sym)
         if not prof:
             return {"simbolo": sym, "disponivel": False}
-        return _clean({"simbolo": sym, "disponivel": True, "heatmap": prof["heatmap"], "horas": prof["hours"], "custo": prof["cost"]})
+        return _clean(
+            {
+                "simbolo": sym,
+                "disponivel": True,
+                "heatmap": prof["heatmap"],
+                "horas": prof["hours"],
+                "custo": prof["cost"],
+            }
+        )
 
     def save_session(self, data: dict) -> dict:
         """Grava a sessão do dia vinda do formulário do painel e pede nova análise. Devolve a sessão gravada."""
@@ -408,8 +501,13 @@ class LiveService:
         par = str(data.get("par") or self.cfg.mercado.par_operacao or self.cfg.mercado.pares_candidatos[0]).upper()
         saldo = "BRL" if par.endswith("BRL") else str(data.get("saldo") or "USDT").upper()
         s = daily.save_session(
-            self.conn, day, capital_brl=float(data["capital"]), max_loss_brl=float(data["perda_max"]), par_operacao=par,
-            saldo_em=saldo, candidates=self.cfg.mercado.pares_candidatos,
+            self.conn,
+            day,
+            capital_brl=float(data["capital"]),
+            max_loss_brl=float(data["perda_max"]),
+            par_operacao=par,
+            saldo_em=saldo,
+            candidates=self.cfg.mercado.pares_candidatos,
         )
         self.request_analysis()
         return _clean(asdict(s))
@@ -417,4 +515,9 @@ class LiveService:
     def associate(self, data: dict) -> None:
         """Liga uma compra a um sinal (ou a nenhum), a pedido do painel."""
         sig = data.get("sinal")
-        set_association(self.conn, str(data["par"]).upper(), int(data["operacao"]), int(sig) if sig not in (None, "", "nenhum") else None)
+        set_association(
+            self.conn,
+            str(data["par"]).upper(),
+            int(data["operacao"]),
+            int(sig) if sig not in (None, "", "nenhum") else None,
+        )

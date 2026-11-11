@@ -18,11 +18,21 @@ def frame(n=50, step=STEP, start=T0, seed=7):
     close = 1000 * np.exp(np.cumsum(rng.normal(0, 0.0005, n)))
     open_ = np.concatenate([[1000.0], close[:-1]])[:n]
     t = start + np.arange(n) * step
-    return pd.DataFrame({
-        "open_time": t, "open": open_, "high": np.maximum(open_, close) * 1.0002, "low": np.minimum(open_, close) * 0.9998,
-        "close": close, "volume": 10.0, "close_time": t + step - 1, "quote_volume": 10_000.0, "trades": 5,
-        "taker_buy_base": 6.0, "taker_buy_quote": 6000.0,
-    })[KLINE_COLUMNS]
+    return pd.DataFrame(
+        {
+            "open_time": t,
+            "open": open_,
+            "high": np.maximum(open_, close) * 1.0002,
+            "low": np.minimum(open_, close) * 0.9998,
+            "close": close,
+            "volume": 10.0,
+            "close_time": t + step - 1,
+            "quote_volume": 10_000.0,
+            "trades": 5,
+            "taker_buy_base": 6.0,
+            "taker_buy_quote": 6000.0,
+        }
+    )[KLINE_COLUMNS]
 
 
 def test_serie_boa_passa_sem_alterar_nada():

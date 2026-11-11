@@ -24,6 +24,7 @@ STATUS_IP_BANNED = 418
 @dataclass(frozen=True)
 class RetryPolicy:
     """Quantas vezes tentar e quanto esperar entre as tentativas."""
+
     attempts: int  # total de tentativas (1 = não repete)
     base_s: float = 0.5  # espera depois da 1ª falha; dobra a cada nova falha
     max_s: float = 30.0  # teto da espera entre tentativas

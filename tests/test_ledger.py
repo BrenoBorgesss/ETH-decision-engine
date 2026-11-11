@@ -18,7 +18,15 @@ def sell(i, t, qty, price, fee=0.0):
 
 
 def day(trades, exit_price, start_price=None, fee=0.0, **caps):
-    return compute_day(trades, day_start_ms=D0, day_end_ms=D1, exit_price=exit_price, exit_fee_rate=fee, day_start_price=start_price, **caps)
+    return compute_day(
+        trades,
+        day_start_ms=D0,
+        day_end_ms=D1,
+        exit_price=exit_price,
+        exit_fee_rate=fee,
+        day_start_price=start_price,
+        **caps,
+    )
 
 
 def test_ida_e_volta_com_lucro_e_taxas():

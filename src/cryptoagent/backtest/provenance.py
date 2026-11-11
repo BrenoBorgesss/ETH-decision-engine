@@ -87,7 +87,9 @@ def describe_file(path: Path, root: Path) -> dict:
     }
 
 
-def build(cfg: Config, *, symbols: list[str], costs: dict, frozen_costs: Path | None, outputs: list[Path], kind: str) -> dict:
+def build(
+    cfg: Config, *, symbols: list[str], costs: dict, frozen_costs: Path | None, outputs: list[Path], kind: str
+) -> dict:
     """Monta o registro de procedência de uma execução."""
     params = parameters(cfg)
     libs = {}
@@ -99,12 +101,19 @@ def build(cfg: Config, *, symbols: list[str], costs: dict, frozen_costs: Path | 
     return {
         "tipo": kind,
         "gerado_em_ms": now_ms(),
-        "programa": {"cryptoagent": __version__, **git_state(cfg.root), "python": platform.python_version(), "bibliotecas": libs},
+        "programa": {
+            "cryptoagent": __version__,
+            **git_state(cfg.root),
+            "python": platform.python_version(),
+            "bibliotecas": libs,
+        },
         "semente": cfg.modelo.semente,
         "parametros_sha256": params_hash(params),
         "parametros": params,
         "custos": costs,
-        "custos_congelados": {"arquivo": frozen_costs.name, "sha256": sha256_file(frozen_costs)} if frozen_costs and frozen_costs.is_file() else None,
+        "custos_congelados": {"arquivo": frozen_costs.name, "sha256": sha256_file(frozen_costs)}
+        if frozen_costs and frozen_costs.is_file()
+        else None,
         "dados": [describe_file(p, cfg.root) for p in history_files(cfg, symbols)],
         "saidas": [{"arquivo": p.name, "sha256": sha256_file(p)} for p in outputs if p.is_file()],
     }

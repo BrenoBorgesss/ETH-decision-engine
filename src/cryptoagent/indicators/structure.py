@@ -117,6 +117,7 @@ def wick_rejection(df: pd.DataFrame, min_wick_ratio: float = 0.5) -> pd.DataFram
 @dataclass(frozen=True)
 class Level:
     """Um nível de suporte ou resistência: preço, número de toques, posição do pivô mais recente e origem."""
+
     price: float
     touches: int  # quantos pivôs formaram o nível
     last_pos: int  # posição do pivô mais recente do nível
@@ -196,7 +197,9 @@ def previous_day_levels(
     `days` (opcional) é a coluna de dia de operação já calculada, para não recalcular no backtest.
     """
     sub = df.iloc[: at_pos + 1]
-    days = (days.iloc[: at_pos + 1] if days is not None else local_trading_day_series(sub["open_time"], tz_name, day_start))
+    days = (
+        days.iloc[: at_pos + 1] if days is not None else local_trading_day_series(sub["open_time"], tz_name, day_start)
+    )
     earlier = days < days.iloc[-1]
     if not earlier.any():
         return []
@@ -214,4 +217,7 @@ def nearest_levels(levels: list[Level], price: float) -> tuple[Level | None, Lev
     """(suporte mais próximo abaixo do preço, resistência mais próxima acima)."""
     below = [lv for lv in levels if lv.price < price]
     above = [lv for lv in levels if lv.price > price]
-    return (max(below, key=lambda lv: lv.price) if below else None, min(above, key=lambda lv: lv.price) if above else None)
+    return (
+        max(below, key=lambda lv: lv.price) if below else None,
+        min(above, key=lambda lv: lv.price) if above else None,
+    )

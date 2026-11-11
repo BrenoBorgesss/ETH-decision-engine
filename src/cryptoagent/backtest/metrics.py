@@ -46,7 +46,9 @@ def mean_ci95(values: np.ndarray | list[float]) -> tuple[float, float]:
     return float(x.mean() - half), float(x.mean() + half)
 
 
-def compute_metrics(trades: list[Trade], start_ms: int, end_ms: int, capital: float, tz: str = "America/Sao_Paulo") -> dict:
+def compute_metrics(
+    trades: list[Trade], start_ms: int, end_ms: int, capital: float, tz: str = "America/Sao_Paulo"
+) -> dict:
     """Métricas de um conjunto de operações no período: retorno, drawdown, acerto, fator de lucro, expectativa, Sharpe diário anualizado, taxas e motivos de saída."""
     days = max(1.0, (end_ms - start_ms) / DAY_MS)
     n = len(trades)
@@ -99,7 +101,9 @@ def compute_metrics(trades: list[Trade], start_ms: int, end_ms: int, capital: fl
         taxa_acerto_pct=float(len(wins) / n * 100),
         ganho_medio_pct=float(wins.mean()) if len(wins) else float("nan"),
         perda_media_pct=float(losses.mean()) if len(losses) else float("nan"),
-        relacao_ganho_perda=float(wins.mean() / abs(losses.mean())) if len(wins) and len(losses) and losses.mean() != 0 else float("nan"),
+        relacao_ganho_perda=float(wins.mean() / abs(losses.mean()))
+        if len(wins) and len(losses) and losses.mean() != 0
+        else float("nan"),
         fator_lucro=float(gross_win / gross_loss) if gross_loss > 0 else float("inf"),
         expectativa_pct=float(pnl_pct.mean()),
         expectativa_ic95_pct=list(mean_ci95(pnl_pct)),
@@ -113,7 +117,14 @@ def compute_metrics(trades: list[Trade], start_ms: int, end_ms: int, capital: fl
 
 
 def buy_and_hold(
-    times: np.ndarray, closes: np.ndarray, start_ms: int, end_ms: int, *, fee: float = 0.001, half_spread: float = 0.0, slip_pct: float = 0.0
+    times: np.ndarray,
+    closes: np.ndarray,
+    start_ms: int,
+    end_ms: int,
+    *,
+    fee: float = 0.001,
+    half_spread: float = 0.0,
+    slip_pct: float = 0.0,
 ) -> dict:
     """Comprar no início e segurar até o fim, com os MESMOS custos de uma operação do backtest.
 

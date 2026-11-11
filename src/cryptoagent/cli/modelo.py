@@ -28,28 +28,36 @@ def _clean(obj: object) -> object:
 
 def _report_dict(rep: object, model_file: str) -> dict:
     """Relatório do desafiador em tipos de JSON."""
-    return _clean({
-        "par": rep.pair,
-        "limiar_probabilidade": rep.threshold,
-        "momentos_no_conjunto": rep.n_dataset,
-        "periodo_fora_da_amostra": [rep.oos_start, rep.oos_end],
-        "meses": [
-            {"teste_inicio": o.fold.test_start_ms, "exemplos_treino": o.n_train, "momentos_teste": o.n_test,
-             "acerto_no_treino": o.base_rate_train, "auc": o.auc, "nota": o.note}
-            for o in rep.folds
-        ],
-        "auc_fora_da_amostra": rep.auc_oos,
-        "brier_fora_da_amostra": rep.brier_oos,
-        "brier_referencia": rep.brier_baseline_oos,
-        "acerto_fora_da_amostra": rep.base_rate_oos,
-        "calibracao": rep.calibration,
-        "momentos_fora_da_amostra": rep.signals_oos,
-        "regras": rep.rules,
-        "desafiador": rep.challenger,
-        "comprar_e_segurar": rep.buy_hold,
-        "coeficientes_ultimo_mes": [[k, v] for k, v in rep.coefficients],
-        "modelo_salvo": model_file,
-    })
+    return _clean(
+        {
+            "par": rep.pair,
+            "limiar_probabilidade": rep.threshold,
+            "momentos_no_conjunto": rep.n_dataset,
+            "periodo_fora_da_amostra": [rep.oos_start, rep.oos_end],
+            "meses": [
+                {
+                    "teste_inicio": o.fold.test_start_ms,
+                    "exemplos_treino": o.n_train,
+                    "momentos_teste": o.n_test,
+                    "acerto_no_treino": o.base_rate_train,
+                    "auc": o.auc,
+                    "nota": o.note,
+                }
+                for o in rep.folds
+            ],
+            "auc_fora_da_amostra": rep.auc_oos,
+            "brier_fora_da_amostra": rep.brier_oos,
+            "brier_referencia": rep.brier_baseline_oos,
+            "acerto_fora_da_amostra": rep.base_rate_oos,
+            "calibracao": rep.calibration,
+            "momentos_fora_da_amostra": rep.signals_oos,
+            "regras": rep.rules,
+            "desafiador": rep.challenger,
+            "comprar_e_segurar": rep.buy_hold,
+            "coeficientes_ultimo_mes": [[k, v] for k, v in rep.coefficients],
+            "modelo_salvo": model_file,
+        }
+    )
 
 
 async def cmd_model_train(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
@@ -64,7 +72,9 @@ async def cmd_model_train(cfg: Config, secrets: Secrets, args: argparse.Namespac
     frozen_path = Path(args.custos_arquivo) if args.custos_arquivo else None
     costs = (await resolve_costs(cfg, secrets, [pair], frozen_path))[0][pair]
     tz = cfg.fuso.local
-    console.print(f"[bold]{pair}[/]: carregando histórico e montando o conjunto de dados (mesmo simulador do backtest)...")
+    console.print(
+        f"[bold]{pair}[/]: carregando histórico e montando o conjunto de dados (mesmo simulador do backtest)..."
+    )
     data = load_backtest_data(cfg, pair, season_cost_pct=costs.mean_roundtrip_pct)
     dataset = build_dataset(cfg, data, costs)
     if dataset.empty:
@@ -77,13 +87,21 @@ async def cmd_model_train(cfg: Config, secrets: Secrets, args: argparse.Namespac
     console.print("[dim]Treinando mês a mês (só com o passado) e comparando com as regras...[/]")
     rep = evaluate(cfg, data, costs, dataset)
 
-    t = Table(title=f"Desafiador x regras: fora da amostra ({format_local(rep.oos_start, tz, '%d/%m/%Y')} a {format_local(rep.oos_end, tz, '%d/%m/%Y')}), já com custos")
+    t = Table(
+        title=f"Desafiador x regras: fora da amostra ({format_local(rep.oos_start, tz, '%d/%m/%Y')} a {format_local(rep.oos_end, tz, '%d/%m/%Y')}), já com custos"
+    )
     t.add_column("Mês de teste")
     for col in ("Exemplos de treino", "Momentos no teste", "Acerto no treino", "AUC", "Observação"):
         t.add_column(col)
     for o in rep.folds:
-        t.add_row(format_local(o.fold.test_start_ms, "UTC", "%m/%Y"), str(o.n_train), str(o.n_test),
-                  pct(o.base_rate_train * 100, 1) if o.base_rate_train is not None else "-", num(o.auc, 2) if o.auc is not None else "-", o.note or "-")
+        t.add_row(
+            format_local(o.fold.test_start_ms, "UTC", "%m/%Y"),
+            str(o.n_train),
+            str(o.n_test),
+            pct(o.base_rate_train * 100, 1) if o.base_rate_train is not None else "-",
+            num(o.auc, 2) if o.auc is not None else "-",
+            o.note or "-",
+        )
     console.print(t)
     if rep.auc_oos is not None:
         console.print(
@@ -94,7 +112,13 @@ async def cmd_model_train(cfg: Config, secrets: Secrets, args: argparse.Namespac
         for col in ("Faixa prevista", "Momentos", "Prob. média", "Acerto real", "Resultado médio"):
             cal.add_column(col)
         for c in rep.calibration:
-            cal.add_row(c["faixa"], str(c["momentos"]), pct(c["prob_media"] * 100, 1), pct(c["acerto_real"] * 100, 1), pct(c["resultado_medio_pct"], 3, sign=True))
+            cal.add_row(
+                c["faixa"],
+                str(c["momentos"]),
+                pct(c["prob_media"] * 100, 1),
+                pct(c["acerto_real"] * 100, 1),
+                pct(c["resultado_medio_pct"], 3, sign=True),
+            )
         console.print(cal)
 
     res = Table(title="Operando no simulador (uma posição por vez, perda máxima do dia, mesmos custos)")
@@ -102,13 +126,18 @@ async def cmd_model_train(cfg: Config, secrets: Secrets, args: argparse.Namespac
     keys = ("operacoes", "retorno_total_pct", "drawdown_max_pct", "taxa_acerto_pct", "expectativa_pct", "sharpe")
     for k in ("Operações", "Retorno", "Drawdown máx.", "Acerto", "Média por operação", "Sharpe", "IC 95% da média"):
         res.add_column(k)
-    for name, m in (("regras (campeão atual)", rep.rules), (f"desafiador (prob. >= {num(rep.threshold, 2)})", rep.challenger)):
+    for name, m in (
+        ("regras (campeão atual)", rep.rules),
+        (f"desafiador (prob. >= {num(rep.threshold, 2)})", rep.challenger),
+    ):
         lo, hi = m.get("expectativa_ic95_pct", [None, None])
         ic = f"{pct(lo, 3, sign=True)} a {pct(hi, 3, sign=True)}" if lo is not None and not math.isnan(lo) else "-"
         res.add_row(name, *(_fmt(k, m.get(k)) for k in keys), ic)
     console.print(res)
     bh = rep.buy_hold
-    console.print(f"Comprar e segurar no mesmo período: {pct(bh.get('retorno_total_pct'), 2, sign=True)} (drawdown {pct(bh.get('drawdown_max_pct'), 2)}).")
+    console.print(
+        f"Comprar e segurar no mesmo período: {pct(bh.get('retorno_total_pct'), 2, sign=True)} (drawdown {pct(bh.get('drawdown_max_pct'), 2)})."
+    )
 
     # ---- modelo final (todo o histórico) + relatórios + procedência
     folder = cfg.path(cfg.backtest.relatorio_pasta)
@@ -119,13 +148,21 @@ async def cmd_model_train(cfg: Config, secrets: Secrets, args: argparse.Namespac
     model.save(model_path)
     (folder).mkdir(parents=True, exist_ok=True)
     report_path = folder / "modelo.json"
-    report_path.write_text(json.dumps(_report_dict(rep, model_path.name), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(_report_dict(rep, model_path.name), ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+    )
     record = provenance.build(
-        cfg, symbols=sorted({cfg.mercado.simbolo_analise, pair}), costs={pair: costs.to_dict()}, frozen_costs=frozen_path,
-        outputs=[report_path, model_path], kind="modelo treinar",
+        cfg,
+        symbols=sorted({cfg.mercado.simbolo_analise, pair}),
+        costs={pair: costs.to_dict()},
+        frozen_costs=frozen_path,
+        outputs=[report_path, model_path],
+        kind="modelo treinar",
     )
     provenance.save(record, folder / "modelo.meta.json")
-    console.print(f"\nRelatório: {report_path}\nModelo treinado com todo o histórico: {model_path}\nProcedência: {folder / 'modelo.meta.json'}")
+    console.print(
+        f"\nRelatório: {report_path}\nModelo treinado com todo o histórico: {model_path}\nProcedência: {folder / 'modelo.meta.json'}"
+    )
     console.print(
         "[dim]O desafiador só substitui as regras se for melhor fora da amostra, depois dos custos e sem piorar o drawdown "
         "(critério da etapa de aprendizado contínuo). Até lá, ele é só estudo.[/]"

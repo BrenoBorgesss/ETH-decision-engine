@@ -20,6 +20,7 @@ from pathlib import Path
 @dataclass(frozen=True)
 class SymbolFilters:
     """Limites de ordem de um par."""
+
     symbol: str
     min_qty: float
     step: float
@@ -78,4 +79,3 @@ def load_saved(path: Path, symbol: str) -> SymbolFilters | None:
 def to_saved(filters: list[SymbolFilters], source_note: str) -> dict:
     """Forma do arquivo salvo: nota de origem e um item por par."""
     return {"origem": source_note, "pares": {f.symbol: asdict(f) for f in filters}}
-

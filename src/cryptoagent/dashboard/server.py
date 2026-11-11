@@ -34,6 +34,7 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")
 
 class ServiceLike(Protocol):
     """O que o servidor do painel precisa do serviço ao vivo (permite usar um serviço falso nos testes)."""
+
     def snapshot(self) -> dict: ...
     def candles_payload(self, tf: str) -> dict: ...
     def season_payload(self) -> dict: ...
@@ -57,7 +58,9 @@ def create_app(service: ServiceLike, token: str | None = None, allowed_hosts: tu
     async def unexpected(request: Request, exc: Exception) -> JSONResponse:
         # Nunca mostra rastreamento de pilha na tela: o detalhe técnico vai só para o arquivo de log.
         log.exception("Erro inesperado no painel em %s", request.url.path)
-        return JSONResponse({"detail": "Erro inesperado no painel. Os detalhes técnicos estão no arquivo de log."}, status_code=500)
+        return JSONResponse(
+            {"detail": "Erro inesperado no painel. Os detalhes técnicos estão no arquivo de log."}, status_code=500
+        )
 
     def check(x_painel_token: str | None) -> None:
         if not x_painel_token or not pysecrets.compare_digest(x_painel_token, token):

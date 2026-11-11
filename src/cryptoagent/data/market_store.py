@@ -9,6 +9,7 @@ from cryptoagent.data.models import KLINE_COLUMNS, Gap, find_gaps
 
 class CandleBuffer:
     """Candles recentes de um par e intervalo em memória, alimentados pela API REST e pelo WebSocket, limitados a `maxlen`."""
+
     def __init__(self, symbol: str, interval: str, maxlen: int = 1500) -> None:
         self.symbol = symbol
         self.interval = interval

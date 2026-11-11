@@ -56,7 +56,9 @@ def bucket_stats(df: pd.DataFrame, keys: list[str], cost_pct: float, folga: floa
 def classify(stats: pd.DataFrame, pct_min: float, pct_max: float) -> pd.Series:
     """compensa / neutro / nao_compensa pela % de candles que passam do custo com folga."""
     pct = stats["pct_above_cost"]
-    return pd.Series(np.select([pct >= pct_min, pct <= pct_max], ["compensa", "nao_compensa"], "neutro"), index=stats.index)
+    return pd.Series(
+        np.select([pct >= pct_min, pct <= pct_max], ["compensa", "nao_compensa"], "neutro"), index=stats.index
+    )
 
 
 def volatility_deviation(stats: pd.DataFrame, overall_median: float) -> pd.Series:

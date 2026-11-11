@@ -46,19 +46,21 @@ def aggregate(df: pd.DataFrame, interval: str) -> pd.DataFrame:
     src_step = int(df["open_time"].diff().dropna().mode().iloc[0])
     bucket = df["open_time"] - df["open_time"] % step
     g = df.groupby(bucket, sort=True)
-    out = pd.DataFrame({
-        "open_time": g["open_time"].first().index,
-        "open": g["open"].first().to_numpy(),
-        "high": g["high"].max().to_numpy(),
-        "low": g["low"].min().to_numpy(),
-        "close": g["close"].last().to_numpy(),
-        "volume": g["volume"].sum().to_numpy(),
-        "close_time": g["open_time"].first().index + step - 1,
-        "quote_volume": g["quote_volume"].sum().to_numpy(),
-        "trades": g["trades"].sum().to_numpy(),
-        "taker_buy_base": g["taker_buy_base"].sum().to_numpy(),
-        "taker_buy_quote": g["taker_buy_quote"].sum().to_numpy(),
-    })
+    out = pd.DataFrame(
+        {
+            "open_time": g["open_time"].first().index,
+            "open": g["open"].first().to_numpy(),
+            "high": g["high"].max().to_numpy(),
+            "low": g["low"].min().to_numpy(),
+            "close": g["close"].last().to_numpy(),
+            "volume": g["volume"].sum().to_numpy(),
+            "close_time": g["open_time"].first().index + step - 1,
+            "quote_volume": g["quote_volume"].sum().to_numpy(),
+            "trades": g["trades"].sum().to_numpy(),
+            "taker_buy_base": g["taker_buy_base"].sum().to_numpy(),
+            "taker_buy_quote": g["taker_buy_quote"].sum().to_numpy(),
+        }
+    )
     complete = (g.size() == step // src_step).to_numpy()
     return normalize_klines(out.loc[complete, KLINE_COLUMNS])
 
@@ -79,7 +81,13 @@ def main() -> int:
     total = 0
     for tf, df in frames.items():
         clean, quality = clean_klines(df, tf)
-        if not quality.ok or quality.gaps or quality.duplicates or quality.out_of_order or list(df.columns) != KLINE_COLUMNS:
+        if (
+            not quality.ok
+            or quality.gaps
+            or quality.duplicates
+            or quality.out_of_order
+            or list(df.columns) != KLINE_COLUMNS
+        ):
             print(f"{SYMBOL} {tf}: amostra reprovada na validação ({quality.summary()})")
             return 1
         out = TARGET / SYMBOL / f"{tf}.parquet"
@@ -88,7 +96,9 @@ def main() -> int:
         total += out.stat().st_size
         first = pd.to_datetime(clean["open_time"].iloc[0], unit="ms", utc=True)
         last = pd.to_datetime(clean["open_time"].iloc[-1], unit="ms", utc=True)
-        print(f"{SYMBOL} {tf}: {len(clean)} candles, {first:%Y-%m-%d %H:%M} a {last:%Y-%m-%d %H:%M} UTC, {out.stat().st_size / 1e6:.2f} MB")
+        print(
+            f"{SYMBOL} {tf}: {len(clean)} candles, {first:%Y-%m-%d %H:%M} a {last:%Y-%m-%d %H:%M} UTC, {out.stat().st_size / 1e6:.2f} MB"
+        )
     print(f"Total: {total / 1e6:.2f} MB em {TARGET}")
     return 0
 

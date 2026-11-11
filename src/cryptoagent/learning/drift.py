@@ -35,6 +35,7 @@ MIN_ROWS = 30
 @dataclass(frozen=True)
 class DriftItem:
     """Uma comparação: nome, PSI (ou outra medida), se passou do alerta e o detalhe."""
+
     name: str
     value: float | None
     alert: bool
@@ -44,6 +45,7 @@ class DriftItem:
 @dataclass
 class DriftReport:
     """Todas as comparações e se, no conjunto, há mudança de regime."""
+
     items: list[DriftItem] = field(default_factory=list)
 
     @property
@@ -90,7 +92,11 @@ def psi_categorical(reference: pd.Series, recent: pd.Series) -> float | None:
 
 
 def window_test(
-    times: np.ndarray, stat: Callable[[np.ndarray, np.ndarray], float | None], until_ms: int, recent_days: int, ref_days: int,
+    times: np.ndarray,
+    stat: Callable[[np.ndarray, np.ndarray], float | None],
+    until_ms: int,
+    recent_days: int,
+    ref_days: int,
     step_days: int = 2,
 ) -> tuple[float | None, float | None, int]:
     """Quão incomum é a diferença do último período? (estatística observada, p, janelas comparadas)
@@ -111,21 +117,32 @@ def window_test(
     observed = at(until_ms)
     if observed is None:
         return None, None, 0
-    values = [v for end in range(start + recent_days * DAY_MS, until_ms + 1, step_days * DAY_MS) if (v := at(end)) is not None]
+    values = [
+        v for end in range(start + recent_days * DAY_MS, until_ms + 1, step_days * DAY_MS) if (v := at(end)) is not None
+    ]
     values.append(observed)
     return observed, sum(v >= observed for v in values) / len(values), len(values)
 
 
-def _windowed_item(name: str, observed: float | None, p: float | None, n: int, limit: float, alpha: float, extra: str = "") -> DriftItem:
+def _windowed_item(
+    name: str, observed: float | None, p: float | None, n: int, limit: float, alpha: float, extra: str = ""
+) -> DriftItem:
     if observed is None:
         return DriftItem(name, None, False, f"amostra insuficiente para comparar{extra}")
     alert = observed > limit and p is not None and p < alpha
     level = "forte" if observed > limit else "moderada" if observed > 0.10 else "pequena"
     unusual = "incomum" if p is not None and p < alpha else "comum"
-    return DriftItem(name, observed, alert, f"PSI {observed:.2f} ({level}); diferença {unusual} no período: p = {p:.2f} em {n} janelas{extra}")
+    return DriftItem(
+        name,
+        observed,
+        alert,
+        f"PSI {observed:.2f} ({level}); diferença {unusual} no período: p = {p:.2f} em {n} janelas{extra}",
+    )
 
 
-def market_drift(setup: pd.DataFrame, until_ms: int, recent_days: int, ref_days: int, limit: float, alpha: float = 0.05) -> list[DriftItem]:
+def market_drift(
+    setup: pd.DataFrame, until_ms: int, recent_days: int, ref_days: int, limit: float, alpha: float = 0.05
+) -> list[DriftItem]:
     """Regime, ATR% e tamanho dos movimentos do timeframe de setup: o último período x o resto (ver `window_test`)."""
     t = setup["close_time"].to_numpy()
     regime = setup["regime"].reset_index(drop=True)
@@ -142,7 +159,13 @@ def market_drift(setup: pd.DataFrame, until_ms: int, recent_days: int, ref_days:
 
 
 def candidate_drift(
-    dataset: pd.DataFrame, features: list[str], until_ms: int, recent_days: int, ref_days: int, limit: float, alpha: float = 0.05,
+    dataset: pd.DataFrame,
+    features: list[str],
+    until_ms: int,
+    recent_days: int,
+    ref_days: int,
+    limit: float,
+    alpha: float = 0.05,
 ) -> DriftItem:
     """Maior PSI entre as variáveis dos momentos candidatos: o último período x o resto (ver `window_test`)."""
     t = dataset["t_ms"].to_numpy()
@@ -172,9 +195,18 @@ def simulation_drift(paper_pnl_pct: list[float], champion_ci95: list[float] | No
     """A carteira virtual está rendendo abaixo do que o campeão mostrou fora da amostra?"""
     n = len(paper_pnl_pct)
     if n < min_trades or not champion_ci95 or champion_ci95[0] is None or math.isnan(champion_ci95[0]):
-        return DriftItem("simulação x backtest", None, False, f"{n} operação(ões) virtual(is) fechada(s) (mínimo {min_trades} para comparar)")
+        return DriftItem(
+            "simulação x backtest",
+            None,
+            False,
+            f"{n} operação(ões) virtual(is) fechada(s) (mínimo {min_trades} para comparar)",
+        )
     mean = float(np.mean(paper_pnl_pct))
     lo, hi = mean_ci95(paper_pnl_pct)
     alert = hi < champion_ci95[0]  # mesmo o melhor caso da simulação fica abaixo do pior caso do backtest
-    return DriftItem("simulação x backtest", mean, alert,
-                     f"simulação {mean:+.3f}% por operação (IC {lo:+.3f} a {hi:+.3f}) x backtest a partir de {champion_ci95[0]:+.3f}%")
+    return DriftItem(
+        "simulação x backtest",
+        mean,
+        alert,
+        f"simulação {mean:+.3f}% por operação (IC {lo:+.3f} a {hi:+.3f}) x backtest a partir de {champion_ci95[0]:+.3f}%",
+    )

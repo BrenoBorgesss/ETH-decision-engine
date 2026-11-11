@@ -26,6 +26,7 @@ from cryptoagent.model.logistic import LogisticModel
 @dataclass(frozen=True)
 class LearningState:
     """Campeão atual, modelo (se o campeão for o modelo), panorama e alerta de mudança de regime."""
+
     champion: regmod.Version | None
     model: LogisticModel | None
     panorama: dict | None
@@ -59,7 +60,12 @@ def load_state(cfg: Config) -> LearningState:
         reg = regmod.load(folder)
         champion = reg.champion if reg.versions else None
         model = None
-        if champion is not None and champion.kind == "modelo" and champion.last and champion.last.metrics.get("arquivo_modelo"):
+        if (
+            champion is not None
+            and champion.kind == "modelo"
+            and champion.last
+            and champion.last.metrics.get("arquivo_modelo")
+        ):
             model = LogisticModel.load(folder / "modelos" / champion.last.metrics["arquivo_modelo"])
         pan = pano.load(folder)
         drift = (pan or {}).get("drift") or {}
@@ -94,24 +100,40 @@ def apply_model_champion(d: Decision, ctx: DecisionContext, cfg: Config, state: 
         return d
     prob = model.predict_one(extract_features(ctx, d, cfg.estrategia, cfg.fuso.local))
     thr = cfg.modelo.limiar_probabilidade
-    part = ConfidencePart("modelo (campeão)", prob, f"probabilidade de resultado positivo depois dos custos {num(prob * 100, 0)}% (limiar {num(thr * 100, 0)}%)")
+    part = ConfidencePart(
+        "modelo (campeão)",
+        prob,
+        f"probabilidade de resultado positivo depois dos custos {num(prob * 100, 0)}% (limiar {num(thr * 100, 0)}%)",
+    )
     d = replace(d, parts=[*d.parts, part])
     if prob >= thr and "validacao" not in d.strategy_gates:
-        d = replace(d, action="COMPRAR", blocks=[], strategy_gates={}, confidence=prob * 100,
-                    reasons_for=[f"modelo campeão: probabilidade {num(prob * 100, 0)}% >= {num(thr * 100, 0)}%", *d.reasons_for])
+        d = replace(
+            d,
+            action="COMPRAR",
+            blocks=[],
+            strategy_gates={},
+            confidence=prob * 100,
+            reasons_for=[
+                f"modelo campeão: probabilidade {num(prob * 100, 0)}% >= {num(thr * 100, 0)}%",
+                *d.reasons_for,
+            ],
+        )
     elif prob < thr:
         text = f"modelo campeão: probabilidade {num(prob * 100, 0)}% abaixo do limiar de {num(thr * 100, 0)}%"
         d = replace(d, action="ESPERAR", blocks=[*d.blocks, text], strategy_gates={**d.strategy_gates, "modelo": text})
     return d
 
 
-def moment_view(ctx_regime: str | None, hour: float, atr_pctl: float | None, cfg: Config, state: LearningState) -> pano.MomentView:
+def moment_view(
+    ctx_regime: str | None, hour: float, atr_pctl: float | None, cfg: Config, state: LearningState
+) -> pano.MomentView:
     """Panorama do cenário de agora, com o fator de cenário inédito."""
     a = cfg.aprendizado
-    return pano.moment(state.panorama, ctx_regime, hour, atr_pctl, min_cases=a.casos_min_cenario, floor=a.fator_cenario_inedito)
+    return pano.moment(
+        state.panorama, ctx_regime, hour, atr_pctl, min_cases=a.casos_min_cenario, floor=a.fator_cenario_inedito
+    )
 
 
 def clear_cache() -> None:
     """Esquece o estado lido (usado nos testes)."""
     _CACHE.clear()
-

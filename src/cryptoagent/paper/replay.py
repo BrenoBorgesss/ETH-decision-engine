@@ -27,7 +27,15 @@ import pandas as pd
 from cryptoagent.backtest.costs import CostSchedule
 from cryptoagent.config import Config
 from cryptoagent.data.history import HistoryStore
-from cryptoagent.data.rest import ALLOWED_PATHS, SIGNED_READ, ApiResponse, BinanceError, BinanceReadOnlyClient, ForbiddenEndpoint, MissingCredentials
+from cryptoagent.data.rest import (
+    ALLOWED_PATHS,
+    SIGNED_READ,
+    ApiResponse,
+    BinanceError,
+    BinanceReadOnlyClient,
+    ForbiddenEndpoint,
+    MissingCredentials,
+)
 from cryptoagent.paper.filters import load_saved
 from cryptoagent.timeutils import interval_ms, ms_to_local
 
@@ -59,7 +67,9 @@ class ReplayClient(BinanceReadOnlyClient):
 
     def __init__(self, cfg: Config, *, start_ms: int, costs: CostSchedule) -> None:
         self.clock = _Clock(start_ms)
-        super().__init__(cfg.binance, None, transport=httpx.MockTransport(_no_network), sleep=self.advance, clock=self.clock)
+        super().__init__(
+            cfg.binance, None, transport=httpx.MockTransport(_no_network), sleep=self.advance, clock=self.clock
+        )
         self._cfg_all = cfg
         self._store = HistoryStore(cfg.path(cfg.historico.pasta))
         self._series: dict[tuple[str, str], _Series] = {}
@@ -103,12 +113,20 @@ class ReplayClient(BinanceReadOnlyClient):
             sym = params["symbol"]
             price = self._price_now(sym, path)
             half = self._costs.half_spread(ms_to_local(now, self._tz).hour) if sym == self._costs.symbol else 0.00005
-            data = {"symbol": sym, "bidPrice": f"{price * (1 - half):.8f}", "askPrice": f"{price * (1 + half):.8f}", "bidQty": "1", "askQty": "1"}
+            data = {
+                "symbol": sym,
+                "bidPrice": f"{price * (1 - half):.8f}",
+                "askPrice": f"{price * (1 + half):.8f}",
+                "bidQty": "1",
+                "askQty": "1",
+            }
         elif path == "/api/v3/depth":
             price = self._price_now(params["symbol"], path)
             levels = range(int(params.get("limit", 20)))
-            data = {"bids": [[f"{price * (1 - 0.0001 * (i + 1)):.8f}", "1"] for i in levels],
-                    "asks": [[f"{price * (1 + 0.0001 * (i + 1)):.8f}", "1"] for i in levels]}
+            data = {
+                "bids": [[f"{price * (1 - 0.0001 * (i + 1)):.8f}", "1"] for i in levels],
+                "asks": [[f"{price * (1 + 0.0001 * (i + 1)):.8f}", "1"] for i in levels],
+            }
         elif path == "/api/v3/exchangeInfo":
             sym = params.get("symbol", self._cfg_all.paper.par)
             f = load_saved(self._cfg_all.path(self._cfg_all.paper.filtros_arquivo), sym)
@@ -142,7 +160,7 @@ class ReplayClient(BinanceReadOnlyClient):
             a = max(0, b - limit)
         if end_ms is not None:
             b = min(b, int(np.searchsorted(s.open_time, end_ms, side="right")))
-        frame = s.frame.iloc[a:max(a, b)].reset_index(drop=True)
+        frame = s.frame.iloc[a : max(a, b)].reset_index(drop=True)
         return frame, ApiResponse(None, "/api/v3/klines", now, 0.0, 0)
 
     async def aclose(self) -> None:
@@ -167,7 +185,11 @@ def replay_window(store: HistoryStore, symbol: str, days: int, tz: str, start_da
     start = trading_day_start_ms(day, tz)
     end = trading_day_start_ms(day + timedelta(days=days), tz)
     if start < first + WARMUP_DAYS * 86_400_000:
-        raise ValueError(f"o replay precisa de pelo menos {WARMUP_DAYS} dias de histórico antes do início (aquecimento dos indicadores, ex.: EMA 200 do 4h)")
+        raise ValueError(
+            f"o replay precisa de pelo menos {WARMUP_DAYS} dias de histórico antes do início (aquecimento dos indicadores, ex.: EMA 200 do 4h)"
+        )
     if end > last + 1:
-        raise ValueError(f"o histórico de {symbol} acaba antes do fim do replay ({ms_to_local(last, tz):%d/%m/%Y %H:%M})")
+        raise ValueError(
+            f"o histórico de {symbol} acaba antes do fim do replay ({ms_to_local(last, tz):%d/%m/%Y %H:%M})"
+        )
     return start, end

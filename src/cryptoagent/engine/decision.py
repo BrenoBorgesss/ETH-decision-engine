@@ -17,7 +17,14 @@ from dataclasses import dataclass, field, replace
 from cryptoagent import DISCLAIMER
 from cryptoagent.config import Estrategia
 from cryptoagent.engine.context import DecisionContext
-from cryptoagent.engine.rules import Levels, buy_levels, data_problems, exit_check, higher_timeframes, rules_levels_for_position
+from cryptoagent.engine.rules import (
+    Levels,
+    buy_levels,
+    data_problems,
+    exit_check,
+    higher_timeframes,
+    rules_levels_for_position,
+)
 from cryptoagent.engine.signals import SignalScore, TriggerResult, anti_knife_trigger, score_signals
 from cryptoagent.fmt import num, pct
 
@@ -37,6 +44,7 @@ REGIME_PT = {
 @dataclass(frozen=True)
 class ConfidencePart:
     """Uma parcela da confiança: nome, valor que multiplica e explicação."""
+
     name: str
     value: float
     explanation: str
@@ -45,6 +53,7 @@ class ConfidencePart:
 @dataclass
 class Decision:
     """Resultado do motor: ação, confiança, parcelas, motivos, travas, sinais, níveis e o que invalida a leitura."""
+
     action: str  # COMPRAR | VENDER | ESPERAR
     confidence: float  # 0 a 100
     symbol: str
@@ -81,7 +90,9 @@ def _general_blocks(ctx: DecisionContext, p: Estrategia, problems: list[str]) ->
     blocks = list(ctx.risk.blocked_reasons) + problems
     quality = max(0.0, 1.0 - p.penalidade_por_aviso_dados * len(ctx.risk.data_warnings))
     if quality < p.qualidade_min_dados:
-        blocks.append(f"incerteza alta: qualidade dos dados {num(quality, 2)} < {num(p.qualidade_min_dados, 2)} ({'; '.join(ctx.risk.data_warnings)})")
+        blocks.append(
+            f"incerteza alta: qualidade dos dados {num(quality, 2)} < {num(p.qualidade_min_dados, 2)} ({'; '.join(ctx.risk.data_warnings)})"
+        )
     return blocks, quality
 
 
@@ -106,8 +117,10 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
             r_stop, r_t1, r_t2 = rules_levels_for_position(ctx, p)
             stop, t1, t2 = stop or r_stop, t1 or r_t1, t2 or r_t2
         ctx = _with_position_levels(ctx, stop, t1, t2)
+
         def tp(x: float | None) -> str:
             return num(x * ctx.trade_price_ratio)  # textos sempre no par de OPERAÇÃO
+
         d.position_note = (
             f"posição de operação: {num(pos.qty, 6)} ETH a custo médio {tp(pos.avg_cost)} | stop {tp(stop)} | alvo 1 {tp(t1)} | alvo 2 {tp(t2)} ({pos.source})"
             if stop and t1 and t2
@@ -115,7 +128,9 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
         )
         if blocks:
             d.blocks = blocks + ([ctx.risk.daily_limit_reason] if ctx.risk.daily_limit_reason else [])
-            d.reasons_against = ["há posição aberta: confira se a ordem de stop está na Binance (ela protege mesmo sem o agente)"]
+            d.reasons_against = [
+                "há posição aberta: confira se a ordem de stop está na Binance (ela protege mesmo sem o agente)"
+            ]
             return d
         hit = exit_check(ctx, p, ratio=ctx.trade_price_ratio)
         if ctx.risk.daily_limit_reason:
@@ -128,7 +143,9 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
                 d.blocks = [ctx.risk.daily_limit_reason, "COMPRAR bloqueado até o próximo dia"]
                 return d
             d.blocks = [ctx.risk.daily_limit_reason]
-            d.reasons_against = ["há posição aberta: o stop na Binance (OCO) continua protegendo; o agente só indica VENDER em stop, invalidação ou tempo"]
+            d.reasons_against = [
+                "há posição aberta: o stop na Binance (OCO) continua protegendo; o agente só indica VENDER em stop, invalidação ou tempo"
+            ]
             return d
         if hit:
             kind, text, conf = hit
@@ -138,7 +155,11 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
             d.reasons_against = ["vender realiza o resultado; conferir o preço na Binance antes"]
             return d
         d.reasons_for = ["manter a posição: nenhuma regra de saída disparou"]
-        d.invalidation = [f"preço abaixo de {tp(stop)} (stop)", f"queda forte no {p.tf_confirmacao}", f"mais de {p.tempo_max_min:.0f} min sem chegar ao alvo"]
+        d.invalidation = [
+            f"preço abaixo de {tp(stop)} (stop)",
+            f"queda forte no {p.tf_confirmacao}",
+            f"mais de {p.tempo_max_min:.0f} min sem chegar ao alvo",
+        ]
         return d
 
     # ------------------------------------------------------- sem posição: compra?
@@ -146,6 +167,7 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
     d.blocks = list(blocks) + ([ctx.risk.daily_limit_reason] if ctx.risk.daily_limit_reason else [])
     if not frames_ok:
         return d
+
     def gate(key: str, text: str) -> None:
         d.blocks.append(text)
         d.strategy_gates.setdefault(key, text)
@@ -160,20 +182,31 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
     trigger = anti_knife_trigger(ctx, p)
     d.signals, d.trigger = signals, trigger
     d.parts = [
-        ConfidencePart("sinais", combined, " + ".join(f"{s.name} {num(s.score, 2)}×{num(s.weight, 1)}" for s in signals if s.available) + " ÷ soma dos pesos"),
+        ConfidencePart(
+            "sinais",
+            combined,
+            " + ".join(f"{s.name} {num(s.score, 2)}×{num(s.weight, 1)}" for s in signals if s.available)
+            + " ÷ soma dos pesos",
+        ),
         ConfidencePart("timeframes maiores", trend.factor, "; ".join(trend.notes_for + trend.notes_against) or "-"),
-        ConfidencePart("qualidade dos dados", quality, "sem avisos" if quality == 1 else "; ".join(ctx.risk.data_warnings)),
+        ConfidencePart(
+            "qualidade dos dados", quality, "sem avisos" if quality == 1 else "; ".join(ctx.risk.data_warnings)
+        ),
         ConfidencePart("horário", ctx.season.factor, "; ".join(ctx.season.reasons) or "sem efeito"),
     ]
     if ctx.novelty.factor != 1 or ctx.novelty.reasons:
-        d.parts.append(ConfidencePart("cenário", ctx.novelty.factor, "; ".join(ctx.novelty.reasons) or "cenário conhecido"))
+        d.parts.append(
+            ConfidencePart("cenário", ctx.novelty.factor, "; ".join(ctx.novelty.reasons) or "cenário conhecido")
+        )
     d.confidence = _confidence(d.parts)
 
     ranked = sorted((s for s in signals if s.available), key=lambda s: s.contribution, reverse=True)
     d.reasons_for = [s.detail for s in ranked if s.score > 0][:3] + trend.notes_for
-    d.reasons_against = [s.detail for s in ranked if s.score == 0][:2] + trend.notes_against + [
-        r for r in ctx.season.reasons if "×" in r and not r.endswith("(× 1)")
-    ]
+    d.reasons_against = (
+        [s.detail for s in ranked if s.score == 0][:2]
+        + trend.notes_against
+        + [r for r in ctx.season.reasons if "×" in r and not r.endswith("(× 1)")]
+    )
     if d.regime == "tendencia_baixa":
         d.reasons_against.append(f"regime de tendência de baixa no {p.tf_setup}: exige confiança maior")
 
@@ -192,7 +225,7 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
         if levels.target_distance_pct < min_dist:
             gate(
                 "distancia_alvo",
-                f"alvo 1 a só {pct(levels.target_distance_pct, 3)} (mínimo {pct(min_dist, 3)} = {num(p.distancia_alvo_min_custo, 1)} × custo de ida e volta de {pct(ctx.cost_pct, 3)})"
+                f"alvo 1 a só {pct(levels.target_distance_pct, 3)} (mínimo {pct(min_dist, 3)} = {num(p.distancia_alvo_min_custo, 1)} × custo de ida e volta de {pct(ctx.cost_pct, 3)})",
             )
         if levels.rr < p.rr_minimo:
             gate("risco_retorno", f"risco/retorno {num(levels.rr, 2)} depois das taxas (mínimo {num(p.rr_minimo, 1)})")
@@ -204,7 +237,10 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
         ]
     min_conf = p.confianca_minima.get(d.regime, max(p.confianca_minima.values()))
     if d.confidence < min_conf:
-        gate("confianca", f"confiança {num(d.confidence, 0)}% abaixo do mínimo de {min_conf:g}% para regime {REGIME_PT.get(d.regime, d.regime)}")
+        gate(
+            "confianca",
+            f"confiança {num(d.confidence, 0)}% abaixo do mínimo de {min_conf:g}% para regime {REGIME_PT.get(d.regime, d.regime)}",
+        )
 
     if not d.blocks:
         d.action = "COMPRAR"
@@ -227,6 +263,8 @@ def study_entry_ok(d: Decision) -> bool:
     return all(b in gates for b in d.blocks)
 
 
-def _with_position_levels(ctx: DecisionContext, stop: float | None, t1: float | None, t2: float | None) -> DecisionContext:
+def _with_position_levels(
+    ctx: DecisionContext, stop: float | None, t1: float | None, t2: float | None
+) -> DecisionContext:
     assert ctx.position is not None
     return replace(ctx, position=replace(ctx.position, stop=stop, target1=t1, target2=t2))

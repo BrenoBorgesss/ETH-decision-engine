@@ -116,8 +116,12 @@ def test_resumo_diario_das_operacoes_reais_registradas_a_mao(tmp_path):
     conn = agent_db.connect(tmp_path / "agent.sqlite")
     t = lambda d, h: datetime_to_ms(datetime(2026, 11, d, h, 0, tzinfo=SP))  # noqa: E731
     journal.add_manual_trade(conn, symbol="ETHBRL", side="buy", qty=0.1, price=12000, fee_quote=1.2, time_ms=t(10, 10))
-    journal.add_manual_trade(conn, symbol="ETHBRL", side="sell", qty=0.05, price=12400, fee_quote=0.62, time_ms=t(10, 15))
-    journal.add_manual_trade(conn, symbol="ETHBRL", side="sell", qty=0.05, price=11800, fee_quote=0.59, time_ms=t(11, 9))
+    journal.add_manual_trade(
+        conn, symbol="ETHBRL", side="sell", qty=0.05, price=12400, fee_quote=0.62, time_ms=t(10, 15)
+    )
+    journal.add_manual_trade(
+        conn, symbol="ETHBRL", side="sell", qty=0.05, price=11800, fee_quote=0.59, time_ms=t(11, 9)
+    )
     j = journal_payload(conn, "America/Sao_Paulo", "00:00")
     conn.close()
     cost = (12000 * 0.1 + 1.2) / 0.1
@@ -156,7 +160,9 @@ def test_painel_de_demonstracao_roda_sem_rede_e_mostra_a_carteira_virtual(tmp_pa
     cfg.conta.banco = str(tmp_path / "demo_agent.sqlite")
     costs = CostSchedule("ETHBRL", 0.001, {h: 0.04 for h in range(24)}, [], 0.01, 0.05, "teste")
     start = ms(2026, 9, 8, 10) + 5000
-    svc = DemoService(cfg, Console(quiet=True), start_ms=start, end_ms=start + 50 * 60_000, costs=costs, minutes_per_second=10_000)
+    svc = DemoService(
+        cfg, Console(quiet=True), start_ms=start, end_ms=start + 50 * 60_000, costs=costs, minutes_per_second=10_000
+    )
 
     async def go():
         task = asyncio.create_task(svc.run())
@@ -175,5 +181,9 @@ def test_painel_de_demonstracao_roda_sem_rede_e_mostra_a_carteira_virtual(tmp_pa
     assert snap["carteira_virtual"]["capital_inicial"] == 1000
     assert snap["aviso_legal"] == EXACT
     assert any(m["acao"] == "COMPRAR" for m in candles["marcadores"])  # a compra das 10:15 aparece no gráfico
-    rows = sqlite3.connect(tmp_path / "replay" / "painel-demo.sqlite").execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+    rows = (
+        sqlite3.connect(tmp_path / "replay" / "painel-demo.sqlite")
+        .execute("SELECT COUNT(*) FROM signals")
+        .fetchone()[0]
+    )
     assert rows == 10  # um sinal por candle de 5m fechado em 50 minutos

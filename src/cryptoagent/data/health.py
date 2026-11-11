@@ -15,6 +15,7 @@ from cryptoagent.timeutils import interval_ms
 @dataclass(frozen=True)
 class Check:
     """Uma verificação de saúde dos dados: nome, se passou, detalhe, idade e se é crítica."""
+
     name: str
     ok: bool
     detail: str
@@ -27,6 +28,7 @@ class Check:
 @dataclass
 class HealthReport:
     """Conjunto de verificações de saúde dos dados."""
+
     checks: list[Check] = field(default_factory=list)
 
     def add(self, check: Check) -> None:
@@ -49,7 +51,15 @@ class HealthReport:
         return [f"{c.name}: {c.detail}" for c in self.checks if not c.ok and not c.critical]
 
 
-def check_age(name: str, received_ms: int | None, now_ms: int, max_age_s: float, source: str | None = None, *, critical: bool = True) -> Check:
+def check_age(
+    name: str,
+    received_ms: int | None,
+    now_ms: int,
+    max_age_s: float,
+    source: str | None = None,
+    *,
+    critical: bool = True,
+) -> Check:
     """Verifica a idade de um dado: falha se estiver ausente ou mais velho que `max_age_s`."""
     if received_ms is None:
         return Check(name, False, "dado ausente", None, max_age_s, source, critical)
@@ -59,7 +69,14 @@ def check_age(name: str, received_ms: int | None, now_ms: int, max_age_s: float,
     return Check(name, True, f"atualizado há {age:.1f} s", age, max_age_s, source, critical)
 
 
-def check_candle(name: str, last_closed_close_ms: int | None, interval: str, now_ms: int, tolerance_s: float, source: str | None = None) -> Check:
+def check_candle(
+    name: str,
+    last_closed_close_ms: int | None,
+    interval: str,
+    now_ms: int,
+    tolerance_s: float,
+    source: str | None = None,
+) -> Check:
     """O último candle fechado precisa ter terminado há no máximo (intervalo + tolerância).
 
     Ex.: 1m com tolerância de 30 s -> o último candle fechado não pode ter mais de 90 s.
@@ -69,7 +86,9 @@ def check_candle(name: str, last_closed_close_ms: int | None, interval: str, now
         return Check(name, False, "sem candle fechado", None, limit, source)
     delay = (now_ms - last_closed_close_ms) / 1000
     if delay > limit:
-        return Check(name, False, f"candle atrasado: fechou há {delay:.0f} s (limite {limit:.0f} s)", delay, limit, source)
+        return Check(
+            name, False, f"candle atrasado: fechou há {delay:.0f} s (limite {limit:.0f} s)", delay, limit, source
+        )
     return Check(name, True, f"último candle fechou há {delay:.0f} s", delay, limit, source)
 
 

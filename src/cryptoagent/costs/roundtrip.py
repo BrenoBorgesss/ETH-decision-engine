@@ -21,6 +21,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class LegCosts:
     """Custos de uma perna (compra ou venda), todos como fração: taxa, meio spread e slippage."""
+
     fee: float = 0.0  # fração (0,001 = 0,1%)
     half_spread: float = 0.0  # fração do preço médio
     slippage: float = 0.0  # fração
@@ -45,6 +46,7 @@ def sell_factor(leg: LegCosts) -> float:
 @dataclass(frozen=True)
 class FxConversion:
     """Conversão de câmbio em volta da operação (ex.: BRL para USDT e de volta), diluída por `trades_per_conversion` operações."""
+
     to_quote: LegCosts  # ex.: BRL -> USDT (compra de USDT no USDTBRL)
     back: LegCosts | None = None  # USDT -> BRL; None = mantém em USDT
     trades_per_conversion: int = 1  # 1 = converte a cada operação
@@ -57,6 +59,7 @@ class FxConversion:
 @dataclass(frozen=True)
 class RoundTrip:
     """Custo de uma ida e volta: fator que sobra, custo, quanto o preço precisa andar para empatar e a parcela de cada componente."""
+
     factor: float  # K: quanto sobra de cada 1 aplicado, com o preço parado
     cost_pct: float  # (1 − K) × 100
     breakeven_pct: float  # (1/K − 1) × 100

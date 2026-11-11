@@ -30,9 +30,17 @@ async def cmd_paper_run(cfg: Config, secrets: Secrets, args: argparse.Namespace)
 
     fees = await _account_taker_fees(cfg, secrets, [cfg.paper.par])
     fee, source = fees.get(cfg.paper.par, (cfg.custos.taxa_padrao_taker, "do config"))
-    console.print(f"[dim]Taxa usada na carteira virtual: {fee * 100:.4f}% por lado ({source}). Banco da simulação: {cfg.path(cfg.paper.banco)}[/]")
+    console.print(
+        f"[dim]Taxa usada na carteira virtual: {fee * 100:.4f}% por lado ({source}). Banco da simulação: {cfg.path(cfg.paper.banco)}[/]"
+    )
     await run_paper(
-        cfg, secrets, fee=fee, capital=args.capital, max_loss_brl=args.perda_max, max_cycles=args.ciclos, say=lambda msg: console.print(escape(msg)),
+        cfg,
+        secrets,
+        fee=fee,
+        capital=args.capital,
+        max_loss_brl=args.perda_max,
+        max_cycles=args.ciclos,
+        say=lambda msg: console.print(escape(msg)),
         auto_learning=True,
     )
     return 0
@@ -52,10 +60,20 @@ def _print_gate_study(rep: VariantReport, min_trades: int) -> None:
     t = Table(title="Cada trava: operações que ela teria BARRADO x as que deixaria passar (% líquido, com taxas)")
     for col in ("Trava", "Barradas: n", "acerto", "média", "Liberadas: n", "acerto", "média"):
         t.add_column(col)
+
     def f(v: float | None, s: bool = False) -> str:
         return "-" if v is None else pct(v, 3 if s else 0, sign=s)
+
     for g in rep.gates:
-        t.add_row(GATE_PT[g.gate], str(g.n_blocked), f(g.win_blocked_pct), f(g.avg_blocked_pct, True), str(g.n_passed), f(g.win_passed_pct), f(g.avg_passed_pct, True))
+        t.add_row(
+            GATE_PT[g.gate],
+            str(g.n_blocked),
+            f(g.win_blocked_pct),
+            f(g.avg_blocked_pct, True),
+            str(g.n_passed),
+            f(g.win_passed_pct),
+            f(g.avg_passed_pct, True),
+        )
     console.print(t)
     console.print(
         "[dim]Se as 'barradas' dão média pior que as 'liberadas', a trava está ajudando. Uma trava só deve ser revista com "
@@ -63,7 +81,9 @@ def _print_gate_study(rep: VariantReport, min_trades: int) -> None:
     )
 
 
-def _print_variant_reports(cfg: Config, conn: sqlite3.Connection, bars: pd.DataFrame, *, now: int, costs: tuple[float, float, float]) -> list[VariantReport]:
+def _print_variant_reports(
+    cfg: Config, conn: sqlite3.Connection, bars: pd.DataFrame, *, now: int, costs: tuple[float, float, float]
+) -> list[VariantReport]:
     """Imprime o relatório de cada variante do banco da simulação e devolve os relatórios."""
     from cryptoagent.fmt import brl, pct
     from cryptoagent.paper.report import OUTCOMES, load_backtest_json, variant_report
@@ -73,11 +93,24 @@ def _print_variant_reports(cfg: Config, conn: sqlite3.Connection, bars: pd.DataF
     reports = []
     for name, vcfg in load_variants(cfg, pc.variantes):
         bt_json = load_backtest_json(vcfg.path(vcfg.backtest.relatorio_pasta) / "backtest.json")
-        rep = variant_report(conn, name, pc.capital, bars, pc.horizonte_avaliacao_h, pc.operacoes_min_conclusao, bt_json, pc.par,
-                             now=now, costs=costs, tz=tz)
+        rep = variant_report(
+            conn,
+            name,
+            pc.capital,
+            bars,
+            pc.horizonte_avaliacao_h,
+            pc.operacoes_min_conclusao,
+            bt_json,
+            pc.par,
+            now=now,
+            costs=costs,
+            tz=tz,
+        )
         reports.append(rep)
         m = rep.metrics
-        console.rule(f"Simulação: {name} ({pc.par}) de {format_local(rep.started_ms, tz, '%d/%m/%Y %H:%M')} a {format_local(now, tz, '%d/%m/%Y %H:%M')}")
+        console.rule(
+            f"Simulação: {name} ({pc.par}) de {format_local(rep.started_ms, tz, '%d/%m/%Y %H:%M')} a {format_local(now, tz, '%d/%m/%Y %H:%M')}"
+        )
         console.print(
             f"Patrimônio virtual: [bold]{brl(rep.equity)}[/] (início {brl(rep.initial_capital)}; resultado {brl(rep.equity - rep.initial_capital, sign=True)}) | "
             f"operações fechadas: {m['operacoes']} | acerto {pct(m['taxa_acerto_pct'], 1)} | média por operação {pct(m['expectativa_pct'], 3, sign=True)} | "
@@ -85,18 +118,34 @@ def _print_variant_reports(cfg: Config, conn: sqlite3.Connection, bars: pd.DataF
         )
         if rep.buy_hold:
             bh = rep.buy_hold
-            console.print(f"Comprar e segurar {pc.par} no mesmo período (mesmos custos): {pct(bh.get('retorno_total_pct'), 2, sign=True)} (drawdown {pct(bh.get('drawdown_max_pct'), 2)}).")
+            console.print(
+                f"Comprar e segurar {pc.par} no mesmo período (mesmos custos): {pct(bh.get('retorno_total_pct'), 2, sign=True)} (drawdown {pct(bh.get('drawdown_max_pct'), 2)})."
+            )
         if rep.rejected_orders:
-            console.print(f"[yellow]{rep.rejected_orders} compra(s) virtual(is) recusada(s) pelas regras de tamanho mínimo do par.[/]")
+            console.print(
+                f"[yellow]{rep.rejected_orders} compra(s) virtual(is) recusada(s) pelas regras de tamanho mínimo do par.[/]"
+            )
         if rep.backtest_expectancy_pct is not None:
-            weak = " [yellow](amostra pequena demais para valer como referência)[/]" if rep.backtest_trades < pc.operacoes_min_conclusao else ""
-            console.print(f"Backtest fora da amostra: {pct(rep.backtest_expectancy_pct, 3, sign=True)} por operação, em {rep.backtest_trades} operação(ões){weak}.")
+            weak = (
+                " [yellow](amostra pequena demais para valer como referência)[/]"
+                if rep.backtest_trades < pc.operacoes_min_conclusao
+                else ""
+            )
+            console.print(
+                f"Backtest fora da amostra: {pct(rep.backtest_expectancy_pct, 3, sign=True)} por operação, em {rep.backtest_trades} operação(ões){weak}."
+            )
         if rep.open_trade:
             o = rep.open_trade
-            console.print(f"Posição virtual aberta: entrada {brl(o['entry_price'])} | stop {brl(o['stop'])} | alvo {brl(o['target1'])} | desde {format_local(o['entry_ms'], tz)}")
-        console.print("Sinais registrados: " + (", ".join(f"{k} {v}" for k, v in rep.signals_by_action.items()) or "nenhum ainda"))
+            console.print(
+                f"Posição virtual aberta: entrada {brl(o['entry_price'])} | stop {brl(o['stop'])} | alvo {brl(o['target1'])} | desde {format_local(o['entry_ms'], tz)}"
+            )
+        console.print(
+            "Sinais registrados: " + (", ".join(f"{k} {v}" for k, v in rep.signals_by_action.items()) or "nenhum ainda")
+        )
         if rep.outcomes:
-            t = Table(title=f"O que o mercado fez nas {pc.horizonte_avaliacao_h:g} h seguintes (usando entrada, stop e alvo de cada sinal)")
+            t = Table(
+                title=f"O que o mercado fez nas {pc.horizonte_avaliacao_h:g} h seguintes (usando entrada, stop e alvo de cada sinal)"
+            )
             for col in ("Sinal", "Alvo c/ lucro", "Alvo s/ lucro", "Stop primeiro", "Nenhum", "Aguardando"):
                 t.add_column(col)
             for action, res in rep.outcomes.items():
@@ -117,7 +166,9 @@ def _print_variant_reports(cfg: Config, conn: sqlite3.Connection, bars: pd.DataF
         if vcfg.paper.estudo:
             _print_gate_study(rep, pc.operacoes_min_conclusao)
         if not rep.enough:
-            console.print(f"[yellow]Só {m['operacoes']} operação(ões) virtual(is) fechada(s) (mínimo {pc.operacoes_min_conclusao}): ainda NÃO dá para tirar conclusões.[/]")
+            console.print(
+                f"[yellow]Só {m['operacoes']} operação(ões) virtual(is) fechada(s) (mínimo {pc.operacoes_min_conclusao}): ainda NÃO dá para tirar conclusões.[/]"
+            )
     return reports
 
 
@@ -126,18 +177,24 @@ async def cmd_paper_report(cfg: Config, secrets: Secrets, args: argparse.Namespa
     pc = cfg.paper
     db = cfg.path(pc.banco)
     if not db.is_file():
-        console.print(f"[yellow]Ainda não há simulação em {db}. Comece com: cryptoagent paper rodar (ou teste com: cryptoagent paper replay)[/]")
+        console.print(
+            f"[yellow]Ainda não há simulação em {db}. Comece com: cryptoagent paper rodar (ou teste com: cryptoagent paper replay)[/]"
+        )
         return 1
     store = history.HistoryStore(cfg.path(cfg.historico.pasta))
     async with BinanceReadOnlyClient(cfg.binance, secrets) as client:
         await client.sync_time()
-        await history.update_from_rest(store, client, pc.par, "1m", months=cfg.historico.meses, now=client.server_now_ms())
+        await history.update_from_rest(
+            store, client, pc.par, "1m", months=cfg.historico.meses, now=client.server_now_ms()
+        )
     fees = await _account_taker_fees(cfg, secrets, [pc.par])
     fee = fees.get(pc.par, (cfg.custos.taxa_padrao_taker, ""))[0]
     half = cfg.sazonalidade.spread_padrao_pct.get(pc.par, 0.05) / 200
     conn = sim_db.connect(db)
     try:
-        _print_variant_reports(cfg, conn, store.load(pc.par, "1m"), now=now_ms(), costs=(fee, half, cfg.backtest.slippage_mercado_pct))
+        _print_variant_reports(
+            cfg, conn, store.load(pc.par, "1m"), now=now_ms(), costs=(fee, half, cfg.backtest.slippage_mercado_pct)
+        )
     finally:
         conn.close()
     return 0
@@ -196,25 +253,51 @@ async def cmd_paper_replay(cfg: Config, secrets: Secrets, args: argparse.Namespa
             console.print(escape(msg))
 
     t0 = time.perf_counter()
-    await run_paper(adjust(cfg), secrets, fee=costs.fee, capital=args.capital, max_loss_brl=args.perda_max, db_path=db, client=client,
-                    until_ms=end, say=say, sleep=client.advance, adjust=adjust)
+    await run_paper(
+        adjust(cfg),
+        secrets,
+        fee=costs.fee,
+        capital=args.capital,
+        max_loss_brl=args.perda_max,
+        db_path=db,
+        client=client,
+        until_ms=end,
+        say=say,
+        sleep=client.advance,
+        adjust=adjust,
+    )
     elapsed = time.perf_counter() - t0
-    console.print(f"[dim]Replay de {args.dias} dia(s) simulado(s) em {elapsed:.0f} s ({args.dias * 86_400 / max(elapsed, 1e-9):,.0f}× mais rápido que o tempo real); "
-                  f"{sum(1 for x in lines if '] ' in x and '%' in x)} decisões. Banco: {db}[/]")
+    console.print(
+        f"[dim]Replay de {args.dias} dia(s) simulado(s) em {elapsed:.0f} s ({args.dias * 86_400 / max(elapsed, 1e-9):,.0f}× mais rápido que o tempo real); "
+        f"{sum(1 for x in lines if '] ' in x and '%' in x)} decisões. Banco: {db}[/]"
+    )
 
     half = float(np.mean(list(costs.spread_by_hour.values()))) / 200
     conn = sim_db.connect(db)
     try:
-        reports = _print_variant_reports(cfg, conn, store.load(pc.par, "1m"), now=end, costs=(costs.fee, half, costs.slip_market_pct))
+        reports = _print_variant_reports(
+            cfg, conn, store.load(pc.par, "1m"), now=end, costs=(costs.fee, half, costs.slip_market_pct)
+        )
     finally:
         conn.close()
 
     # mesmo período no backtest (mesmos custos): o replay e o backtest deveriam contar a mesma história
     data = load_backtest_data(cfg, pc.par)
     bt = cfg.backtest
-    sim = simulate(data, cfg.estrategia, cfg.indicadores, costs, capital=reports[0].initial_capital if reports else pc.capital,
-                   loss_pct_day=bt.perda_max_dia_pct, divisor=cfg.risco.divisor_perda_diaria, spread_max_pct=cfg.custos.spread_max_pct,
-                   start_ms=start, end_ms=end, season_on=False, label="backtest")
+    sim = simulate(
+        data,
+        cfg.estrategia,
+        cfg.indicadores,
+        costs,
+        capital=reports[0].initial_capital if reports else pc.capital,
+        loss_pct_day=bt.perda_max_dia_pct,
+        divisor=cfg.risco.divisor_perda_diaria,
+        spread_max_pct=cfg.custos.spread_max_pct,
+        start_ms=start,
+        end_ms=end,
+        season_on=False,
+        label="backtest",
+    )
     window = [t for t in sim.trades if start <= t.entry_ms < end]
     t = Table(title="Mesmo período: replay (paper) x backtest, com os mesmos custos")
     t.add_column("Origem")
@@ -263,4 +346,3 @@ async def cmd_paper_reset(cfg: Config, secrets: Secrets, args: argparse.Namespac
     _remove_db(db)
     console.print(f"Simulação recomeçada. Cópia do banco anterior ({trades} operações, {signals} sinais): {backup}")
     return 0
-

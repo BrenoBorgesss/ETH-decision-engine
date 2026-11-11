@@ -38,6 +38,7 @@ def split_symbol(symbol: str) -> tuple[str, str]:
 @dataclass(frozen=True)
 class Balance:
     """Saldo de um ativo na conta: livre e travado em ordens."""
+
     asset: str
     free: float
     locked: float
@@ -64,6 +65,7 @@ async def fetch_balances(client: BinanceReadOnlyClient) -> Stamped[dict[str, Bal
 @dataclass(frozen=True)
 class CommissionInfo:
     """Taxas maker/taker de um par e a situação do desconto por pagar taxas em BNB."""
+
     symbol: str
     maker: float  # fração (0,001 = 0,1%), já somando taxa padrão + especial + imposto
     taker: float
@@ -81,11 +83,19 @@ class CommissionInfo:
 
 def parse_commission(symbol: str, data: dict) -> CommissionInfo:
     """Converte a resposta de /api/v3/account/commission em CommissionInfo, somando taxa padrão, especial e imposto."""
+
     def total(kind: str) -> float:
-        return sum(float(data.get(group, {}).get(kind, 0) or 0) for group in ("standardCommission", "specialCommission", "taxCommission"))
+        return sum(
+            float(data.get(group, {}).get(kind, 0) or 0)
+            for group in ("standardCommission", "specialCommission", "taxCommission")
+        )
 
     discount = data.get("discount", {}) or {}
-    enabled = bool(discount.get("enabledAccount")) and bool(discount.get("enabledSymbol")) and discount.get("discountAsset") == "BNB"
+    enabled = (
+        bool(discount.get("enabledAccount"))
+        and bool(discount.get("enabledSymbol"))
+        and discount.get("discountAsset") == "BNB"
+    )
     factor = float(discount.get("discount", 1) or 1)
     return CommissionInfo(symbol, total("maker"), total("taker"), enabled, factor if 0 < factor <= 1 else 1.0, True)
 
@@ -109,6 +119,7 @@ PriceAt = Callable[[str, int], Awaitable[float | None]]
 @dataclass(frozen=True)
 class Fill:
     """Uma execução (negócio) da conta, como a Binance devolve em /api/v3/myTrades."""
+
     symbol: str
     trade_id: int
     order_id: int
@@ -265,12 +276,16 @@ async def sync_trades(
         if window_start >= server_now_ms:
             break
         window_end = min(window_start + DAY_MS - 1, server_now_ms)
-        resp = await client.get("/api/v3/myTrades", {"symbol": symbol, "startTime": window_start, "endTime": window_end, "limit": 1000})
+        resp = await client.get(
+            "/api/v3/myTrades", {"symbol": symbol, "startTime": window_start, "endTime": window_end, "limit": 1000}
+        )
         batch = [parse_trade(symbol, d) for d in resp.data]  # type: ignore[union-attr]
         if len(batch) == 1000:
             # Janela com mais de 1000 operações: continua pelo id até sair da janela.
             while True:
-                more = await client.get("/api/v3/myTrades", {"symbol": symbol, "fromId": batch[-1].trade_id + 1, "limit": 1000})
+                more = await client.get(
+                    "/api/v3/myTrades", {"symbol": symbol, "fromId": batch[-1].trade_id + 1, "limit": 1000}
+                )
                 page = [parse_trade(symbol, d) for d in more.data]  # type: ignore[union-attr]
                 inside = [f for f in page if f.time_ms <= window_end]
                 batch.extend(inside)
@@ -283,7 +298,9 @@ async def sync_trades(
         conn.commit()
         window_start = window_end + 1
     else:
-        log.warning("Sincronização de %s parou no limite de %d janelas; rode de novo para continuar", symbol, max_windows)
+        log.warning(
+            "Sincronização de %s parou no limite de %d janelas; rode de novo para continuar", symbol, max_windows
+        )
     # Margem de 2 min: operações recém-executadas às vezes aparecem com pequeno atraso.
     set_meta(conn, _synced_until_key(symbol), str(max(start_ms, min(window_start, server_now_ms) - 120_000)))
     return written

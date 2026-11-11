@@ -17,6 +17,7 @@ from cryptoagent.timeutils import local_trading_day_series
 @dataclass(frozen=True)
 class SymbolCoverage:
     """Resumo da coleta de custos de um par: amostras, período, dias cobertos, cobertura e estatísticas do spread."""
+
     symbol: str
     samples: int
     first_ms: int
@@ -30,7 +31,9 @@ class SymbolCoverage:
     spread_p95_pct: float
 
 
-def collection_summary(conn: sqlite3.Connection, tz_name: str, day_start: str, sample_every_s: float) -> list[SymbolCoverage]:
+def collection_summary(
+    conn: sqlite3.Connection, tz_name: str, day_start: str, sample_every_s: float
+) -> list[SymbolCoverage]:
     """Resumo da coleta por par. `sample_every_s` é o intervalo esperado entre amostras, usado para calcular a cobertura."""
     df = pd.read_sql_query("SELECT ts_ms, symbol, source, spread_pct FROM book_samples", conn)
     if df.empty:

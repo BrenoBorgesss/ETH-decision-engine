@@ -36,11 +36,15 @@ async def cmd_journal_add(cfg: Config, secrets: Secrets, args: argparse.Namespac
         symbol = _journal_symbol(cfg, conn, args.par)
         side = {"compra": "buy", "venda": "sell"}[args.lado]
         fee = args.taxa if args.taxa is not None else args.qtd * args.preco * cfg.custos.taxa_padrao_taker
-        trade_id = journal.add_manual_trade(conn, symbol=symbol, side=side, qty=args.qtd, price=args.preco, fee_quote=fee, note=args.nota or "")
+        trade_id = journal.add_manual_trade(
+            conn, symbol=symbol, side=side, qty=args.qtd, price=args.preco, fee_quote=fee, note=args.nota or ""
+        )
     finally:
         conn.close()
     _, quote = split_symbol(symbol)
-    console.print(f"Registrado #{trade_id}: {args.lado} de {args.qtd} a {args.preco:,.2f} {quote} em {symbol} (taxa {fee:,.4f} {quote}).")
+    console.print(
+        f"Registrado #{trade_id}: {args.lado} de {args.qtd} a {args.preco:,.2f} {quote} em {symbol} (taxa {fee:,.4f} {quote})."
+    )
     if cfg.conta.modo != "diario_manual":
         console.print("[yellow]Obs.: o diário só é usado com conta.modo: diario_manual no config.[/]")
     return 0
@@ -58,7 +62,15 @@ async def cmd_journal_list(cfg: Config, secrets: Secrets, args: argparse.Namespa
     for col in ("#", "Quando (Brasília)", "Lado", "Qtd", "Preço", "Taxa", "Nota"):
         t.add_column(col)
     for r in rows:
-        t.add_row(str(r["id"]), format_local(r["time_ms"], cfg.fuso.local), "compra" if r["side"] == "buy" else "venda", f"{r['qty']:g}", f"{r['price']:,.2f}", f"{r['fee_quote']:,.4f}", r["note"] or "")
+        t.add_row(
+            str(r["id"]),
+            format_local(r["time_ms"], cfg.fuso.local),
+            "compra" if r["side"] == "buy" else "venda",
+            f"{r['qty']:g}",
+            f"{r['price']:,.2f}",
+            f"{r['fee_quote']:,.4f}",
+            r["note"] or "",
+        )
     console.print(t)
     return 0
 

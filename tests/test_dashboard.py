@@ -98,7 +98,9 @@ def test_rotas_rodam_na_thread_do_servico(tmp_path):
     assert a == b  # mesma thread em toda chamada (a do loop), nunca um pool de threads
 
 
-@pytest.mark.parametrize("host", ["evil.example.com", "evil.example.com:8765", "127.0.0.1.evil.example.com", "192.168.0.10:8765"])
+@pytest.mark.parametrize(
+    "host", ["evil.example.com", "evil.example.com:8765", "127.0.0.1.evil.example.com", "192.168.0.10:8765"]
+)
 def test_host_de_fora_e_recusado_em_todas_as_rotas(host):
     """DNS rebinding: um site externo chamando o painel pelo próprio domínio não lê nem altera nada."""
     svc = FakeService()
@@ -193,7 +195,9 @@ def test_resumo_do_paper_vem_do_banco_da_simulacao_em_modo_leitura(tmp_path):
     fake.sim_db_path = cfg.path(cfg.paper.banco)
     assert fake._paper_summary() == []  # simulação nunca rodou
     conn = sim_db.connect(tmp_path / "simulacao.sqlite")
-    conn.execute("INSERT INTO paper_state (variant, equity, initial_capital, max_loss_day, started_ms) VALUES ('padrao', 1010, 1000, 30, 1)")
+    conn.execute(
+        "INSERT INTO paper_state (variant, equity, initial_capital, max_loss_day, started_ms) VALUES ('padrao', 1010, 1000, 30, 1)"
+    )
     conn.commit()
     conn.close()
     antes = (tmp_path / "simulacao.sqlite").stat().st_mtime_ns

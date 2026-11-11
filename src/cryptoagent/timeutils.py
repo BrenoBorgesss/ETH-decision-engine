@@ -128,7 +128,9 @@ def trading_day_bounds(ts_ms: int, tz_name: str = "America/Sao_Paulo", day_start
     )
 
 
-def local_trading_day_series(ts_ms: pd.Series, tz_name: str = "America/Sao_Paulo", day_start: str = "00:00") -> pd.Series:
+def local_trading_day_series(
+    ts_ms: pd.Series, tz_name: str = "America/Sao_Paulo", day_start: str = "00:00"
+) -> pd.Series:
     """Versão vetorizada de `local_trading_day` para uma coluna de horários em ms UTC."""
     start = parse_hhmm(day_start)
     local_wall = pd.to_datetime(ts_ms, unit="ms", utc=True).dt.tz_convert(tz_name).dt.tz_localize(None)

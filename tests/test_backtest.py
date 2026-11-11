@@ -33,8 +33,19 @@ def synthetic_1m(days: int, seed: int = 3) -> pd.DataFrame:
     vol = rng.uniform(5, 15, n)
     t = START + np.arange(n) * MIN
     return pd.DataFrame(
-        {"open_time": t, "open": open_, "high": hi, "low": lo, "close": close, "volume": vol, "close_time": t + MIN - 1,
-         "quote_volume": vol * close, "trades": 5, "taker_buy_base": vol * rng.uniform(0.3, 0.7, n), "taker_buy_quote": 0.0}
+        {
+            "open_time": t,
+            "open": open_,
+            "high": hi,
+            "low": lo,
+            "close": close,
+            "volume": vol,
+            "close_time": t + MIN - 1,
+            "quote_volume": vol * close,
+            "trades": 5,
+            "taker_buy_base": vol * rng.uniform(0.3, 0.7, n),
+            "taker_buy_quote": 0.0,
+        }
     )
 
 
@@ -42,9 +53,18 @@ def resample(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
     step = minutes * MIN
     g = df.groupby((df["open_time"] - START) // step)
     out = pd.DataFrame(
-        {"open_time": g["open_time"].first(), "open": g["open"].first(), "high": g["high"].max(), "low": g["low"].min(), "close": g["close"].last(),
-         "volume": g["volume"].sum(), "quote_volume": g["quote_volume"].sum(), "trades": g["trades"].sum(),
-         "taker_buy_base": g["taker_buy_base"].sum(), "taker_buy_quote": 0.0}
+        {
+            "open_time": g["open_time"].first(),
+            "open": g["open"].first(),
+            "high": g["high"].max(),
+            "low": g["low"].min(),
+            "close": g["close"].last(),
+            "volume": g["volume"].sum(),
+            "quote_volume": g["quote_volume"].sum(),
+            "trades": g["trades"].sum(),
+            "taker_buy_base": g["taker_buy_base"].sum(),
+            "taker_buy_quote": 0.0,
+        }
     )
     out["close_time"] = out["open_time"] + step - 1
     return out.reset_index(drop=True)
@@ -58,7 +78,10 @@ def make_cfg(tmp_path, one_min: pd.DataFrame) -> Config:
         {
             "historico": {"pasta": str(tmp_path / "hist")},
             # dados sintéticos curtos: contexto no 1h para os indicadores aquecerem a tempo
-            "estrategia": {"tf_contexto": "1h", "confianca_minima": {"lateral": 30, "transicao": 30, "tendencia_alta": 30, "tendencia_baixa": 30}},
+            "estrategia": {
+                "tf_contexto": "1h",
+                "confianca_minima": {"lateral": 30, "transicao": 30, "tendencia_alta": 30, "tendencia_baixa": 30},
+            },
             "indicadores": {"janela_percentil": 100},
         }
     )
@@ -80,7 +103,18 @@ def setup(tmp_path_factory):
 
 
 def run(cfg, data, costs=COSTS, **kw):
-    return simulate(data, cfg.estrategia, cfg.indicadores, costs, capital=1000, loss_pct_day=3, divisor=3, spread_max_pct=0.15, season_on=False, **kw)
+    return simulate(
+        data,
+        cfg.estrategia,
+        cfg.indicadores,
+        costs,
+        capital=1000,
+        loss_pct_day=3,
+        divisor=3,
+        spread_max_pct=0.15,
+        season_on=False,
+        **kw,
+    )
 
 
 def key(trades):
@@ -133,7 +167,23 @@ def test_stop_executa_com_slippage_e_nunca_acima_do_stop(setup):
 
 def trade(ret, pnl_pct, day):
     t0 = START + day * 86_400_000
-    return Trade(t0, t0 + 3_600_000, 100, 100, 1, 100, pnl_pct, pnl_pct, ret, "alvo1" if ret > 0 else "stop", 50, "lateral", 99, 101, 0.2)
+    return Trade(
+        t0,
+        t0 + 3_600_000,
+        100,
+        100,
+        1,
+        100,
+        pnl_pct,
+        pnl_pct,
+        ret,
+        "alvo1" if ret > 0 else "stop",
+        50,
+        "lateral",
+        99,
+        101,
+        0.2,
+    )
 
 
 def test_metricas_a_mao():
@@ -154,7 +204,9 @@ def test_metricas_a_mao():
 def test_sharpe_usa_os_dias_do_fuso_local():
     """B4: uma operação que fecha às 22h de Brasília do dia anterior ao primeiro dia UTC não pode sumir."""
     inicio = START  # meia-noite UTC = 21h do dia anterior em Brasília
-    t = Trade(inicio + 3_600_000, inicio + 7_200_000, 100, 101, 1, 100, 1, 1, 0.01, "alvo1", 50, "lateral", 99, 101, 0.2)
+    t = Trade(
+        inicio + 3_600_000, inicio + 7_200_000, 100, 101, 1, 100, 1, 1, 0.01, "alvo1", 50, "lateral", 99, 101, 0.2
+    )
     m = compute_metrics([t], inicio, inicio + 3 * 86_400_000, 1000)
     # com o dia em UTC, o dia local da operação (31/12) ficava fora da série: todos os dias valiam 0
     # e o Sharpe saía indefinido (NaN). Com os dias locais, a operação entra e o Sharpe é calculado.
@@ -166,7 +218,9 @@ def test_drawdown_e_comprar_e_segurar():
     t = np.array([0, 1, 2, 3])
     bh = buy_and_hold(t, np.array([100.0, 120.0, 90.0, 110.0]), 0, 4)
     assert bh["retorno_total_pct"] == pytest.approx((1.1 * 0.999 - 1.001) * 100)  # mesma conta de uma operação
-    com_custos = buy_and_hold(t, np.array([100.0, 120.0, 90.0, 110.0]), 0, 4, fee=0.001, half_spread=0.0002, slip_pct=0.01)
+    com_custos = buy_and_hold(
+        t, np.array([100.0, 120.0, 90.0, 110.0]), 0, 4, fee=0.001, half_spread=0.0002, slip_pct=0.01
+    )
     assert com_custos["retorno_total_pct"] == pytest.approx((110 * 0.9997 / (100 * 1.0003) * 0.999 - 1.001) * 100)
     assert bh["drawdown_max_pct"] == pytest.approx(-25)
 

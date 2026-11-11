@@ -14,7 +14,18 @@ from cryptoagent.backtest.data import BacktestData
 from cryptoagent.backtest.simulator import SimResult, SimStats, Trade
 
 
-def naive_band(data: BacktestData, costs: CostSchedule, *, tf: str, capital: float, loss_pct_day: float, divisor: float, start_ms: int, end_ms: int, hold_min: float = 180) -> SimResult:
+def naive_band(
+    data: BacktestData,
+    costs: CostSchedule,
+    *,
+    tf: str,
+    capital: float,
+    loss_pct_day: float,
+    divisor: float,
+    start_ms: int,
+    end_ms: int,
+    hold_min: float = 180,
+) -> SimResult:
     """Versão ingênua para comparação: compra sempre que o %B fica abaixo de 0, sem nenhum filtro, com stop a 1 ATR e alvo no meio das bandas, por no máximo `hold_min` minutos. Usa os mesmos custos."""
     f = data.frames[tf]
     ct = data.close_times[tf]
@@ -59,7 +70,32 @@ def naive_band(data: BacktestData, costs: CostSchedule, *, tf: str, capital: flo
         gross = qty * fill
         fee_out = gross * costs.fee
         pnl = gross - fee_out - size - fee_in
-        trades.append(Trade(int(data.t_open_time[k]), int(data.t_open_time[j]) + 60_000, entry, float(fill), qty, size, pnl, pnl / size * 100, pnl / equity, reason, 0.0, "", stop, target, fee_in + fee_out))
+        trades.append(
+            Trade(
+                int(data.t_open_time[k]),
+                int(data.t_open_time[j]) + 60_000,
+                entry,
+                float(fill),
+                qty,
+                size,
+                pnl,
+                pnl / size * 100,
+                pnl / equity,
+                reason,
+                0.0,
+                "",
+                stop,
+                target,
+                fee_in + fee_out,
+            )
+        )
         equity += pnl
         busy_until = int(data.t_open_time[j]) + 60_000
-    return SimResult("versão ingênua (banda inferior, sem filtros)", trades, SimStats(), max(start_ms, data.first_valid_ms), end_ms, capital)
+    return SimResult(
+        "versão ingênua (banda inferior, sem filtros)",
+        trades,
+        SimStats(),
+        max(start_ms, data.first_valid_ms),
+        end_ms,
+        capital,
+    )

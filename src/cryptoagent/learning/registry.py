@@ -26,6 +26,7 @@ STATES = ("campeao", "desafiante", "rejeitado", "aposentado")
 @dataclass
 class Evaluation:
     """Uma avaliação de uma versão: quando, até quando havia dados, o período fora da amostra e as métricas."""
+
     cycle: int
     evaluated_ms: int
     until_ms: int
@@ -41,6 +42,7 @@ class Evaluation:
 @dataclass
 class Version:
     """Uma versão de estratégia no registro."""
+
     id: int
     kind: str  # "regras" | "modelo"
     name: str
@@ -59,6 +61,7 @@ class Version:
 @dataclass
 class Registry:
     """Todas as versões e o histórico dos ciclos de reavaliação."""
+
     versions: list[Version] = field(default_factory=list)
     cycles: list[dict] = field(default_factory=list)  # um resumo por ciclo (gatilho, quando, resultado)
 
@@ -97,7 +100,8 @@ def load(folder: Path) -> Registry:
     if data.get("versao") != REGISTRY_VERSION:
         raise ValueError(f"registro de versões {path} em formato desconhecido")
     versions = [
-        Version(**{**v, "evaluations": [Evaluation(**e) for e in v.get("evaluations", [])]}) for v in data.get("versoes", [])
+        Version(**{**v, "evaluations": [Evaluation(**e) for e in v.get("evaluations", [])]})
+        for v in data.get("versoes", [])
     ]
     return Registry(versions, data.get("ciclos", []))
 
@@ -106,7 +110,9 @@ def save(folder: Path, reg: Registry) -> Path:
     """Grava o registro com troca atômica. Devolve o caminho."""
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / REGISTRY_FILE
-    payload = clean_json({"versao": REGISTRY_VERSION, "versoes": [asdict(v) for v in reg.versions], "ciclos": reg.cycles})
+    payload = clean_json(
+        {"versao": REGISTRY_VERSION, "versoes": [asdict(v) for v in reg.versions], "ciclos": reg.cycles}
+    )
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1, allow_nan=False) + "\n", encoding="utf-8")
     tmp.replace(path)

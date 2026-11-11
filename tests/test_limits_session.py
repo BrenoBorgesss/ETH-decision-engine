@@ -47,7 +47,15 @@ def conn(tmp_path):
 
 
 def test_sessao_salva_e_lida(conn):
-    s = daily.save_session(conn, date(2026, 10, 22), capital_brl=1000, max_loss_brl=30, par_operacao="ETHBRL", saldo_em="BRL", candidates=CANDIDATES)
+    s = daily.save_session(
+        conn,
+        date(2026, 10, 22),
+        capital_brl=1000,
+        max_loss_brl=30,
+        par_operacao="ETHBRL",
+        saldo_em="BRL",
+        candidates=CANDIDATES,
+    )
     assert daily.get_session(conn, date(2026, 10, 22)) == s
     assert daily.get_session(conn, date(2026, 10, 23)) is None
 
@@ -62,18 +70,48 @@ def test_nao_pode_aumentar_perda_maxima_no_meio_do_dia(conn):
 
 
 def test_nao_pode_trocar_de_par_no_meio_do_dia(conn):
-    daily.save_session(conn, date(2026, 10, 22), capital_brl=1000, max_loss_brl=30, par_operacao="ETHBRL", saldo_em="BRL", candidates=CANDIDATES)
+    daily.save_session(
+        conn,
+        date(2026, 10, 22),
+        capital_brl=1000,
+        max_loss_brl=30,
+        par_operacao="ETHBRL",
+        saldo_em="BRL",
+        candidates=CANDIDATES,
+    )
     with pytest.raises(daily.SessionError):
-        daily.save_session(conn, date(2026, 10, 22), capital_brl=1000, max_loss_brl=30, par_operacao="ETHUSDT", saldo_em="USDT", candidates=CANDIDATES)
+        daily.save_session(
+            conn,
+            date(2026, 10, 22),
+            capital_brl=1000,
+            max_loss_brl=30,
+            par_operacao="ETHUSDT",
+            saldo_em="USDT",
+            candidates=CANDIDATES,
+        )
 
 
 @pytest.mark.parametrize(
     "capital,loss,par,saldo",
-    [(0, 10, "ETHBRL", "BRL"), (1000, 0, "ETHBRL", "BRL"), (1000, 1000, "ETHBRL", "BRL"), (1000, 10, "BTCBRL", "BRL"), (1000, 10, "ETHBRL", "USDT")],
+    [
+        (0, 10, "ETHBRL", "BRL"),
+        (1000, 0, "ETHBRL", "BRL"),
+        (1000, 1000, "ETHBRL", "BRL"),
+        (1000, 10, "BTCBRL", "BRL"),
+        (1000, 10, "ETHBRL", "USDT"),
+    ],
 )
 def test_validacoes_da_sessao(conn, capital, loss, par, saldo):
     with pytest.raises(daily.SessionError):
-        daily.save_session(conn, date(2026, 10, 22), capital_brl=capital, max_loss_brl=loss, par_operacao=par, saldo_em=saldo, candidates=CANDIDATES)
+        daily.save_session(
+            conn,
+            date(2026, 10, 22),
+            capital_brl=capital,
+            max_loss_brl=loss,
+            par_operacao=par,
+            saldo_em=saldo,
+            candidates=CANDIDATES,
+        )
 
 
 def test_dia_da_sessao_segue_brasilia_e_nao_utc():

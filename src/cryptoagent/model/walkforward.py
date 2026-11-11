@@ -37,6 +37,7 @@ CALIBRATION_BINS = (0.0, 0.3, 0.4, 0.5, 0.6, 1.0)
 @dataclass
 class FoldOutcome:
     """Um mês de teste: tamanho do treino, previsões e qualidade da previsão."""
+
     fold: Fold
     n_train: int
     n_test: int
@@ -49,6 +50,7 @@ class FoldOutcome:
 @dataclass
 class ChallengerReport:
     """Resultado completo da avaliação do desafiador."""
+
     pair: str
     threshold: float
     n_dataset: int
@@ -83,7 +85,9 @@ def evaluation_folds(cfg: Config, data: BacktestData, until_ms: int | None = Non
     return make_folds(s5.loc[ok, "open_time"], bt.meses_treino, bt.meses_teste)
 
 
-def evaluate(cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.DataFrame, *, until_ms: int | None = None) -> ChallengerReport:
+def evaluate(
+    cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.DataFrame, *, until_ms: int | None = None
+) -> ChallengerReport:
     """Walk-forward completo do desafiador (ver a descrição do módulo).
 
     `until_ms` (ponto no tempo): só usa o que se sabia até aquele instante. As janelas de teste terminam antes
@@ -103,7 +107,17 @@ def evaluate(cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.D
         tr = dataset[(dataset["t_ms"] >= f.train_start_ms) & (dataset["fim_ms"] < f.test_start_ms)]
         te = dataset[(dataset["t_ms"] >= f.test_start_ms) & (dataset["t_ms"] < f.test_end_ms)].copy()
         if len(tr) < mc.exemplos_min_treino or tr["rotulo"].nunique() < 2:
-            outcomes.append(FoldOutcome(f, len(tr), len(te), None, None, None, f"treino com {len(tr)} exemplos (mínimo {mc.exemplos_min_treino}): mês sem modelo"))
+            outcomes.append(
+                FoldOutcome(
+                    f,
+                    len(tr),
+                    len(te),
+                    None,
+                    None,
+                    None,
+                    f"treino com {len(tr)} exemplos (mínimo {mc.exemplos_min_treino}): mês sem modelo",
+                )
+            )
             continue
         model = train(tr, FEATURES, seed=mc.semente, regularization_c=mc.regularizacao_c)
         te["prob"] = model.predict_proba(te) if len(te) else []
@@ -112,7 +126,9 @@ def evaluate(cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.D
         auc = _auc(te["rotulo"].to_numpy(), te["prob"].to_numpy()) if len(te) else None
         outcomes.append(FoldOutcome(f, len(tr), len(te), model.base_rate, auc, model))
 
-    rep = ChallengerReport(data.trade, mc.limiar_probabilidade, len(dataset), outcomes, oos_a, oos_b, None, None, None, None)
+    rep = ChallengerReport(
+        data.trade, mc.limiar_probabilidade, len(dataset), outcomes, oos_a, oos_b, None, None, None, None
+    )
     if tested:
         allt = pd.concat(tested, ignore_index=True)
         y, prob = allt["rotulo"].to_numpy(), allt["prob"].to_numpy()
@@ -122,17 +138,29 @@ def evaluate(cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.D
         rep.base_rate_oos = float(y.mean())
         bins = pd.cut(allt["prob"], CALIBRATION_BINS, include_lowest=True, right=False)
         for interval, g in allt.groupby(bins, observed=True):
-            rep.calibration.append({
-                "faixa": f"{interval.left:.0%}–{interval.right:.0%}", "momentos": len(g), "prob_media": float(g["prob"].mean()),
-                "acerto_real": float(g["rotulo"].mean()), "resultado_medio_pct": float(g["pnl_pct"].mean()),
-            })
+            rep.calibration.append(
+                {
+                    "faixa": f"{interval.left:.0%}–{interval.right:.0%}",
+                    "momentos": len(g),
+                    "prob_media": float(g["prob"].mean()),
+                    "acerto_real": float(g["rotulo"].mean()),
+                    "resultado_medio_pct": float(g["pnl_pct"].mean()),
+                }
+            )
         chosen = allt[allt["prob"] >= mc.limiar_probabilidade]
         rep.signals_oos = {
-            "todos": {"momentos": len(allt), "acerto": float(allt["rotulo"].mean()), "resultado_medio_pct": float(allt["pnl_pct"].mean()),
-                      "ic95_pct": list(mean_ci95(allt["pnl_pct"]))},
-            "escolhidos": {"momentos": len(chosen), "acerto": float(chosen["rotulo"].mean()) if len(chosen) else None,
-                           "resultado_medio_pct": float(chosen["pnl_pct"].mean()) if len(chosen) else None,
-                           "ic95_pct": list(mean_ci95(chosen["pnl_pct"]))},
+            "todos": {
+                "momentos": len(allt),
+                "acerto": float(allt["rotulo"].mean()),
+                "resultado_medio_pct": float(allt["pnl_pct"].mean()),
+                "ic95_pct": list(mean_ci95(allt["pnl_pct"])),
+            },
+            "escolhidos": {
+                "momentos": len(chosen),
+                "acerto": float(chosen["rotulo"].mean()) if len(chosen) else None,
+                "resultado_medio_pct": float(chosen["pnl_pct"].mean()) if len(chosen) else None,
+                "ic95_pct": list(mean_ci95(chosen["pnl_pct"])),
+            },
         }
         last = next(o.model for o in reversed(outcomes) if o.model is not None)
         rep.coefficients = sorted(zip(last.features, last.coef), key=lambda x: abs(x[1]), reverse=True)
@@ -153,7 +181,10 @@ def evaluate(cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.D
         return model is not None and model.predict_one(extract_features(ctx, d, p, tz)) >= mc.limiar_probabilidade
 
     common = dict(
-        capital=bt.capital, loss_pct_day=bt.perda_max_dia_pct, divisor=cfg.risco.divisor_perda_diaria, spread_max_pct=cfg.custos.spread_max_pct,
+        capital=bt.capital,
+        loss_pct_day=bt.perda_max_dia_pct,
+        divisor=cfg.risco.divisor_perda_diaria,
+        spread_max_pct=cfg.custos.spread_max_pct,
     )
     rules = simulate(data, p, cfg.indicadores, costs, label="regras", **common)
     chall = simulate(data, p, cfg.indicadores, costs, label="desafiador", entry_rule=entry_rule, **common)
@@ -164,7 +195,9 @@ def evaluate(cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.D
     rep.rules = compute_metrics(window(rules.trades), oos_a, oos_b, bt.capital, tz)
     rep.challenger = compute_metrics(window(chall.trades), oos_a, oos_b, bt.capital, tz)
     half = float(np.mean(list(costs.spread_by_hour.values()))) / 200
-    rep.buy_hold = buy_and_hold(data.t_open_time, data.t_close, oos_a, oos_b, fee=costs.fee, half_spread=half, slip_pct=costs.slip_market_pct)
+    rep.buy_hold = buy_and_hold(
+        data.t_open_time, data.t_close, oos_a, oos_b, fee=costs.fee, half_spread=half, slip_pct=costs.slip_market_pct
+    )
     return rep
 
 

@@ -26,14 +26,19 @@ def save_signal(
 ) -> int:
     """Grava a decisão. Preços e níveis vão no par de OPERAÇÃO (multiplicados por `ratio`)."""
     lv = d.levels
+
     def t(x: float | None) -> float | None:
         return x * ratio if x is not None else None
+
     details = {
         "parts": [asdict(p) for p in d.parts],
         "reasons_for": d.reasons_for,
         "reasons_against": d.reasons_against,
         "blocks": d.blocks,
-        "signals": [{"name": s.name, "score": s.score, "weight": s.weight, "detail": s.detail, "available": s.available} for s in d.signals],
+        "signals": [
+            {"name": s.name, "score": s.score, "weight": s.weight, "detail": s.detail, "available": s.available}
+            for s in d.signals
+        ],
         "trigger": asdict(d.trigger) if d.trigger else None,
         "invalidation": d.invalidation,
         "position_note": d.position_note,
@@ -78,7 +83,8 @@ def auto_associate(conn: sqlite3.Connection, trade_symbol: str, window_min: floa
     """Liga compras ainda 'pendente' ao último COMPRAR até `window_min` antes. Retorna quantas foram ligadas."""
     linked = 0
     buys = conn.execute(
-        "SELECT trade_id, time_ms FROM account_trades WHERE symbol = ? AND is_buyer = 1 AND association = 'pendente'", (trade_symbol,)
+        "SELECT trade_id, time_ms FROM account_trades WHERE symbol = ? AND is_buyer = 1 AND association = 'pendente'",
+        (trade_symbol,),
     ).fetchall()
     for b in buys:
         sig = conn.execute(
@@ -98,7 +104,9 @@ def auto_associate(conn: sqlite3.Connection, trade_symbol: str, window_min: floa
 
 def set_association(conn: sqlite3.Connection, trade_symbol: str, trade_id: int, signal_id: int | None) -> None:
     """Você confirma (mesmo sinal) ou corrige (outro sinal / nenhum) a associação de uma compra."""
-    row = conn.execute("SELECT signal_id FROM account_trades WHERE symbol = ? AND trade_id = ?", (trade_symbol, trade_id)).fetchone()
+    row = conn.execute(
+        "SELECT signal_id FROM account_trades WHERE symbol = ? AND trade_id = ?", (trade_symbol, trade_id)
+    ).fetchone()
     if row is None:
         raise ValueError(f"operação {trade_id} não encontrada em {trade_symbol}")
     if signal_id is not None and conn.execute("SELECT 1 FROM signals WHERE id = ?", (signal_id,)).fetchone() is None:
@@ -111,7 +119,9 @@ def set_association(conn: sqlite3.Connection, trade_symbol: str, trade_id: int, 
     conn.commit()
 
 
-def levels_for_open_lots(conn: sqlite3.Connection, trade_symbol: str, open_trade_ids: list[str]) -> tuple[float, float, float, str] | None:
+def levels_for_open_lots(
+    conn: sqlite3.Connection, trade_symbol: str, open_trade_ids: list[str]
+) -> tuple[float, float, float, str] | None:
     """Stop e alvos (no par de operação) do sinal associado à compra aberta mais recente, se houver."""
     for trade_id in reversed(open_trade_ids):
         if not trade_id.isdigit():  # registros do diário manual não têm sinal associado

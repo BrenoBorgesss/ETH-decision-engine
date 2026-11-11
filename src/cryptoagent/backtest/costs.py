@@ -25,6 +25,7 @@ from cryptoagent.timeutils import local_hour_weekday_series
 @dataclass(frozen=True)
 class CostSchedule:
     """Custos usados num backtest: taxa por lado, spread por hora do dia e slippage."""
+
     symbol: str
     fee: float  # fração por lado
     spread_by_hour: dict[int, float]  # spread total em % por hora local
@@ -63,7 +64,9 @@ class CostSchedule:
     def from_dict(cls, data: dict) -> CostSchedule:
         """Inverso de `to_dict`. Exige as 24 horas na tabela de spread."""
         raw = {int(h): float(v) for h, v in data["spread_by_hour"].items()}
-        spreads = {h: raw[h] for h in sorted(raw)}  # ordem numérica (no JSON as chaves vêm como texto: "0", "1", "10"...)
+        spreads = {
+            h: raw[h] for h in sorted(raw)
+        }  # ordem numérica (no JSON as chaves vêm como texto: "0", "1", "10"...)
         if list(spreads) != list(range(24)):
             raise ValueError(f"custos de {data.get('symbol')}: a tabela de spread precisa ter as 24 horas")
         return cls(
@@ -115,7 +118,16 @@ def hourly_spreads(db_path: Path | None, symbol: str, tz: str, min_samples: int)
 
 
 def build_schedule(
-    symbol: str, fee: float, default_spread: float, db_path: Path | None, tz: str, *, min_samples: int, slip_market: float, slip_stop: float, fee_source: str
+    symbol: str,
+    fee: float,
+    default_spread: float,
+    db_path: Path | None,
+    tz: str,
+    *,
+    min_samples: int,
+    slip_market: float,
+    slip_stop: float,
+    fee_source: str,
 ) -> CostSchedule:
     """Monta os custos de um par: spread medido nas horas com amostras suficientes e o valor padrão nas demais."""
     measured = hourly_spreads(db_path, symbol, tz, min_samples)

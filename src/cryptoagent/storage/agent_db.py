@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS signals (
 CREATE INDEX IF NOT EXISTS ix_signals_time ON signals(trade_symbol, time_ms);
 """
 
-AGENT_SCHEMA = """
+AGENT_SCHEMA = (
+    """
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -72,7 +73,9 @@ CREATE TABLE IF NOT EXISTS manual_trades (
     created_ms INTEGER NOT NULL
 );
 
-""" + SIGNALS_TABLE + """
+"""
+    + SIGNALS_TABLE
+    + """
 
 -- Paper trading: operações VIRTUAIS (sem dinheiro real), por variante da estratégia.
 CREATE TABLE IF NOT EXISTS paper_trades (
@@ -113,6 +116,7 @@ CREATE TABLE IF NOT EXISTS daily_sessions (
     updated_ms INTEGER NOT NULL
 );
 """
+)
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -142,5 +146,8 @@ def get_meta(conn: sqlite3.Connection, key: str) -> str | None:
 
 def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
     """Grava ou atualiza um valor na tabela `meta`."""
-    conn.execute("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
+    conn.execute(
+        "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )
     conn.commit()

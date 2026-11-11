@@ -41,6 +41,7 @@ VOLUME_COLUMNS = ["volume", "quote_volume", "taker_buy_base", "taker_buy_quote",
 @dataclass
 class QualityReport:
     """Resultado da validação de uma tabela de candles (contagens por tipo de problema)."""
+
     interval: str
     rows: int = 0
     nulls: int = 0  # linhas com algum valor ausente ou não finito
@@ -100,7 +101,8 @@ def _invalid_masks(df: pd.DataFrame, interval: str, now_ms: int | None) -> tuple
     masks = {
         "nulls": nulls,
         "misaligned": valid & ((open_ms % step != 0) | (close_ms != open_ms + step - 1)),
-        "bad_ohlc": valid & ((np.minimum.reduce([o, h, lo, c]) <= 0) | (h < lo) | (h < np.maximum(o, c)) | (lo > np.minimum(o, c))),
+        "bad_ohlc": valid
+        & ((np.minimum.reduce([o, h, lo, c]) <= 0) | (h < lo) | (h < np.maximum(o, c)) | (lo > np.minimum(o, c))),
         "negative_volume": valid & (safe[VOLUME_COLUMNS].to_numpy(dtype="float64") < 0).any(axis=1),
         "future": valid & (open_ms > now_ms) if now_ms is not None else np.zeros(len(df), dtype=bool),
     }

@@ -28,6 +28,7 @@ PREFIX = "AGUARDAR (estratégia em teste)"
 @dataclass(frozen=True)
 class Reliability:
     """Resultado da verificação: se a estratégia está validada para o par e, se não, por quê."""
+
     ok: bool
     reasons: list[str] = field(default_factory=list)
     metrics: dict = field(default_factory=dict)
@@ -58,22 +59,39 @@ def check_reliability(cfg: Config, trade_symbol: str, now_ms: int, *, champion: 
         return Reliability(True)
     if champion is not None:
         if champion.get("_params_sha256") != params_hash(parameters(cfg)):
-            return Reliability(False, ["a estratégia campeã foi avaliada com outros parâmetros (rode: cryptoagent aprendizado reavaliar)"])
+            return Reliability(
+                False,
+                ["a estratégia campeã foi avaliada com outros parâmetros (rode: cryptoagent aprendizado reavaliar)"],
+            )
         age_days = (now_ms - int(champion.get("_avaliado_ms", 0))) / DAY_MS
         if age_days > c.idade_max_relatorio_dias:
-            return Reliability(False, [f"a última avaliação da estratégia campeã tem {age_days:.0f} dias (máximo {c.idade_max_relatorio_dias})"])
+            return Reliability(
+                False,
+                [
+                    f"a última avaliação da estratégia campeã tem {age_days:.0f} dias (máximo {c.idade_max_relatorio_dias})"
+                ],
+            )
         return _criteria(champion, c)
     folder = cfg.path(cfg.backtest.relatorio_pasta)
     report, meta = _read(folder / "backtest.json"), _read(folder / "backtest.meta.json")
     if not report or trade_symbol not in report:
         return Reliability(False, [f"não há backtest de {trade_symbol} (rode: cryptoagent backtest)"])
     if not meta:
-        return Reliability(False, ["o último backtest não tem o registro de procedência (feito numa versão anterior; rode de novo: cryptoagent backtest)"])
+        return Reliability(
+            False,
+            [
+                "o último backtest não tem o registro de procedência (feito numa versão anterior; rode de novo: cryptoagent backtest)"
+            ],
+        )
     if meta.get("parametros_sha256") != params_hash(parameters(cfg)):
-        return Reliability(False, ["o último backtest foi feito com outros parâmetros (rode de novo: cryptoagent backtest)"])
+        return Reliability(
+            False, ["o último backtest foi feito com outros parâmetros (rode de novo: cryptoagent backtest)"]
+        )
     age_days = (now_ms - int(meta.get("gerado_em_ms", 0))) / DAY_MS
     if age_days > c.idade_max_relatorio_dias:
-        return Reliability(False, [f"o último backtest tem {age_days:.0f} dias (máximo {c.idade_max_relatorio_dias}); rode de novo"])
+        return Reliability(
+            False, [f"o último backtest tem {age_days:.0f} dias (máximo {c.idade_max_relatorio_dias}); rode de novo"]
+        )
 
     return _criteria((report[trade_symbol].get("padrao") or {}).get("metricas") or {}, c)
 
@@ -88,7 +106,9 @@ def _criteria(m: dict, c: object) -> Reliability:
     if n < c.operacoes_min:
         reasons.append(f"{n} operações fora da amostra (mínimo {c.operacoes_min})")
     if exp is None or exp <= c.expectativa_min_pct:
-        reasons.append(f"média por operação {pct(exp, 3, sign=True) if exp is not None else '-'} (precisa passar de {pct(c.expectativa_min_pct, 3, sign=True)})")
+        reasons.append(
+            f"média por operação {pct(exp, 3, sign=True) if exp is not None else '-'} (precisa passar de {pct(c.expectativa_min_pct, 3, sign=True)})"
+        )
     if pf is None or pf < c.fator_lucro_min:
         reasons.append(f"fator de lucro {num(pf, 2) if pf is not None else '-'} (mínimo {num(c.fator_lucro_min, 2)})")
     if lo is None or (isinstance(lo, float) and math.isnan(lo)) or lo <= c.ic_inferior_min_pct:

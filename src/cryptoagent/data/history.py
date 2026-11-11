@@ -37,12 +37,14 @@ log = logging.getLogger(__name__)
 
 class HistoryDownloadError(Exception):
     """Falha ao baixar ou ler um arquivo de histórico."""
+
     pass
 
 
 @dataclass(frozen=True)
 class Period:
     """Um arquivo de histórico da Binance: mensal (ano e mês) ou diário (ano, mês e dia)."""
+
     kind: str  # "monthly" | "daily"
     year: int
     month: int
@@ -110,6 +112,7 @@ def verify_checksum(content: bytes, checksum_text: str) -> bool:
 
 class HistoryStore:
     """Histórico de candles em disco: um Parquet e um manifesto por par e intervalo."""
+
     def __init__(self, folder: Path) -> None:
         self.folder = folder
 
@@ -148,6 +151,7 @@ class HistoryStore:
 @dataclass
 class DownloadStats:
     """Resultado de um download ou verificação: arquivos, linhas, período coberto e buracos."""
+
     symbol: str
     interval: str
     files_ok: int = 0
@@ -201,7 +205,9 @@ async def _fetch(
                 return None
             error = f"HTTP {status}"
             if status == STATUS_IP_BANNED:
-                raise HistoryDownloadError(f"Falha ao baixar {url}: IP bloqueado temporariamente (HTTP 418); não vou insistir")
+                raise HistoryDownloadError(
+                    f"Falha ao baixar {url}: IP bloqueado temporariamente (HTTP 418); não vou insistir"
+                )
             if status == STATUS_RATE_LIMITED:
                 wait = retry.retry_after(resp.headers)
                 log.warning("Limite de requisições ao baixar %s; aguardando %.0f s", name, wait)
@@ -257,7 +263,14 @@ async def download_history(
         clean, quality = clean_klines(read_zip_csv_raw(content), interval, outlier_sigmas=outlier_sigmas)
         if not quality.ok:
             stats.invalid_rows += quality.invalid_rows
-            log.warning("%s %s %s: %d linha(s) inválida(s) descartada(s): %s", symbol, interval, period.label, quality.invalid_rows, quality.summary())
+            log.warning(
+                "%s %s %s: %d linha(s) inválida(s) descartada(s): %s",
+                symbol,
+                interval,
+                period.label,
+                quality.invalid_rows,
+                quality.summary(),
+            )
         stats.files_ok += 1
         return [(period.label, clean)]
 
@@ -265,9 +278,11 @@ async def download_history(
     new = [item for part in results for item in part]
 
     frames = [store.load(symbol, interval), *(df for _, df in new)]
-    combined = normalize_klines(pd.concat([f for f in frames if not f.empty], ignore_index=True)) if any(
-        not f.empty for f in frames
-    ) else empty_klines()
+    combined = (
+        normalize_klines(pd.concat([f for f in frames if not f.empty], ignore_index=True))
+        if any(not f.empty for f in frames)
+        else empty_klines()
+    )
     store.save(symbol, interval, combined)
     store.write_manifest(symbol, interval, done | {label for label, _ in new})
     _fill_stats(stats, combined, interval, outlier_sigmas)
@@ -279,7 +294,10 @@ REST_PAGE = 1000  # máximo de candles por consulta aceito pela Binance
 
 class KlinesSource(Protocol):
     """Qualquer objeto com o método `klines` do cliente REST (permite usar um falso nos testes)."""
-    async def klines(self, symbol: str, interval: str, *, start_ms: int | None = ..., end_ms: int | None = ..., limit: int = ...) -> tuple[pd.DataFrame, object]: ...
+
+    async def klines(
+        self, symbol: str, interval: str, *, start_ms: int | None = ..., end_ms: int | None = ..., limit: int = ...
+    ) -> tuple[pd.DataFrame, object]: ...
 
 
 async def update_from_rest(
@@ -310,7 +328,13 @@ async def update_from_rest(
             frame = frame[frame["close_time"] < now]  # só candles já fechados
             frame, quality = clean_klines(frame, interval, now_ms=now)
             if not quality.ok:
-                log.warning("%s %s (REST): %d linha(s) inválida(s) descartada(s): %s", symbol, interval, quality.invalid_rows, quality.summary())
+                log.warning(
+                    "%s %s (REST): %d linha(s) inválida(s) descartada(s): %s",
+                    symbol,
+                    interval,
+                    quality.invalid_rows,
+                    quality.summary(),
+                )
             if frame.empty:
                 break
             new_frames.append(frame)
@@ -324,14 +348,18 @@ async def update_from_rest(
     return sum(len(f) for f in new_frames)
 
 
-def summarize(store: HistoryStore, symbol: str, interval: str, outlier_sigmas: float = DEFAULT_OUTLIER_SIGMAS) -> DownloadStats:
+def summarize(
+    store: HistoryStore, symbol: str, interval: str, outlier_sigmas: float = DEFAULT_OUTLIER_SIGMAS
+) -> DownloadStats:
     """Estatísticas e validação do histórico já gravado, sem baixar nada."""
     stats = DownloadStats(symbol, interval)
     _fill_stats(stats, store.load(symbol, interval), interval, outlier_sigmas)
     return stats
 
 
-def _fill_stats(stats: DownloadStats, df: pd.DataFrame, interval: str, outlier_sigmas: float = DEFAULT_OUTLIER_SIGMAS) -> None:
+def _fill_stats(
+    stats: DownloadStats, df: pd.DataFrame, interval: str, outlier_sigmas: float = DEFAULT_OUTLIER_SIGMAS
+) -> None:
     stats.rows_total = len(df)
     if not df.empty:
         stats.first_ms = int(df["open_time"].iloc[0])

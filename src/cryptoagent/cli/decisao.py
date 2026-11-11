@@ -31,8 +31,10 @@ def print_decision(res: LiveResult, cfg: Config) -> None:
     ratio = res.ratio
     tz = cfg.fuso.local
     tq = split_symbol(d.trade_symbol)[1]
+
     def tp(x: float) -> str:
         return num(x * ratio, 2) + f" {tq}"
+
     console.print()
     from cryptoagent.engine.decision import REGIME_PT as ENGINE_REGIME_PT
 
@@ -41,7 +43,9 @@ def print_decision(res: LiveResult, cfg: Config) -> None:
         f"regime {ENGINE_REGIME_PT.get(d.regime, d.regime)} ({cfg.estrategia.tf_setup})  |  {format_local(d.time_ms, tz)} (Brasília)"
     )
     if d.symbol != d.trade_symbol:
-        console.print(f"[dim]Sinais calculados no {d.symbol} (mais líquido); preços traduzidos para o {d.trade_symbol} pela cotação de agora.[/]")
+        console.print(
+            f"[dim]Sinais calculados no {d.symbol} (mais líquido); preços traduzidos para o {d.trade_symbol} pela cotação de agora.[/]"
+        )
     if d.position_note:
         console.print(f"[cyan]{escape(d.position_note)}[/]")
     if d.blocks:
@@ -49,7 +53,9 @@ def print_decision(res: LiveResult, cfg: Config) -> None:
         for b in d.blocks:
             console.print(f"  • {escape(b)}")
         if d.parts and d.action == "ESPERAR":
-            console.print("[dim]Abaixo, a leitura técnica do momento, só para referência: ela não vale como sinal enquanto houver trava.[/]")
+            console.print(
+                "[dim]Abaixo, a leitura técnica do momento, só para referência: ela não vale como sinal enquanto houver trava.[/]"
+            )
     if d.reasons_for:
         console.print("[bold green]A favor:[/]")
         for r in d.reasons_for[:5]:
@@ -68,14 +74,21 @@ def print_decision(res: LiveResult, cfg: Config) -> None:
         console.print(t)
     if d.levels:
         lv = d.levels
-        t = Table(title=f"Níveis sugeridos em {d.trade_symbol}" + ("" if d.action == "COMPRAR" else " (só referência: a decisão não é COMPRAR)"))
+        t = Table(
+            title=f"Níveis sugeridos em {d.trade_symbol}"
+            + ("" if d.action == "COMPRAR" else " (só referência: a decisão não é COMPRAR)")
+        )
         for col in ("Nível", "Preço", "Distância"):
             t.add_column(col)
         t.add_row("Entrada", tp(lv.entry), "")
         t.add_row("[red]Stop-loss (obrigatório)[/]", tp(lv.stop), pct((lv.stop / lv.entry - 1) * 100, 2, sign=True))
         t.add_row("Alvo 1", tp(lv.target1), pct(lv.target_distance_pct, 2, sign=True) + f" ({lv.target1_source})")
         t.add_row("Alvo 2", tp(lv.target2), pct((lv.target2 / lv.entry - 1) * 100, 2, sign=True))
-        t.add_row("Risco/retorno (já com taxas)", num(lv.rr, 2), f"ganho {pct(lv.reward_net_pct)} x risco {pct(lv.risk_net_pct)}")
+        t.add_row(
+            "Risco/retorno (já com taxas)",
+            num(lv.rr, 2),
+            f"ganho {pct(lv.reward_net_pct)} x risco {pct(lv.risk_net_pct)}",
+        )
         if lv.size_brl:
             eth_price_brl = lv.entry * ratio * (1 if tq == "BRL" else (res.account.fx_usdtbrl or float("nan")))
             loss_at_stop = lv.size_brl * lv.risk_net_pct / 100
@@ -88,7 +101,9 @@ def print_decision(res: LiveResult, cfg: Config) -> None:
     if d.invalidation and d.action != "VENDER":
         console.print("[bold]O que invalida a leitura:[/] " + "; ".join(d.invalidation))
     if d.action == "COMPRAR":
-        console.print("[bold yellow]Lembrete: coloque a ordem de STOP (ou OCO) na Binance logo após comprar. O agente não envia ordens.[/]")
+        console.print(
+            "[bold yellow]Lembrete: coloque a ordem de STOP (ou OCO) na Binance logo após comprar. O agente não envia ordens.[/]"
+        )
     if res.hour_note:
         console.print(f"[dim]Horário: {escape(res.hour_note)}[/]")
     if res.moment is not None and res.moment.stats:
@@ -99,7 +114,9 @@ def print_decision(res: LiveResult, cfg: Config) -> None:
     if res.champion:
         console.print(f"[dim]Estratégia campeã do aprendizado contínuo: {escape(res.champion)}[/]")
     ages = ", ".join(f"{k} {num(v, 1)}" for k, v in res.data_ages.items() if v >= 0)
-    console.print(f"[dim]Idade dos dados (s): {ages} | latência da análise {num(res.latency_ms, 0)} ms | {d.disclaimer}[/]")
+    console.print(
+        f"[dim]Idade dos dados (s): {ages} | latência da análise {num(res.latency_ms, 0)} ms | {d.disclaimer}[/]"
+    )
 
 
 async def cmd_analyze(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:
@@ -112,7 +129,13 @@ async def cmd_analyze(cfg: Config, secrets: Secrets, args: argparse.Namespace) -
         async with BinanceReadOnlyClient(cfg.binance, secrets) as client:
             res = await analyze_live(cfg, secrets, client, conn)
         signal_id = save_signal(
-            conn, res.decision, ratio=res.ratio, mode="ao_vivo", data_ages=res.data_ages, latency_ms=res.latency_ms, market_extras=res.market_extras
+            conn,
+            res.decision,
+            ratio=res.ratio,
+            mode="ao_vivo",
+            data_ages=res.data_ages,
+            latency_ms=res.latency_ms,
+            market_extras=res.market_extras,
         )
     finally:
         conn.close()
@@ -127,7 +150,9 @@ async def cmd_signals_list(cfg: Config, secrets: Secrets, args: argparse.Namespa
 
     conn = agent_db.connect(cfg.path(cfg.conta.banco))
     try:
-        rows = conn.execute("SELECT * FROM signals WHERE mode = 'ao_vivo' ORDER BY time_ms DESC LIMIT ?", (args.n,)).fetchall()
+        rows = conn.execute(
+            "SELECT * FROM signals WHERE mode = 'ao_vivo' ORDER BY time_ms DESC LIMIT ?", (args.n,)
+        ).fetchall()
         trades = conn.execute(
             "SELECT symbol, trade_id, time_ms, price, qty, signal_id, association FROM account_trades WHERE is_buyer = 1 ORDER BY time_ms DESC LIMIT 20"
         ).fetchall()
@@ -137,14 +162,31 @@ async def cmd_signals_list(cfg: Config, secrets: Secrets, args: argparse.Namespa
     for col in ("#", "Quando (Brasília)", "Par", "Decisão", "Confiança", "Preço", "Stop", "Alvo 1"):
         t.add_column(col)
     for r in rows:
-        t.add_row(str(r["id"]), format_local(r["time_ms"], cfg.fuso.local), r["trade_symbol"], r["action"], f"{num(r['confidence'], 0)}%", num(r["price"]), num(r["stop"]), num(r["target1"]))
+        t.add_row(
+            str(r["id"]),
+            format_local(r["time_ms"], cfg.fuso.local),
+            r["trade_symbol"],
+            r["action"],
+            f"{num(r['confidence'], 0)}%",
+            num(r["price"]),
+            num(r["stop"]),
+            num(r["target1"]),
+        )
     console.print(t)
     if trades:
         a = Table(title="Suas compras e o sinal associado (confirme ou corrija com: sinais associar)")
         for col in ("Par", "Operação", "Quando", "Preço", "Qtd", "Sinal", "Situação"):
             a.add_column(col)
         for r in trades:
-            a.add_row(r["symbol"], str(r["trade_id"]), format_local(r["time_ms"], cfg.fuso.local), num(r["price"]), f"{r['qty']:g}", f"#{r['signal_id']}" if r["signal_id"] else "-", r["association"])
+            a.add_row(
+                r["symbol"],
+                str(r["trade_id"]),
+                format_local(r["time_ms"], cfg.fuso.local),
+                num(r["price"]),
+                f"{r['qty']:g}",
+                f"#{r['signal_id']}" if r["signal_id"] else "-",
+                r["association"],
+            )
         console.print(a)
     return 0
 
@@ -159,5 +201,7 @@ async def cmd_signals_associate(cfg: Config, secrets: Secrets, args: argparse.Na
         set_association(conn, args.par.upper(), args.operacao, signal_id)
     finally:
         conn.close()
-    console.print(f"Compra {args.operacao} associada a {'nenhum sinal' if signal_id is None else f'sinal #{signal_id}'}.")
+    console.print(
+        f"Compra {args.operacao} associada a {'nenhum sinal' if signal_id is None else f'sinal #{signal_id}'}."
+    )
     return 0

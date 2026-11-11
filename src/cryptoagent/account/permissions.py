@@ -39,6 +39,7 @@ class ExcessivePermissions(Exception):
 @dataclass(frozen=True)
 class PermissionCheck:
     """Resultado da checagem das permissões da chave: pode ler, quais permissões indevidas estão ligadas e se há restrição por IP."""
+
     can_read: bool
     forbidden: list[str]  # permissões ligadas que não deveriam estar
     ip_restricted: bool

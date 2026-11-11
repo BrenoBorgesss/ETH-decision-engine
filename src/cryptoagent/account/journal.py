@@ -44,7 +44,9 @@ def remove_manual_trade(conn: sqlite3.Connection, trade_id: int) -> bool:
 
 def list_manual_trades(conn: sqlite3.Connection, symbol: str, since_ms: int = 0) -> list[sqlite3.Row]:
     """Registros do diário manual do par a partir de `since_ms`, em ordem de horário."""
-    return conn.execute("SELECT * FROM manual_trades WHERE symbol = ? AND time_ms >= ? ORDER BY time_ms, id", (symbol, since_ms)).fetchall()
+    return conn.execute(
+        "SELECT * FROM manual_trades WHERE symbol = ? AND time_ms >= ? ORDER BY time_ms, id", (symbol, since_ms)
+    ).fetchall()
 
 
 def manual_ledger_trades(conn: sqlite3.Connection, symbol: str) -> list[LedgerTrade]:

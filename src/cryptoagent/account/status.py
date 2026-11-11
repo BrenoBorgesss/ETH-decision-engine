@@ -39,6 +39,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class AccountStatus:
     """Foto da conta para a decisão: sessão do dia, saldos, taxas, resultado do dia, limites e os motivos de bloqueio e avisos."""
+
     mode: str
     verified: bool  # True = números conferidos pela Binance; False = diário manual
     reasons: list[str] = field(default_factory=list)  # motivos de bloqueio -> ESPERAR
@@ -69,6 +70,7 @@ class AccountStatus:
 
 class AccountMonitor:
     """Lê a conta (ou o diário manual) e monta o AccountStatus. Guarda em memória a última checagem de permissões."""
+
     def __init__(self, cfg: Config, secrets: Secrets, client: BinanceReadOnlyClient, conn: sqlite3.Connection) -> None:
         self.cfg = cfg
         self.secrets = secrets
@@ -95,7 +97,9 @@ class AccountMonitor:
         session = get_session(self.conn, today(cfg.fuso.local, cfg.fuso.inicio_dia_local, server_now))
         st.session = session
         if session is None:
-            st.reasons.append("Sessão do dia não respondida (capital e perda máxima de hoje). Rode: cryptoagent sessao iniciar")
+            st.reasons.append(
+                "Sessão do dia não respondida (capital e perda máxima de hoje). Rode: cryptoagent sessao iniciar"
+            )
             return st
         st.symbol = session.par_operacao
         _, st.quote_asset = split_symbol(st.symbol)
@@ -135,7 +139,9 @@ class AccountMonitor:
             st.warnings.append("Chave sem restrição de IP. Recomendado: restringir ao seu IP no site da Binance.")
         return ok
 
-    async def _market_prices(self, st: AccountStatus, session: DailySession, day_start_ms: int) -> tuple[bool, float | None]:
+    async def _market_prices(
+        self, st: AccountStatus, session: DailySession, day_start_ms: int
+    ) -> tuple[bool, float | None]:
         """Bid do par (para avaliar a posição), câmbio quando preciso e o preço do início do dia. (ok, preço das 00:00)."""
         try:
             bt = await self.client.get("/api/v3/ticker/bookTicker", {"symbol": st.symbol})
@@ -147,9 +153,13 @@ class AccountMonitor:
         except BinanceError as exc:
             st.reasons.append(f"Falha ao ler preços de mercado: {redact(exc)}")
             return False, None
-        return True, float(df["open"].iloc[0]) if not df.empty and int(df["open_time"].iloc[0]) == day_start_ms else None
+        return True, float(df["open"].iloc[0]) if not df.empty and int(
+            df["open_time"].iloc[0]
+        ) == day_start_ms else None
 
-    async def _trades(self, st: AccountStatus, use_binance: bool, server_now: int, day_start_ms: int) -> list[LedgerTrade] | None:
+    async def _trades(
+        self, st: AccountStatus, use_binance: bool, server_now: int, day_start_ms: int
+    ) -> list[LedgerTrade] | None:
         """Saldo, taxas e operações (da Binance ou do diário manual). None se não deu para ler (com motivo de bloqueio)."""
         cfg, symbol = self.cfg, st.symbol
         assert symbol is not None
@@ -159,17 +169,26 @@ class AccountMonitor:
                 st.balances, st.balances_ms = balances.value, balances.received_ms
                 age_s = (self.client.local_now_ms() - balances.received_ms) / 1000
                 if age_s > cfg.conta.saldo_max_s:
-                    st.reasons.append(f"Leitura do saldo velha demais ({age_s:.0f} s; limite {cfg.conta.saldo_max_s:g} s): ESPERAR.")
+                    st.reasons.append(
+                        f"Leitura do saldo velha demais ({age_s:.0f} s; limite {cfg.conta.saldo_max_s:g} s): ESPERAR."
+                    )
                     return None
                 try:
                     st.commission = (await fetch_commission(self.client, symbol)).value
                 except BinanceError as exc:
-                    st.commission = fallback_commission(symbol, cfg.custos.taxa_padrao_maker, cfg.custos.taxa_padrao_taker)
+                    st.commission = fallback_commission(
+                        symbol, cfg.custos.taxa_padrao_maker, cfg.custos.taxa_padrao_taker
+                    )
                     st.warnings.append(f"Não foi possível ler as taxas da conta ({redact(exc)}); usando as do config.")
                 start = ensure_ledger_start(self.conn, symbol, day_start_ms)
                 st.trades_synced = await sync_trades(
-                    self.client, self.conn, symbol, server_now_ms=server_now, start_ms=start,
-                    price_at=make_price_at(self.client), fallback_fee_rate=cfg.custos.taxa_padrao_taker,
+                    self.client,
+                    self.conn,
+                    symbol,
+                    server_now_ms=server_now,
+                    start_ms=start,
+                    price_at=make_price_at(self.client),
+                    fallback_fee_rate=cfg.custos.taxa_padrao_taker,
                 )
                 trades = load_account_trades(self.conn, symbol, start)
             except BinanceError as exc:
@@ -180,13 +199,22 @@ class AccountMonitor:
         else:
             return None  # modo binance sem chave/permissão: já há motivo de bloqueio
         has_bnb = bool(st.balances and st.balances.get("BNB") and st.balances["BNB"].total > 0)
-        st.exit_fee_rate = st.commission.effective("taker", has_bnb=has_bnb) if st.commission else cfg.custos.taxa_padrao_taker
+        st.exit_fee_rate = (
+            st.commission.effective("taker", has_bnb=has_bnb) if st.commission else cfg.custos.taxa_padrao_taker
+        )
         return trades
 
     def _to_brl(self, st: AccountStatus) -> float | None:
         return st.fx_usdtbrl if st.quote_asset == "USDT" else 1.0
 
-    def _day_result(self, st: AccountStatus, trades: list[LedgerTrade], day_start_ms: int, day_end_ms: int, day_start_price: float | None) -> bool:
+    def _day_result(
+        self,
+        st: AccountStatus,
+        trades: list[LedgerTrade],
+        day_start_ms: int,
+        day_end_ms: int,
+        day_start_price: float | None,
+    ) -> bool:
         """Resultado do dia e posição da operação pelo histórico (FIFO, com o teto de capital_operacao). False se faltou dado."""
         cfg = self.cfg
         to_brl = self._to_brl(st)
@@ -197,8 +225,14 @@ class AccountMonitor:
         cap_quote = cfg.capital_operacao.valor / to_brl if cfg.capital_operacao.modo == "brl" else None
         try:
             st.day = compute_day(
-                trades, day_start_ms=day_start_ms, day_end_ms=day_end_ms, exit_price=st.bid, exit_fee_rate=st.exit_fee_rate,
-                day_start_price=day_start_price, cap_base=cap_base, cap_quote=cap_quote,
+                trades,
+                day_start_ms=day_start_ms,
+                day_end_ms=day_end_ms,
+                exit_price=st.bid,
+                exit_fee_rate=st.exit_fee_rate,
+                day_start_price=day_start_price,
+                cap_base=cap_base,
+                cap_quote=cap_quote,
             )
         except MissingDayStartPrice as exc:
             st.reasons.append(f"Falta dado para o resultado do dia: {exc}")
@@ -221,7 +255,9 @@ class AccountMonitor:
             return False
         outside = held - st.day.open_qty
         if outside > tol:
-            st.warnings.append(f"{outside:.8f} {base} na conta estão fora da operação e são ignorados (não contam como posição).")
+            st.warnings.append(
+                f"{outside:.8f} {base} na conta estão fora da operação e são ignorados (não contam como posição)."
+            )
         return True
 
     def _capital_and_limits(self, st: AccountStatus, session: DailySession) -> None:
@@ -251,7 +287,11 @@ class AccountMonitor:
         st.effective_capital_brl = effective
 
         st.limits = evaluate_limits(
-            effective, session.max_loss_brl, st.pnl_brl, divisor=cfg.risco.divisor_perda_diaria, profit_extends=cfg.risco.lucro_amplia_limite
+            effective,
+            session.max_loss_brl,
+            st.pnl_brl,
+            divisor=cfg.risco.divisor_perda_diaria,
+            profit_extends=cfg.risco.lucro_amplia_limite,
         )
         if st.limits.blocked:
             st.reasons.append("PERDA MÁXIMA DO DIA ATINGIDA: só ESPERAR até o próximo dia (00:00 de Brasília).")
@@ -260,8 +300,12 @@ class AccountMonitor:
                 f"A perda máxima de hoje (R$ {session.max_loss_brl:,.2f}) passa de {cfg.risco.aviso_perda_max_pct_capital:g}% do capital."
             )
         if st.day.ignored_buy_qty > 1e-9:
-            st.warnings.append(f"{st.day.ignored_buy_qty:.6f} {base} comprados hoje passaram do teto da operação e foram ignorados.")
+            st.warnings.append(
+                f"{st.day.ignored_buy_qty:.6f} {base} comprados hoje passaram do teto da operação e foram ignorados."
+            )
         if st.day.ignored_sell_qty > 1e-9:
-            st.warnings.append(f"{st.day.ignored_sell_qty:.6f} {base} vendidos hoje eram de fora da operação e foram ignorados.")
+            st.warnings.append(
+                f"{st.day.ignored_sell_qty:.6f} {base} vendidos hoje eram de fora da operação e foram ignorados."
+            )
         if st.day.fees_estimated:
             st.warnings.append("Algumas taxas não puderam ser convertidas e foram estimadas pelo config.")

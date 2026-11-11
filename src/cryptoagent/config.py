@@ -35,6 +35,7 @@ class _Section(BaseModel):
 
 class Mercado(_Section):
     """Seção `mercado`: par de análise, pares onde se pode operar, câmbio e timeframes."""
+
     simbolo_analise: str = "ETHUSDT"
     pares_candidatos: list[str] = Field(default_factory=lambda: ["ETHUSDT", "ETHBRL"])
     par_operacao: str | None = None
@@ -70,6 +71,7 @@ class Mercado(_Section):
 
 class Fuso(_Section):
     """Seção `fuso`: fuso local e horário em que o dia de operação começa."""
+
     local: str = "America/Sao_Paulo"
     inicio_dia_local: str = "00:00"
 
@@ -91,6 +93,7 @@ class Fuso(_Section):
 
 class Binance(_Section):
     """Seção `binance`: endereços, tempo limite, tentativas e limite de peso da API."""
+
     rest_url: str = "https://api.binance.com"
     futures_url: str = "https://fapi.binance.com"
     ws_url: str = "wss://stream.binance.com:9443"
@@ -124,6 +127,7 @@ class Binance(_Section):
 
 class SaudeDados(_Section):
     """Seção `saude_dados`: idade máxima de cada dado antes de o sinal virar ESPERAR."""
+
     preco_max_s: float = Field(5, gt=0)
     order_book_max_s: float = Field(5, gt=0)
     candle_tolerancia_s: float = Field(30, ge=0)
@@ -134,6 +138,7 @@ class SaudeDados(_Section):
 
 class Historico(_Section):
     """Seção `historico`: pasta, meses e intervalos a baixar, e a política de download."""
+
     pasta: str = "data/history"
     meses: int = Field(13, ge=1, le=120)
     downloads_simultaneos: int = Field(4, ge=1, le=16)
@@ -145,9 +150,7 @@ class Historico(_Section):
     max_consultas_rest: int = Field(2000, ge=1)
     # Candle cujo retorno fica a mais de N desvios (robustos) da mediana é marcado como outlier.
     outlier_desvios: float = Field(30, gt=0)
-    intervalos: dict[str, list[str]] = Field(
-        default_factory=lambda: {"ETHUSDT": ["1m", "5m", "15m", "1h", "4h", "1d"]}
-    )
+    intervalos: dict[str, list[str]] = Field(default_factory=lambda: {"ETHUSDT": ["1m", "5m", "15m", "1h", "4h", "1d"]})
 
     @field_validator("intervalos")
     @classmethod
@@ -158,6 +161,7 @@ class Historico(_Section):
 
 class Custos(_Section):
     """Seção `custos`: coletor de spread e slippage, taxas padrão e spread máximo."""
+
     banco: str = "data/costs.sqlite"
     amostra_a_cada_s: float = Field(5, ge=1)
     snapshot_completo_a_cada_s: float = Field(300, ge=10)
@@ -177,12 +181,14 @@ class Custos(_Section):
 
 class CapitalOperacao(_Section):
     """Seção `capital_operacao`: teto tratado como posição da operação."""
+
     modo: Literal["brl", "eth"] = "brl"
     valor: float = Field(1000, gt=0)
 
 
 class Conta(_Section):
     """Seção `conta`: modo (Binance ou diário manual), banco local e frequência da checagem de permissões."""
+
     modo: Literal["binance", "diario_manual"] = "binance"
     banco: str = "data/agent.sqlite"
     verificar_permissoes_a_cada_min: float = Field(60, ge=1)
@@ -191,6 +197,7 @@ class Conta(_Section):
 
 class Risco(_Section):
     """Seção `risco`: divisão da perda diária por operação e regras do limite."""
+
     divisor_perda_diaria: float = Field(3, ge=1)
     lucro_amplia_limite: bool = False
     aviso_perda_max_pct_capital: float = Field(10, gt=0, le=100)
@@ -198,12 +205,14 @@ class Risco(_Section):
 
 class Bollinger(_Section):
     """Parâmetros das Bandas de Bollinger."""
+
     periodo: int = Field(20, ge=2)
     desvios: float = Field(2.0, gt=0)
 
 
 class Indicadores(_Section):
     """Seção `indicadores`: períodos e janelas dos indicadores técnicos."""
+
     ema: list[int] = Field(default_factory=lambda: [20, 50, 200])
     inclinacao_ema_barras: int = Field(5, ge=1)
     rsi: int = Field(14, ge=2)
@@ -236,6 +245,7 @@ class Indicadores(_Section):
 
 class Regime(_Section):
     """Seção `regime`: limites de ADX e de volatilidade que classificam o regime de mercado."""
+
     adx_tendencia: float = Field(25, gt=0, lt=100)
     adx_lateral: float = Field(20, gt=0, lt=100)
     atr_percentil_alta_vol: float = Field(90, gt=50, le=100)
@@ -249,6 +259,7 @@ class Regime(_Section):
 
 class Sazonalidade(_Section):
     """Seção `sazonalidade`: análise por horário, sua validação e os multiplicadores de confiança."""
+
     timeframe: str = "15m"
     meses_treino: int = Field(6, ge=1)
     meses_teste: int = Field(1, ge=1)
@@ -284,6 +295,7 @@ SIGNAL_NAMES = ("vwap", "bollinger", "rsi", "stoch_rsi", "divergencia", "pavio",
 
 class Estrategia(_Section):
     """Seção `estrategia`: timeframes, sinais ativos e pesos, travas, níveis e regras de saída."""
+
     tf_contexto: str = "4h"
     tf_confirmacao: str = "1h"
     tf_setup: str = "15m"
@@ -292,8 +304,15 @@ class Estrategia(_Section):
     sinais_ativos: list[str] = Field(default_factory=lambda: ["vwap", "bollinger", "rsi"])
     pesos: dict[str, float] = Field(
         default_factory=lambda: {
-            "vwap": 1.0, "bollinger": 1.0, "rsi": 1.0, "stoch_rsi": 0.5, "divergencia": 0.7,
-            "pavio": 0.5, "fluxo_taker": 0.7, "suporte": 0.7, "order_book": 0.5,
+            "vwap": 1.0,
+            "bollinger": 1.0,
+            "rsi": 1.0,
+            "stoch_rsi": 0.5,
+            "divergencia": 0.7,
+            "pavio": 0.5,
+            "fluxo_taker": 0.7,
+            "suporte": 0.7,
+            "order_book": 0.5,
         }
     )
     vwap_atr_inicio: float = 1.0
@@ -346,18 +365,25 @@ class Estrategia(_Section):
         missing = [s for s in self.sinais_ativos if s not in self.pesos]
         if missing:
             raise ValueError(f"faltam pesos para: {missing}")
-        if not (self.vwap_atr_maximo > self.vwap_atr_inicio and self.pctb_inicio > self.pctb_maximo and self.rsi_inicio > self.rsi_maximo):
+        if not (
+            self.vwap_atr_maximo > self.vwap_atr_inicio
+            and self.pctb_inicio > self.pctb_maximo
+            and self.rsi_inicio > self.rsi_maximo
+        ):
             raise ValueError("estrategia: as rampas precisam ir do início ao máximo na direção certa")
         return self
 
     @property
     def timeframes(self) -> list[str]:
         """Timeframes usados pela estratégia, sem repetição."""
-        return list(dict.fromkeys([self.tf_contexto, self.tf_confirmacao, self.tf_setup, self.tf_gatilho, self.tf_timing]))
+        return list(
+            dict.fromkeys([self.tf_contexto, self.tf_confirmacao, self.tf_setup, self.tf_gatilho, self.tf_timing])
+        )
 
 
 class Backtest(_Section):
     """Seção `backtest`: pares, capital, slippage, walk-forward e grade de parâmetros."""
+
     pares: list[str] = Field(default_factory=lambda: ["ETHUSDT", "ETHBRL"])
     capital: float = Field(1000, gt=0)
     perda_max_dia_pct: float = Field(3, gt=0, lt=100)
@@ -370,7 +396,11 @@ class Backtest(_Section):
     # Walk-forward: o mês de teste só opera se a melhor combinação do treino tiver média por operação ACIMA disto.
     expectativa_min_treino_pct: float = 0.0
     grade: dict[str, list[float]] = Field(
-        default_factory=lambda: {"distancia_alvo_min_custo": [1.5, 2.5], "stop_atr_5m": [0.5, 1.0], "tempo_max_min": [120, 240]}
+        default_factory=lambda: {
+            "distancia_alvo_min_custo": [1.5, 2.5],
+            "stop_atr_5m": [0.5, 1.0],
+            "tempo_max_min": [120, 240],
+        }
     )
     distancias_alternativas: list[float] = Field(default_factory=lambda: [1.5, 1.0])
     relatorio_pasta: str = "data/reports"
@@ -394,6 +424,7 @@ class Backtest(_Section):
 
 class Modelo(_Section):
     """Seção `modelo`: o desafiador (regressão logística) e a reprodutibilidade."""
+
     semente: int = 42  # semente fixa: o mesmo treino com os mesmos dados dá o mesmo modelo
     limiar_probabilidade: float = Field(0.5, gt=0, lt=1)  # compra só se a probabilidade prevista for >= isto
     regularizacao_c: float = Field(0.5, gt=0)  # C da regressão logística (menor = coeficientes mais contidos)
@@ -403,6 +434,7 @@ class Modelo(_Section):
 
 class Confiabilidade(_Section):
     """Seção `confiabilidade`: o que o backtest precisa mostrar para uma compra ser firme (senão, AGUARDAR)."""
+
     exigir_validacao: bool = True
     operacoes_min: int = Field(30, ge=1)  # operações fora da amostra no último backtest do par
     expectativa_min_pct: float = 0.0  # média por operação, depois dos custos, precisa ser MAIOR que isto
@@ -413,6 +445,7 @@ class Confiabilidade(_Section):
 
 class Aprendizado(_Section):
     """Seção `aprendizado`: ciclo de reavaliação, campeão x desafiantes, proteções e panoramas."""
+
     pasta: str = "data/learning"
     # quando reavaliar (no paper trading): na virada do dia local e/ou a cada N operações virtuais fechadas
     reavaliar_no_fim_do_dia: bool = True
@@ -424,26 +457,35 @@ class Aprendizado(_Section):
     operacoes_min: int = Field(30, ge=1)
     dias_min: int = Field(60, ge=1)
     melhoria_min_expectativa_pct: float = Field(0.05, ge=0)  # média por operação acima da do campeão em pelo menos isto
-    expectativa_min_pct: float = 0.0  # e a média por operação do desafiante precisa ser maior que isto (lucro depois dos custos)
+    expectativa_min_pct: float = (
+        0.0  # e a média por operação do desafiante precisa ser maior que isto (lucro depois dos custos)
+    )
     tolerancia_drawdown_pp: float = Field(0.0, ge=0)  # drawdown pode piorar no máximo isto (pontos percentuais)
     bloquear_promocao_com_drift: bool = True
     # proteções
     psi_alerta: float = Field(0.25, gt=0)  # índice de estabilidade (PSI) acima disto = mudança de regime nos dados
     dias_recentes_drift: int = Field(30, ge=7)
     casos_min_cenario: int = Field(30, ge=1)  # cenário com menos casos no histórico = inédito: confiança reduzida
-    fator_cenario_inedito: float = Field(0.7, gt=0, le=1)  # fator aplicado com zero casos (sobe até 1 ao chegar no mínimo)
+    fator_cenario_inedito: float = Field(
+        0.7, gt=0, le=1
+    )  # fator aplicado com zero casos (sobe até 1 ao chegar no mínimo)
 
 
 class Paper(_Section):
     """Seção `paper`: carteira virtual (em R$, separada da conta real), execução simulada, variantes e replay."""
+
     par: str = "ETHBRL"
     capital: float = Field(1000, gt=0)  # capital virtual inicial, em R$
     perda_max_dia_brl: float = Field(30, gt=0)  # perda máxima virtual por dia, em R$
     banco: str = "data/simulacao.sqlite"  # banco SÓ da simulação (nada da conta real)
     variantes: list[str] = Field(default_factory=lambda: ["padrao"])
     atraso_s: float = Field(5, ge=0, le=60)
-    atraso_execucao_s: float = Field(1, ge=0, le=30)  # entre decidir e a ordem virtual ser executada (preço relido depois disso)
-    filtros_arquivo: str = "exemplos/filtros_binance.json"  # limites de ordem salvos, usados sem internet (replay e demo)
+    atraso_execucao_s: float = Field(
+        1, ge=0, le=30
+    )  # entre decidir e a ordem virtual ser executada (preço relido depois disso)
+    filtros_arquivo: str = (
+        "exemplos/filtros_binance.json"  # limites de ordem salvos, usados sem internet (replay e demo)
+    )
     replay_pasta: str = "data/replay"
     horizonte_avaliacao_h: float = Field(12, gt=0)
     operacoes_min_conclusao: int = Field(30, ge=1)
@@ -456,18 +498,23 @@ class Paper(_Section):
     def _upper(cls, v: str) -> str:
         v = v.upper()
         if not v.endswith("BRL"):
-            raise ValueError(f"paper.par precisa ser cotado em reais (ex.: ETHBRL), para a carteira virtual ser em R$; recebido {v}")
+            raise ValueError(
+                f"paper.par precisa ser cotado em reais (ex.: ETHBRL), para a carteira virtual ser em R$; recebido {v}"
+            )
         return v
 
     @model_validator(mode="after")
     def _loss_below_capital(self) -> Paper:
         if self.perda_max_dia_brl >= self.capital:
-            raise ValueError(f"paper.perda_max_dia_brl (R$ {self.perda_max_dia_brl:g}) precisa ser menor que paper.capital (R$ {self.capital:g})")
+            raise ValueError(
+                f"paper.perda_max_dia_brl (R$ {self.perda_max_dia_brl:g}) precisa ser menor que paper.capital (R$ {self.capital:g})"
+            )
         return self
 
 
 class Painel(_Section):
     """Seção `painel`: porta, frequência da análise e tamanho dos buffers."""
+
     porta: int = Field(8765, ge=1024, le=65535)
     abrir_navegador: bool = True
     recalcular_ao_fechar: list[str] = Field(default_factory=lambda: ["5m"])
@@ -491,6 +538,7 @@ class Painel(_Section):
 
 class Alertas(_Section):
     """Seção `alertas`: canais de aviso ligados."""
+
     terminal: bool = True
     som: bool = True
     windows: bool = True
@@ -498,6 +546,7 @@ class Alertas(_Section):
 
 class Logs(_Section):
     """Seção `logs`: pasta, nível, formato e rotação do arquivo de log."""
+
     pasta: str = "logs"
     nivel: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     formato: Literal["texto", "json"] = "texto"
@@ -507,6 +556,7 @@ class Logs(_Section):
 
 class Config(_Section):
     """Configuração completa (config/config.yaml), com uma seção por atributo."""
+
     mercado: Mercado = Field(default_factory=Mercado)
     fuso: Fuso = Field(default_factory=Fuso)
     binance: Binance = Field(default_factory=Binance)
@@ -544,6 +594,7 @@ class Config(_Section):
 
 class Secrets(BaseModel):
     """Chaves lidas do ambiente, guardadas como SecretStr (não aparecem em print, repr nem log)."""
+
     model_config = ConfigDict(frozen=True)
 
     binance_api_key: SecretStr | None = None

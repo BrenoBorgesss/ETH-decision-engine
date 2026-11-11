@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class Variant:
     """Uma variante do paper trading: nome, configuração e carteira virtual."""
+
     name: str
     cfg: Config
     book: PaperBook
@@ -61,8 +62,11 @@ async def load_filters(cfg: Config, client: BinanceReadOnlyClient, say: Callable
         return SymbolFilters.from_exchange_info(resp.data, par)  # type: ignore[arg-type]
     except (BinanceError, ValueError, KeyError) as exc:
         saved = load_saved(cfg.path(cfg.paper.filtros_arquivo), par)
-        say(f"[aviso] regras de ordem da Binance indisponíveis ({redact(exc)}); usando as salvas em {cfg.paper.filtros_arquivo}"
-            if saved else f"[aviso] sem regras de tamanho de ordem para {par}: ordens virtuais não serão limitadas")
+        say(
+            f"[aviso] regras de ordem da Binance indisponíveis ({redact(exc)}); usando as salvas em {cfg.paper.filtros_arquivo}"
+            if saved
+            else f"[aviso] sem regras de tamanho de ordem para {par}: ordens virtuais não serão limitadas"
+        )
         return saved
 
 
@@ -70,7 +74,13 @@ def scenario(res: LiveResult, d: Decision, tz: str, setup_tf: str) -> dict:
     """Cenário de mercado no momento da decisão, para guardar junto com a operação virtual."""
     ctx = res.ctx
     local = ms_to_local(d.time_ms, tz)
-    out = {"regime": d.regime, "hora_local": local.hour, "dia_semana": local.weekday(), "spread_pct": None, "funding_pct": None}
+    out = {
+        "regime": d.regime,
+        "hora_local": local.hour,
+        "dia_semana": local.weekday(),
+        "spread_pct": None,
+        "funding_pct": None,
+    }
     if ctx is not None:
         m = ctx.market
         out.update(spread_pct=m.spread_pct, funding_pct=m.funding_rate, fator_horario=ctx.season.factor)
@@ -84,9 +94,18 @@ def scenario(res: LiveResult, d: Decision, tz: str, setup_tf: str) -> dict:
 
 
 async def run_paper(
-    cfg: Config, secrets: Secrets, *, fee: float, capital: float | None = None, max_loss_brl: float | None = None,
-    db_path: Path | None = None, client: BinanceReadOnlyClient | None = None, max_cycles: int | None = None,
-    until_ms: int | None = None, say: Callable[[str], None] = print, sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    cfg: Config,
+    secrets: Secrets,
+    *,
+    fee: float,
+    capital: float | None = None,
+    max_loss_brl: float | None = None,
+    db_path: Path | None = None,
+    client: BinanceReadOnlyClient | None = None,
+    max_cycles: int | None = None,
+    until_ms: int | None = None,
+    say: Callable[[str], None] = print,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     adjust: Callable[[Config], Config] | None = None,
     auto_learning: bool = False,
 ) -> None:
@@ -102,7 +121,9 @@ async def run_paper(
     capital = capital if capital is not None else pc.capital
     max_loss = max_loss_brl if max_loss_brl is not None else pc.perda_max_dia_brl
     if max_loss >= capital:
-        raise ValueError(f"a perda máxima do dia (R$ {max_loss:g}) precisa ser menor que o capital virtual (R$ {capital:g})")
+        raise ValueError(
+            f"a perda máxima do dia (R$ {max_loss:g}) precisa ser menor que o capital virtual (R$ {capital:g})"
+        )
     conn = sim_db.connect(db_path or cfg.path(pc.banco))
     costs = PaperCosts(fee, cfg.backtest.slippage_mercado_pct, cfg.backtest.slippage_stop_pct)
     own_client = client is None
@@ -112,15 +133,36 @@ async def run_paper(
         filters = await load_filters(cfg, client, say)
         start = client.server_now_ms()
         variants = [
-            Variant(name, vcfg, PaperBook(conn, name, pc.par, capital=capital, max_loss_brl=max_loss, divisor=cfg.risco.divisor_perda_diaria,
-                                          costs=costs, tz=cfg.fuso.local, day_start=cfg.fuso.inicio_dia_local, now_ms=start, filters=filters))
+            Variant(
+                name,
+                vcfg,
+                PaperBook(
+                    conn,
+                    name,
+                    pc.par,
+                    capital=capital,
+                    max_loss_brl=max_loss,
+                    divisor=cfg.risco.divisor_perda_diaria,
+                    costs=costs,
+                    tz=cfg.fuso.local,
+                    day_start=cfg.fuso.inicio_dia_local,
+                    now_ms=start,
+                    filters=filters,
+                ),
+            )
             for name, vcfg in ((n, adjust(c) if adjust else c) for n, c in load_variants(cfg, pc.variantes))
         ]
         for v in variants:
             if abs(v.book.initial_capital - capital) > 1e-9:
-                say(f"[aviso] [{v.name}] a carteira virtual já existe com capital inicial R$ {num(v.book.initial_capital)}; "
-                    f"o valor pedido (R$ {num(capital)}) só vale depois de: cryptoagent paper resetar")
-        lim = f"mínimo R$ {num(filters.min_notional)} por ordem, lote {filters.step:g}" if filters else "sem limites de ordem"
+                say(
+                    f"[aviso] [{v.name}] a carteira virtual já existe com capital inicial R$ {num(v.book.initial_capital)}; "
+                    f"o valor pedido (R$ {num(capital)}) só vale depois de: cryptoagent paper resetar"
+                )
+        lim = (
+            f"mínimo R$ {num(filters.min_notional)} por ordem, lote {filters.step:g}"
+            if filters
+            else "sem limites de ordem"
+        )
         say(
             f"Paper trading em {pc.par} com {len(variants)} variante(s): {', '.join(v.name for v in variants)}. Capital virtual R$ {num(capital)}; "
             f"perda máxima do dia R$ {num(max_loss)}; taxa {pct(fee * 100, 3)}/lado; atraso de execução {pc.atraso_execucao_s:g} s; {lim}. "
@@ -142,7 +184,9 @@ async def run_paper(
                 for v in variants:
                     await _cycle(v, cfg, secrets, client, conn, now, bid, ask, half, say, sleep)
             except BinanceError as exc:
-                say(f"[aviso] falha de dados neste ciclo ({redact(exc)}); nada foi decidido. Tenta de novo no próximo minuto.")
+                say(
+                    f"[aviso] falha de dados neste ciclo ({redact(exc)}); nada foi decidido. Tenta de novo no próximo minuto."
+                )
             cycles += 1
             if max_cycles is not None and cycles >= max_cycles:
                 break
@@ -161,7 +205,9 @@ async def run_paper(
 class _AutoLearning:
     """Dispara o ciclo de reavaliação (em outra thread) na virada do dia local e a cada N operações virtuais fechadas."""
 
-    def __init__(self, cfg: Config, conn: sqlite3.Connection, db_path: Path, fee: float, say: Callable[[str], None]) -> None:
+    def __init__(
+        self, cfg: Config, conn: sqlite3.Connection, db_path: Path, fee: float, say: Callable[[str], None]
+    ) -> None:
         self.cfg, self.conn, self.db_path, self.fee, self.say = cfg, conn, db_path, fee, say
         self.task: asyncio.Task | None = None
         self.last_day = self._meta("aprendizado_dia")
@@ -172,7 +218,10 @@ class _AutoLearning:
         return row[0] if row else None
 
     def _set(self, key: str, value: str) -> None:
-        self.conn.execute("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
+        self.conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
         self.conn.commit()
 
     def maybe_start(self, now: int) -> None:
@@ -183,7 +232,11 @@ class _AutoLearning:
             return
         a = self.cfg.aprendizado
         day = local_trading_day(now, self.cfg.fuso.local, self.cfg.fuso.inicio_dia_local).isoformat()
-        closed = int(self.conn.execute("SELECT COUNT(*) FROM paper_trades WHERE exit_ms IS NOT NULL AND variant = 'padrao'").fetchone()[0])
+        closed = int(
+            self.conn.execute(
+                "SELECT COUNT(*) FROM paper_trades WHERE exit_ms IS NOT NULL AND variant = 'padrao'"
+            ).fetchone()[0]
+        )
         trigger = None
         if self.last_day is None:
             self.last_day = day
@@ -206,20 +259,37 @@ class _AutoLearning:
 
         c, bt = self.cfg, self.cfg.backtest
         pair = c.paper.par
-        costs = build_schedule(pair, self.fee, c.sazonalidade.spread_padrao_pct.get(pair, 0.05), c.path(c.custos.banco), c.fuso.local,
-                               min_samples=bt.amostras_min_spread_hora, slip_market=bt.slippage_mercado_pct, slip_stop=bt.slippage_stop_pct,
-                               fee_source="paper trading")
+        costs = build_schedule(
+            pair,
+            self.fee,
+            c.sazonalidade.spread_padrao_pct.get(pair, 0.05),
+            c.path(c.custos.banco),
+            c.fuso.local,
+            min_samples=bt.amostras_min_spread_hora,
+            slip_market=bt.slippage_mercado_pct,
+            slip_stop=bt.slippage_stop_pct,
+            fee_source="paper trading",
+        )
         try:
             r = run_cycle(c, costs, trigger=trigger, sim_db=self.db_path, progress=lambda m: None)
         except Exception as exc:  # o paper continua rodando mesmo se a reavaliação falhar
             log.exception("Falha no ciclo de reavaliação")
             self.say(f"[aviso] reavaliação automática falhou: {redact(exc)}")
             return
-        self.say(f"Reavaliação {r.number} concluída: " + (f"campeão trocado para v{r.champion_after.id} ({r.champion_after.name})"
-                 if r.promoted else f"campeão mantido (v{r.champion_after.id})") + f". Relatório: {r.report_path}")
+        self.say(
+            f"Reavaliação {r.number} concluída: "
+            + (
+                f"campeão trocado para v{r.champion_after.id} ({r.champion_after.name})"
+                if r.promoted
+                else f"campeão mantido (v{r.champion_after.id})"
+            )
+            + f". Relatório: {r.report_path}"
+        )
 
 
-async def _fresh_quote(client: BinanceReadOnlyClient, symbol: str, sleep: Callable[[float], Awaitable[None]], delay_s: float) -> tuple[float, float, int]:
+async def _fresh_quote(
+    client: BinanceReadOnlyClient, symbol: str, sleep: Callable[[float], Awaitable[None]], delay_s: float
+) -> tuple[float, float, int]:
     """Espera o atraso de execução e relê o melhor preço. Devolve (bid, ask, instante da execução)."""
     if delay_s > 0:
         await sleep(delay_s)
@@ -228,8 +298,17 @@ async def _fresh_quote(client: BinanceReadOnlyClient, symbol: str, sleep: Callab
 
 
 async def _cycle(
-    v: Variant, cfg: Config, secrets: Secrets, client: BinanceReadOnlyClient, conn: sqlite3.Connection, now: int, bid: float, ask: float,
-    half: float, say: Callable[[str], None], sleep: Callable[[float], Awaitable[None]],
+    v: Variant,
+    cfg: Config,
+    secrets: Secrets,
+    client: BinanceReadOnlyClient,
+    conn: sqlite3.Connection,
+    now: int,
+    bid: float,
+    ask: float,
+    half: float,
+    say: Callable[[str], None],
+    sleep: Callable[[float], Awaitable[None]],
 ) -> tuple[LiveResult, int] | None:
     """Um minuto de uma variante: confere a OCO virtual e, se fechou um candle de gatilho, decide e executa.
 
@@ -243,7 +322,9 @@ async def _cycle(
         bars = bars[bars["close_time"] < now]
         reason = book.check_oco(bars, half)
         if reason:
-            say(f"{format_local(now, tz)} [{v.name}] OCO virtual executou: {reason} | patrimônio virtual R$ {num(book.equity)}")
+            say(
+                f"{format_local(now, tz)} [{v.name}] OCO virtual executou: {reason} | patrimônio virtual R$ {num(book.equity)}"
+            )
 
     # 2) decisão a cada fechamento do candle de gatilho desta variante
     tf = v.cfg.estrategia.tf_gatilho
@@ -254,7 +335,14 @@ async def _cycle(
     res = await analyze_live(v.cfg, secrets, client, conn, paper=view, use_champion=v.name == "padrao")
     d = res.decision
     sid = save_signal(
-        conn, d, ratio=res.ratio, mode="paper", data_ages=res.data_ages, latency_ms=res.latency_ms, variant=v.name, market_extras=res.market_extras
+        conn,
+        d,
+        ratio=res.ratio,
+        mode="paper",
+        data_ages=res.data_ages,
+        latency_ms=res.latency_ms,
+        variant=v.name,
+        market_extras=res.market_extras,
     )
     book.mark_decided(last_close)
     decision_mid = ((res.trade_bid or bid) + (res.trade_ask or ask)) / 2
@@ -272,9 +360,12 @@ async def _cycle(
             except (KeyError, IndexError, TypeError, ValueError) as exc:
                 log.warning("Variáveis do momento indisponíveis: %s", exc)
         record = EntryRecord(
-            decision_ms=d.time_ms, decision_price=decision_mid, signal_id=sid,
+            decision_ms=d.time_ms,
+            decision_price=decision_mid,
+            signal_id=sid,
             reason="; ".join(d.reasons_for[:4]) or (d.trigger.detail if d.trigger else ""),
-            features=features, scenario=scenario(res, d, tz, v.cfg.estrategia.tf_setup),
+            features=features,
+            scenario=scenario(res, d, tz, v.cfg.estrategia.tf_setup),
             bypassed=(d.strategy_gates if buy_for_study else {}) if study else None,
         )
         e_bid, e_ask, e_ms = await _fresh_quote(client, pc.par, sleep, pc.atraso_execucao_s)
@@ -289,8 +380,12 @@ async def _cycle(
             note = " -> estudo: mantém (entrou contra a tendência de propósito; stop virtual continua valendo)"
         else:
             x_bid, x_ask, x_ms = await _fresh_quote(client, pc.par, sleep, pc.atraso_execucao_s)
-            pnl = book.close_market(bid=x_bid, ask=x_ask, t_ms=x_ms, reason=d.exit_reason or "vender", decision_ms=d.time_ms)
+            pnl = book.close_market(
+                bid=x_bid, ask=x_ask, t_ms=x_ms, reason=d.exit_reason or "vender", decision_ms=d.time_ms
+            )
             note = f" -> venda virtual ({d.exit_reason}), resultado R$ {num(pnl)}"
     why = d.blocks[0] if d.blocks else (d.reasons_for[0] if d.reasons_for else "")
-    say(f"{format_local(now, tz)} [{v.name}] {d.action} {num(d.confidence, 0)}%{note} | sinal #{sid} | {why[:110]} | patrimônio virtual R$ {num(book.equity)}")
+    say(
+        f"{format_local(now, tz)} [{v.name}] {d.action} {num(d.confidence, 0)}%{note} | sinal #{sid} | {why[:110]} | patrimônio virtual R$ {num(book.equity)}"
+    )
     return res, sid

@@ -36,7 +36,11 @@ def ms(y, mo, d, h, mi=0):
 def run_replay(cfg, db, start, end):
     client = ReplayClient(cfg, start_ms=start, costs=COSTS)
     lines = []
-    asyncio.run(run_paper(cfg, Secrets(), fee=0.001, db_path=db, client=client, until_ms=end, say=lines.append, sleep=client.advance))
+    asyncio.run(
+        run_paper(
+            cfg, Secrets(), fee=0.001, db_path=db, client=client, until_ms=end, say=lines.append, sleep=client.advance
+        )
+    )
     return client, lines
 
 
@@ -53,7 +57,10 @@ def test_replay_roda_o_paper_sobre_o_historico_sem_rede_e_sem_a_conta(tmp_path):
     # 4 h = 48 candles de 5m: uma decisão por candle fechado
     assert n_signals == 48
     # as mesmas duas compras do replay do dia inteiro (10:15 stop, 10:45 alvo), no horário local
-    assert [(datetime.fromtimestamp(t[0] / 1000, SP).strftime("%H:%M"), t[2]) for t in trades] == [("10:15", "stop"), ("10:45", "alvo1")]
+    assert [(datetime.fromtimestamp(t[0] / 1000, SP).strftime("%H:%M"), t[2]) for t in trades] == [
+        ("10:15", "stop"),
+        ("10:45", "alvo1"),
+    ]
     assert all(t[1] - t[0] == 1000 for t in trades)  # executadas 1 s depois da decisão (atraso de execução)
     assert not (tmp_path / "conta_real_nao_pode_existir.sqlite").exists()
     assert {p: p.stat().st_mtime_ns for p in amostra} == antes  # o histórico não foi alterado
@@ -77,7 +84,11 @@ def test_cliente_de_replay_so_entrega_o_passado(tmp_path):
 
     async def go():
         df, _ = await client.klines("ETHBRL", "5m", limit=10)
-        assert len(df) == 10 and (df["close_time"] < t).all() and int(df["close_time"].iloc[-1]) == ms(2026, 9, 8, 10, 15) - 1
+        assert (
+            len(df) == 10
+            and (df["close_time"] < t).all()
+            and int(df["close_time"].iloc[-1]) == ms(2026, 9, 8, 10, 15) - 1
+        )
         one, _ = await client.klines("ETHBRL", "1m", limit=1000)
         assert int(one["open_time"].iloc[-1]) == ms(2026, 9, 8, 10, 14)  # o minuto em curso (10:15) não aparece
         bt = (await client.get("/api/v3/ticker/bookTicker", {"symbol": "ETHBRL"})).data
@@ -112,4 +123,15 @@ def test_perda_maxima_precisa_ser_menor_que_o_capital(tmp_path):
     cfg = demo_cfg(tmp_path)
     client = ReplayClient(cfg, start_ms=ms(2026, 9, 8, 10), costs=COSTS)
     with pytest.raises(ValueError):
-        asyncio.run(run_paper(cfg, Secrets(), fee=0.001, capital=100, max_loss_brl=100, db_path=tmp_path / "x.sqlite", client=client, max_cycles=1))
+        asyncio.run(
+            run_paper(
+                cfg,
+                Secrets(),
+                fee=0.001,
+                capital=100,
+                max_loss_brl=100,
+                db_path=tmp_path / "x.sqlite",
+                client=client,
+                max_cycles=1,
+            )
+        )

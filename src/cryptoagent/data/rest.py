@@ -79,6 +79,7 @@ ERROR_HINTS: dict[int, str] = {
 
 class BinanceError(Exception):
     """Erro numa consulta à Binance. A mensagem traz só o caminho do endpoint (nunca a URL assinada) e, quando há, uma dica em português."""
+
     def __init__(self, message: str, *, path: str, status: int | None = None, code: int | None = None) -> None:
         self.path = path
         self.status = status
@@ -103,6 +104,7 @@ class RateLimited(BinanceError):
 @dataclass(frozen=True)
 class ApiResponse:
     """Resposta de uma consulta: dados, caminho, horário de chegada, latência e peso usado no minuto."""
+
     data: object
     path: str
     received_ms: int
@@ -117,6 +119,7 @@ class ApiResponse:
 
 class BinanceReadOnlyClient:
     """Cliente REST da Binance que só faz GET em caminhos de leitura (ver a descrição do módulo)."""
+
     def __init__(
         self,
         cfg: BinanceCfg,
@@ -136,8 +139,11 @@ class BinanceReadOnlyClient:
         self._sleep = sleep
         self._clock = clock
         self._retry = RetryPolicy(
-            attempts=cfg.max_tentativas, base_s=cfg.espera_inicial_s, max_s=cfg.espera_max_s,
-            retry_after_default_s=cfg.espera_429_padrao_s, retry_after_max_s=cfg.espera_429_max_s,
+            attempts=cfg.max_tentativas,
+            base_s=cfg.espera_inicial_s,
+            max_s=cfg.espera_max_s,
+            retry_after_default_s=cfg.espera_429_padrao_s,
+            retry_after_max_s=cfg.espera_429_max_s,
         )
         self._used_weight = 0
         self._weight_minute = -1
@@ -204,11 +210,18 @@ class BinanceReadOnlyClient:
 
             code, msg = _parse_error(resp)
             if resp.status_code == STATUS_IP_BANNED:
-                raise RateLimited("A Binance bloqueou o IP temporariamente por excesso de requisições", path=path, status=STATUS_IP_BANNED, code=code)
+                raise RateLimited(
+                    "A Binance bloqueou o IP temporariamente por excesso de requisições",
+                    path=path,
+                    status=STATUS_IP_BANNED,
+                    code=code,
+                )
             if resp.status_code == STATUS_RATE_LIMITED:
                 wait = self._retry.retry_after(resp.headers)
                 log.warning("Limite de requisições atingido em %s; aguardando %.0f s", path, wait)
-                last_error = BinanceError("Limite de requisições atingido", path=path, status=STATUS_RATE_LIMITED, code=code)
+                last_error = BinanceError(
+                    "Limite de requisições atingido", path=path, status=STATUS_RATE_LIMITED, code=code
+                )
                 await self._sleep(wait)
                 continue
             if should_retry_status(resp.status_code):
@@ -249,7 +262,9 @@ class BinanceReadOnlyClient:
         threshold = self._cfg.limite_peso_por_minuto * self._cfg.pausar_acima_de_pct_peso / 100
         if self._used_weight + weight > threshold:
             wait = (60_000 - now % 60_000 + 500) / 1000
-            log.warning("Peso da API em %d/%d; pausando %.1f s", self._used_weight, self._cfg.limite_peso_por_minuto, wait)
+            log.warning(
+                "Peso da API em %d/%d; pausando %.1f s", self._used_weight, self._cfg.limite_peso_por_minuto, wait
+            )
             await self._sleep(wait)
             self._weight_minute = self._clock() // 60_000
             self._used_weight = 0
@@ -299,4 +314,3 @@ def _parse_error(resp: httpx.Response) -> tuple[int | None, str]:
         return int(body.get("code")), str(body.get("msg", ""))[:200]
     except Exception:
         return None, f"HTTP {resp.status_code}"
-

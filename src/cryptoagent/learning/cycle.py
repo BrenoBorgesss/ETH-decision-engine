@@ -53,6 +53,7 @@ DRIFT_FEATURES = [f for f in FEATURES if not f.startswith(("regime_", "hora_", "
 @dataclass
 class Entry:
     """Um candidato avaliado neste ciclo."""
+
     version: regmod.Version
     metrics: dict
     verdict: Verdict | None = None  # None para o campeão (é a referência)
@@ -62,6 +63,7 @@ class Entry:
 @dataclass
 class CycleResult:
     """Resultado de um ciclo de reavaliação."""
+
     number: int
     trigger: str
     until_ms: int
@@ -113,23 +115,50 @@ def simulation_rows(sim_db: Path | None, after_ms: int) -> tuple[pd.DataFrame, l
             continue
         f = json.loads(feats)
         s = json.loads(scen) if scen else {}
-        out.append({"t_ms": decision_ms, **{k: f.get(k) for k in FEATURES}, "pnl_pct": pnl, "motivo": "simulacao", "fim_ms": exit_ms,
-                    "rotulo": int(pnl > 0), "acao_regras": "COMPRAR", "confianca_regras": conf, "regime": regime, "hora_local": s.get("hora_local", 0)})
+        out.append(
+            {
+                "t_ms": decision_ms,
+                **{k: f.get(k) for k in FEATURES},
+                "pnl_pct": pnl,
+                "motivo": "simulacao",
+                "fim_ms": exit_ms,
+                "rotulo": int(pnl > 0),
+                "acao_regras": "COMPRAR",
+                "confianca_regras": conf,
+                "regime": regime,
+                "hora_local": s.get("hora_local", 0),
+            }
+        )
     return pd.DataFrame(out), pnls
 
 
 def _rules_metrics(c: Config, data: BacktestData, costs: CostSchedule, window: tuple[int, int], until_ms: int) -> dict:
     bt = c.backtest
-    r = simulate(data, c.estrategia, c.indicadores, costs, capital=bt.capital, loss_pct_day=bt.perda_max_dia_pct,
-                 divisor=c.risco.divisor_perda_diaria, spread_max_pct=c.custos.spread_max_pct, label="avaliação")
+    r = simulate(
+        data,
+        c.estrategia,
+        c.indicadores,
+        costs,
+        capital=bt.capital,
+        loss_pct_day=bt.perda_max_dia_pct,
+        divisor=c.risco.divisor_perda_diaria,
+        spread_max_pct=c.custos.spread_max_pct,
+        label="avaliação",
+    )
     a, b = window
     trades = [t for t in r.trades if a <= t.entry_ms < b and t.exit_ms < until_ms]
     return compute_metrics(trades, a, b, bt.capital, c.fuso.local)
 
 
 def run_cycle(
-    cfg: Config, costs: CostSchedule, *, until_ms: int | None = None, trigger: str = "manual", sim_db: Path | None = None,
-    clock_ms: int | None = None, progress: Callable[[str], None] = print,
+    cfg: Config,
+    costs: CostSchedule,
+    *,
+    until_ms: int | None = None,
+    trigger: str = "manual",
+    sim_db: Path | None = None,
+    clock_ms: int | None = None,
+    progress: Callable[[str], None] = print,
 ) -> CycleResult:
     """Roda um ciclo completo (ver a descrição do módulo) e grava registro, panorama e relatório."""
     a = cfg.aprendizado
@@ -179,9 +208,15 @@ def run_cycle(
             m = dict(model_report.challenger)
             m["auc_fora_da_amostra"] = model_report.auc_oos
             files = sorted((folder / "modelos").glob("modelo-ciclo*.json"))
-            note = f"AUC fora da amostra {model_report.auc_oos:.3f}" if model_report.auc_oos is not None else "sem previsões fora da amostra"
+            note = (
+                f"AUC fora da amostra {model_report.auc_oos:.3f}"
+                if model_report.auc_oos is not None
+                else "sem previsões fora da amostra"
+            )
             if len(dataset) and dataset["rotulo"].nunique() == 2:
-                fm = final_model(cfg, dataset[dataset["fim_ms"] < until], {"par": pair, "ciclo": number, "ate_ms": until})
+                fm = final_model(
+                    cfg, dataset[dataset["fim_ms"] < until], {"par": pair, "ciclo": number, "ate_ms": until}
+                )
                 path = folder / "modelos" / f"modelo-ciclo{number:03d}.json"
                 fm.save(path)
                 m["arquivo_modelo"] = path.name
@@ -218,18 +253,43 @@ def run_cycle(
             decision, reasons = "aprovado, mas outro desafiante foi melhor", e.verdict.passed
         else:
             decision, reasons = "rejeitado", e.verdict.failed if e.verdict else []
-        e.version.evaluations.append(regmod.Evaluation(number, now, until, window[0], window[1], e.metrics, params, dhash, decision, list(reasons)))
+        e.version.evaluations.append(
+            regmod.Evaluation(
+                number, now, until, window[0], window[1], e.metrics, params, dhash, decision, list(reasons)
+            )
+        )
         if e.version.state != "campeao" and e is not best:
             e.version.state = "rejeitado" if decision == "rejeitado" else "desafiante"
     if best is not None:
         reg.promote(best.version, now)
-    result = CycleResult(number, trigger, until, window[0], window[1], champion, reg.champion, entries, drift,
-                         len(sim_rows), len(dataset))
-    reg.cycles.append({
-        "ciclo": number, "gatilho": trigger, "em_ms": now, "ate_ms": until, "fora_da_amostra": list(window),
-        "campeao_antes": champion.id, "campeao_depois": reg.champion.id, "drift": drift.drift, "drift_resumo": drift.summary,
-        "exemplos_da_simulacao": len(sim_rows), "momentos": len(dataset),
-    })
+    result = CycleResult(
+        number,
+        trigger,
+        until,
+        window[0],
+        window[1],
+        champion,
+        reg.champion,
+        entries,
+        drift,
+        len(sim_rows),
+        len(dataset),
+    )
+    reg.cycles.append(
+        {
+            "ciclo": number,
+            "gatilho": trigger,
+            "em_ms": now,
+            "ate_ms": until,
+            "fora_da_amostra": list(window),
+            "campeao_antes": champion.id,
+            "campeao_depois": reg.champion.id,
+            "drift": drift.drift,
+            "drift_resumo": drift.summary,
+            "exemplos_da_simulacao": len(sim_rows),
+            "momentos": len(dataset),
+        }
+    )
     regmod.save(folder, reg)
 
     # ---- panorama e relatório
@@ -237,7 +297,9 @@ def run_cycle(
     pan["drift"] = {"alerta": drift.drift, "resumo": drift.summary, "itens": [i.__dict__ for i in drift.items]}
     pano.save(folder, pan)
     result.report_path = folder / "aprendizado.html"
-    pano.render_html(pan, cycle_html(result, cfg), result.report_path, generated=format_local(now, cfg.fuso.local, "%d/%m/%Y %H:%M"))
+    pano.render_html(
+        pan, cycle_html(result, cfg), result.report_path, generated=format_local(now, cfg.fuso.local, "%d/%m/%Y %H:%M")
+    )
     return result
 
 
@@ -259,11 +321,13 @@ def cycle_html(r: CycleResult, cfg: Config) -> str:
             f"<td>{pct(m.get('drawdown_max_pct'), 2)}</td><td>{pct(m.get('expectativa_pct'), 3, sign=True)}</td>"
             f"<td>{html.escape(verdict)}</td><td style='text-align:left;white-space:normal'>{html.escape(why)}{' | ' + html.escape(e.note) if e.note else ''}</td></tr>"
         )
-    drift = "".join(f"<li>{'⚠ ' if i.alert else ''}{html.escape(i.name)}: {html.escape(i.detail)}</li>" for i in r.drift.items)
+    drift = "".join(
+        f"<li>{'⚠ ' if i.alert else ''}{html.escape(i.name)}: {html.escape(i.detail)}</li>" for i in r.drift.items
+    )
     return (
-        head + "<div class='scroll'><table><tr><th>Versão</th><th>Operações</th><th>Retorno</th><th>Drawdown</th><th>Média por operação</th>"
+        head
+        + "<div class='scroll'><table><tr><th>Versão</th><th>Operações</th><th>Retorno</th><th>Drawdown</th><th>Média por operação</th>"
         "<th>Decisão</th><th>Critérios</th></tr>" + "".join(rows) + "</table></div>"
         f"<h2>Proteções: mudança de regime</h2><ul>{drift}</ul>"
         f"<p class='muted'>{'Mudança de regime detectada: nenhuma promoção neste ciclo e a confiança ao vivo é reduzida.' if r.drift.drift else 'Sem mudança de regime acima do limite.'}</p>"
     )
-

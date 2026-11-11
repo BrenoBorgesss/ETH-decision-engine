@@ -22,14 +22,23 @@ def cfg_with_report(tmp_path, metricas=None, *, same_params=True, age_days=1, pa
     cfg = load_config(ROOT / "config" / "config.yaml")
     cfg.backtest.relatorio_pasta = str(tmp_path)
     if metricas is not None:
-        (tmp_path / "backtest.json").write_text(json.dumps({pair: {"padrao": {"metricas": metricas}}}), encoding="utf-8")
+        (tmp_path / "backtest.json").write_text(
+            json.dumps({pair: {"padrao": {"metricas": metricas}}}), encoding="utf-8"
+        )
         h = params_hash(parameters(cfg)) if same_params else "outro"
-        (tmp_path / "backtest.meta.json").write_text(json.dumps({"parametros_sha256": h, "gerado_em_ms": NOW - age_days * DAY}), encoding="utf-8")
+        (tmp_path / "backtest.meta.json").write_text(
+            json.dumps({"parametros_sha256": h, "gerado_em_ms": NOW - age_days * DAY}), encoding="utf-8"
+        )
     return cfg
 
 
 BOM = {"operacoes": 45, "expectativa_pct": 0.21, "fator_lucro": 1.4, "expectativa_ic95_pct": [0.03, 0.39]}
-ATUAL = {"operacoes": 13, "expectativa_pct": -0.28, "fator_lucro": 0.36, "expectativa_ic95_pct": [-0.63, 0.07]}  # resultado real do ETHBRL
+ATUAL = {
+    "operacoes": 13,
+    "expectativa_pct": -0.28,
+    "fator_lucro": 0.36,
+    "expectativa_ic95_pct": [-0.63, 0.07],
+}  # resultado real do ETHBRL
 
 
 def test_estrategia_validada_libera_a_compra(tmp_path):
@@ -41,7 +50,9 @@ def test_resultado_atual_do_ethbrl_nao_passa_e_explica_cada_criterio(tmp_path):
     r = check_reliability(cfg_with_report(tmp_path, ATUAL), "ETHBRL", NOW)
     assert not r.ok and len(r.reasons) == 4
     assert r.block_reason.startswith(PREFIX)
-    assert "13 operações" in r.block_reason and "fator de lucro" in r.block_reason and "intervalo de 95%" in r.block_reason
+    assert (
+        "13 operações" in r.block_reason and "fator de lucro" in r.block_reason and "intervalo de 95%" in r.block_reason
+    )
 
 
 @pytest.mark.parametrize(
@@ -61,11 +72,17 @@ def test_cada_criterio_sozinho_reprova(tmp_path, mudanca, trecho):
 def test_sem_relatorio_parametros_trocados_ou_relatorio_velho_reprovam(tmp_path):
     assert "não há backtest" in check_reliability(cfg_with_report(tmp_path), "ETHBRL", NOW).reasons[0]
     (tmp_path / "b").mkdir()
-    assert "outros parâmetros" in check_reliability(cfg_with_report(tmp_path / "b", BOM, same_params=False), "ETHBRL", NOW).reasons[0]
+    assert (
+        "outros parâmetros"
+        in check_reliability(cfg_with_report(tmp_path / "b", BOM, same_params=False), "ETHBRL", NOW).reasons[0]
+    )
     (tmp_path / "c").mkdir()
     assert "dias" in check_reliability(cfg_with_report(tmp_path / "c", BOM, age_days=60), "ETHBRL", NOW).reasons[0]
     (tmp_path / "d").mkdir()
-    assert "não há backtest de ETHUSDT" in check_reliability(cfg_with_report(tmp_path / "d", BOM), "ETHUSDT", NOW).reasons[0]
+    assert (
+        "não há backtest de ETHUSDT"
+        in check_reliability(cfg_with_report(tmp_path / "d", BOM), "ETHUSDT", NOW).reasons[0]
+    )
 
 
 def test_criterio_desligavel(tmp_path):

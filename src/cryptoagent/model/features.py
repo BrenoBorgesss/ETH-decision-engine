@@ -100,7 +100,9 @@ def extract_features(ctx: DecisionContext, d: Decision, p: Estrategia, tz: str) 
         "confirmacao_di_saldo": _num(h1["plus_di"]) - _num(h1["minus_di"]),
         "contexto_ema50_slope": _num(h4["ema_50_slope"]),
         "contexto_ema50_vs_200_pct": (_num(h4["ema_50"]) / ema200 - 1) * 100 if ema200 else float("nan"),
-        "alvo_em_custos": lv.target_distance_pct / ctx.cost_pct if lv is not None and ctx.cost_pct > 0 else float("nan"),
+        "alvo_em_custos": lv.target_distance_pct / ctx.cost_pct
+        if lv is not None and ctx.cost_pct > 0
+        else float("nan"),
         "risco_retorno": lv.rr if lv is not None else float("nan"),
         "risco_pct": lv.risk_net_pct if lv is not None else float("nan"),
         "nota_sinais": d.parts[0].value if d.parts else float("nan"),

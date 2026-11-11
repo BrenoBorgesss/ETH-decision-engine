@@ -36,6 +36,7 @@ MIN_MS = 60_000
 @dataclass
 class PaperCosts:
     """Custos da carteira virtual: taxa por lado e slippage de mercado e de stop."""
+
     fee: float  # fração por lado
     slip_market_pct: float
     slip_stop_pct: float
@@ -44,6 +45,7 @@ class PaperCosts:
 @dataclass(frozen=True)
 class EntryRecord:
     """Tudo que se sabe no momento de uma compra virtual, para ficar registrado junto com ela."""
+
     decision_ms: int
     decision_price: float  # preço médio (bid/ask) quando o motor decidiu
     signal_id: int | None
@@ -62,8 +64,19 @@ class PaperBook:
     """Carteira virtual de uma variante, guardada no banco da simulação. Valores em R$."""
 
     def __init__(
-        self, conn: sqlite3.Connection, variant: str, symbol: str, *, capital: float, max_loss_brl: float, divisor: float,
-        costs: PaperCosts, tz: str, day_start: str, now_ms: int, filters: SymbolFilters | None = None,
+        self,
+        conn: sqlite3.Connection,
+        variant: str,
+        symbol: str,
+        *,
+        capital: float,
+        max_loss_brl: float,
+        divisor: float,
+        costs: PaperCosts,
+        tz: str,
+        day_start: str,
+        now_ms: int,
+        filters: SymbolFilters | None = None,
     ) -> None:
         self.conn, self.variant, self.symbol = conn, variant, symbol
         self.divisor, self.costs, self.tz, self.day_start, self.filters = divisor, costs, tz, day_start, filters
@@ -114,23 +127,32 @@ class PaperBook:
 
     def mark_decided(self, candle_close_ms: int) -> None:
         """Registra que o candle de gatilho com este fechamento já foi analisado."""
-        self.conn.execute("UPDATE paper_state SET last_decision_close_ms = ? WHERE variant = ?", (candle_close_ms, self.variant))
+        self.conn.execute(
+            "UPDATE paper_state SET last_decision_close_ms = ? WHERE variant = ?", (candle_close_ms, self.variant)
+        )
         self.conn.commit()
 
     def open_trade(self) -> sqlite3.Row | None:
         """Operação virtual aberta desta variante, ou None."""
-        return self.conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NULL ORDER BY id DESC LIMIT 1", (self.variant,)).fetchone()
+        return self.conn.execute(
+            "SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NULL ORDER BY id DESC LIMIT 1", (self.variant,)
+        ).fetchone()
 
     def log_event(self, t_ms: int, kind: str, detail: str, signal_id: int | None = None) -> None:
         """Registra um fato que não virou operação (ex.: ordem recusada)."""
-        self.conn.execute("INSERT INTO paper_events (time_ms, variant, kind, detail, signal_id) VALUES (?,?,?,?,?)", (t_ms, self.variant, kind, detail, signal_id))
+        self.conn.execute(
+            "INSERT INTO paper_events (time_ms, variant, kind, detail, signal_id) VALUES (?,?,?,?,?)",
+            (t_ms, self.variant, kind, detail, signal_id),
+        )
         self.conn.commit()
 
     def _roll_day(self, t_ms: int) -> sqlite3.Row:
         st = self._state()
         day = local_trading_day(t_ms, self.tz, self.day_start).isoformat()
         if st["day"] != day:
-            self.conn.execute("UPDATE paper_state SET day = ?, day_start_equity = equity WHERE variant = ?", (day, self.variant))
+            self.conn.execute(
+                "UPDATE paper_state SET day = ?, day_start_equity = equity WHERE variant = ?", (day, self.variant)
+            )
             self.conn.commit()
             st = self._state()
         return st
@@ -142,12 +164,19 @@ class PaperBook:
         st = self._roll_day(t_ms)
         start = trading_day_start_ms(date.fromisoformat(st["day"]), self.tz, self.day_start)
         realized = self.conn.execute(
-            "SELECT COALESCE(SUM(pnl), 0) FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL AND exit_ms >= ?", (self.variant, start),
+            "SELECT COALESCE(SUM(pnl), 0) FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL AND exit_ms >= ?",
+            (self.variant, start),
         ).fetchone()[0]
         unreal = 0.0
         pos = self.open_trade()
         if pos is not None and mark_mid:
-            unreal, _ = close_pnl(pos["qty"], pos["size"], pos["fee_in"], sell_fill(mark_mid, half_spread, self.costs.slip_market_pct), self.costs.fee)
+            unreal, _ = close_pnl(
+                pos["qty"],
+                pos["size"],
+                pos["fee_in"],
+                sell_fill(mark_mid, half_spread, self.costs.slip_market_pct),
+                self.costs.fee,
+            )
         return float(realized) + unreal
 
     def view(self, t_ms: int, mark_mid: float | None, half_spread: float) -> PaperView:
@@ -172,7 +201,9 @@ class PaperBook:
 
     # ---------------------------------------------------------------- operações
 
-    def open(self, d: Decision, *, ratio: float, bid: float, ask: float, t_ms: int, record: EntryRecord) -> tuple[int | None, str | None]:
+    def open(
+        self, d: Decision, *, ratio: float, bid: float, ask: float, t_ms: int, record: EntryRecord
+    ) -> tuple[int | None, str | None]:
         """Compra virtual a mercado com os níveis da decisão, ao preço (bid/ask) do momento da EXECUÇÃO `t_ms`.
 
         Devolve (id da operação, None) ou (None, motivo) quando não abre: sem níveis ou tamanho, posição já
@@ -196,12 +227,29 @@ class PaperBook:
             """INSERT INTO paper_trades (variant, symbol, signal_id, decision_ms, decision_price, entry_ms, entry_price, qty, size, fee_in,
                    stop, target1, target2, confidence, regime, entry_reason, features_json, scenario_json, equity_at_entry, checked_until_ms,
                    bypassed_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (self.variant, self.symbol, record.signal_id, record.decision_ms, record.decision_price, t_ms, fill, qty, size, size * self.costs.fee,
-             lv.stop * ratio, lv.target1 * ratio, lv.target2 * ratio, d.confidence, d.regime, record.reason,
-             json.dumps(record.features, ensure_ascii=False) if record.features is not None else None,
-             json.dumps(record.scenario, ensure_ascii=False) if record.scenario is not None else None,
-             self.equity, first_full_minute(t_ms),
-             json.dumps(record.bypassed, ensure_ascii=False) if record.bypassed is not None else None),
+            (
+                self.variant,
+                self.symbol,
+                record.signal_id,
+                record.decision_ms,
+                record.decision_price,
+                t_ms,
+                fill,
+                qty,
+                size,
+                size * self.costs.fee,
+                lv.stop * ratio,
+                lv.target1 * ratio,
+                lv.target2 * ratio,
+                d.confidence,
+                d.regime,
+                record.reason,
+                json.dumps(record.features, ensure_ascii=False) if record.features is not None else None,
+                json.dumps(record.scenario, ensure_ascii=False) if record.scenario is not None else None,
+                self.equity,
+                first_full_minute(t_ms),
+                json.dumps(record.bypassed, ensure_ascii=False) if record.bypassed is not None else None,
+            ),
         )
         self.conn.commit()
         return int(cur.lastrowid), None
@@ -214,8 +262,17 @@ class PaperBook:
         self.conn.execute(
             """UPDATE paper_trades SET exit_decision_ms = ?, exit_ms = ?, exit_price = ?, exit_reason = ?, pnl = ?, pnl_pct = ?, fees = ?,
                    ret_equity = ? WHERE id = ?""",
-            (decision_ms if decision_ms is not None else t_ms, t_ms, fill, reason, pnl, pnl / pos["size"] * 100, pos["fee_in"] + fee_out,
-             pnl / pos["equity_at_entry"], pos["id"]),
+            (
+                decision_ms if decision_ms is not None else t_ms,
+                t_ms,
+                fill,
+                reason,
+                pnl,
+                pnl / pos["size"] * 100,
+                pos["fee_in"] + fee_out,
+                pnl / pos["equity_at_entry"],
+                pos["id"],
+            ),
         )
         self.conn.execute("UPDATE paper_state SET equity = equity + ? WHERE variant = ?", (pnl, self.variant))
         self.conn.commit()
@@ -224,7 +281,9 @@ class PaperBook:
     def close_market(self, *, bid: float, ask: float, t_ms: int, reason: str, decision_ms: int | None = None) -> float:
         """Fecha a posição virtual a mercado, com meio spread e slippage. Devolve o resultado líquido em R$."""
         mid, half = (bid + ask) / 2, (ask - bid) / (ask + bid)
-        return self.close(fill=sell_fill(mid, half, self.costs.slip_market_pct), t_ms=t_ms, reason=reason, decision_ms=decision_ms)
+        return self.close(
+            fill=sell_fill(mid, half, self.costs.slip_market_pct), t_ms=t_ms, reason=reason, decision_ms=decision_ms
+        )
 
     def check_oco(self, bars_1m: pd.DataFrame, half_spread: float) -> str | None:
         """Confere a OCO virtual nos candles de 1m FECHADOS que começaram depois da última verificação. Devolve o motivo se fechou."""
@@ -235,19 +294,29 @@ class PaperBook:
         if bars.empty:
             return None
         hit = oco_check(
-            bars["open"].to_numpy(), bars["high"].to_numpy(), bars["low"].to_numpy(),
-            stop=pos["stop"], target=pos["target1"], half_spread=half_spread, slip_stop_pct=self.costs.slip_stop_pct,
+            bars["open"].to_numpy(),
+            bars["high"].to_numpy(),
+            bars["low"].to_numpy(),
+            stop=pos["stop"],
+            target=pos["target1"],
+            half_spread=half_spread,
+            slip_stop_pct=self.costs.slip_stop_pct,
         )
         if hit is not None:
             self.close(fill=hit.fill, t_ms=int(bars["close_time"].iloc[hit.index]) + 1, reason=hit.reason)
             return hit.reason
-        self.conn.execute("UPDATE paper_trades SET checked_until_ms = ? WHERE id = ?", (int(bars["close_time"].iloc[-1]) + 1, pos["id"]))
+        self.conn.execute(
+            "UPDATE paper_trades SET checked_until_ms = ? WHERE id = ?",
+            (int(bars["close_time"].iloc[-1]) + 1, pos["id"]),
+        )
         self.conn.commit()
         return None
 
     def closed_trades(self) -> list[sqlite3.Row]:
         """Operações virtuais fechadas desta variante, em ordem de entrada."""
-        return self.conn.execute("SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL ORDER BY entry_ms", (self.variant,)).fetchall()
+        return self.conn.execute(
+            "SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL ORDER BY entry_ms", (self.variant,)
+        ).fetchall()
 
 
 def to_backtest_trades(rows: list[sqlite3.Row]) -> list[Trade]:
@@ -255,7 +324,22 @@ def to_backtest_trades(rows: list[sqlite3.Row]) -> list[Trade]:
     from cryptoagent.backtest.simulator import Trade
 
     return [
-        Trade(r["entry_ms"], r["exit_ms"], r["entry_price"], r["exit_price"], r["qty"], r["size"], r["pnl"], r["pnl_pct"], r["ret_equity"],
-              r["exit_reason"], r["confidence"] or 0.0, r["regime"] or "", r["stop"] or np.nan, r["target1"] or np.nan, r["fees"] or 0.0)
+        Trade(
+            r["entry_ms"],
+            r["exit_ms"],
+            r["entry_price"],
+            r["exit_price"],
+            r["qty"],
+            r["size"],
+            r["pnl"],
+            r["pnl_pct"],
+            r["ret_equity"],
+            r["exit_reason"],
+            r["confidence"] or 0.0,
+            r["regime"] or "",
+            r["stop"] or np.nan,
+            r["target1"] or np.nan,
+            r["fees"] or 0.0,
+        )
         for r in rows
     ]

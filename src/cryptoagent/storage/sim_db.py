@@ -16,12 +16,15 @@ from pathlib import Path
 
 from cryptoagent.storage.agent_db import SIGNALS_TABLE
 
-SIM_SCHEMA = """
+SIM_SCHEMA = (
+    """
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
-""" + SIGNALS_TABLE + """
+"""
+    + SIGNALS_TABLE
+    + """
 CREATE TABLE IF NOT EXISTS paper_state (
     variant TEXT PRIMARY KEY,
     equity REAL NOT NULL,                -- patrimônio virtual atual (R$)
@@ -70,6 +73,7 @@ CREATE TABLE IF NOT EXISTS paper_events (
     signal_id INTEGER
 );
 """
+)
 
 
 def connect(path: Path) -> sqlite3.Connection:

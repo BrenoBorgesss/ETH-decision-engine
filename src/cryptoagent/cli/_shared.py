@@ -33,7 +33,9 @@ def _print_health(report: HealthReport) -> None:
         table.add_row(c.name, status, c.detail, c.source or "")
     console.print(table)
     if report.ok:
-        console.print("[bold green]Dados em ordem.[/] (Para a decisão completa: cryptoagent analisar ou cryptoagent painel.)")
+        console.print(
+            "[bold green]Dados em ordem.[/] (Para a decisão completa: cryptoagent analisar ou cryptoagent painel.)"
+        )
     else:
         console.print("[bold red]Há problemas nos dados: qualquer sinal agora seria ESPERAR.[/]")
         for p in report.problems:
@@ -60,6 +62,8 @@ async def _account_taker_fees(cfg: Config, secrets: Secrets, symbols: list[str])
                 note = "com desconto BNB" if info.bnb_discount_enabled and has_bnb else "sem desconto BNB"
                 out[sym] = (info.effective("taker", has_bnb=has_bnb), f"lida da sua conta ({note})")
     except BinanceError as exc:
-        console.print(f"[yellow]Não foi possível ler as taxas da conta ({escape(redact(exc))}); usando as do config.[/]")
+        console.print(
+            f"[yellow]Não foi possível ler as taxas da conta ({escape(redact(exc))}); usando as do config.[/]"
+        )
         return {}
     return out

@@ -71,9 +71,7 @@ def connect(path: Path) -> sqlite3.Connection:
 
 def insert_samples(conn: sqlite3.Connection, rows: Iterable[dict]) -> int:
     """Grava as amostras do livro. Devolve quantas foram gravadas."""
-    values = [
-        tuple(json.dumps(r[c]) if c == "slippage_json" else r.get(c) for c in _SAMPLE_COLUMNS) for r in rows
-    ]
+    values = [tuple(json.dumps(r[c]) if c == "slippage_json" else r.get(c) for c in _SAMPLE_COLUMNS) for r in rows]
     if values:
         placeholders = ",".join("?" * len(_SAMPLE_COLUMNS))
         conn.executemany(f"INSERT INTO book_samples ({','.join(_SAMPLE_COLUMNS)}) VALUES ({placeholders})", values)

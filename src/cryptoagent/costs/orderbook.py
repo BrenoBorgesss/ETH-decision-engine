@@ -15,6 +15,7 @@ Level = tuple[float, float]  # (preço, quantidade do ativo base)
 @dataclass(frozen=True)
 class FillEstimate:
     """Estimativa de uma ordem a mercado contra o livro: preço médio, quanto foi preenchido, slippage e se o livro tinha volume suficiente."""
+
     side: str  # "buy" | "sell"
     best_price: float
     avg_price: float | None

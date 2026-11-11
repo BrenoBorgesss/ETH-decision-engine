@@ -50,6 +50,7 @@ MIN_SET = {"vwap", "bollinger", "rsi"}
 @dataclass
 class Trade:
     """Uma operação simulada fechada, com preços, tamanho, resultado líquido e motivo de saída."""
+
     entry_ms: int
     exit_ms: int
     entry_price: float
@@ -70,6 +71,7 @@ class Trade:
 @dataclass
 class SimStats:
     """Contadores de uma simulação: barras de decisão, candidatos, compras e motivos de ESPERAR."""
+
     decision_bars: int = 0
     candidates: int = 0
     buys: int = 0
@@ -82,6 +84,7 @@ class SimStats:
 @dataclass
 class SimResult:
     """Resultado de uma simulação: operações, estatísticas, período e capital inicial."""
+
     label: str
     trades: list[Trade]
     stats: SimStats
@@ -198,12 +201,23 @@ def simulate(
         if e < 0 or not atr15[e] > 0:
             return []
         lv = support_resistance_arrays(
-            sw_h, sw_hp, sw_l, sw_lp, at_pos=e, atr_value=float(atr15[e]), tolerance_atr=ind.sr_tolerancia_atr,
-            lookback=ind.sr_janela_barras, max_levels=ind.sr_max_niveis,
+            sw_h,
+            sw_hp,
+            sw_l,
+            sw_lp,
+            at_pos=e,
+            atr_value=float(atr15[e]),
+            tolerance_atr=ind.sr_tolerancia_atr,
+            lookback=ind.sr_janela_barras,
+            max_levels=ind.sr_max_niveis,
         )
         ph, pl, pc = data.prev_day[e]
         if not np.isnan(ph):
-            lv += [Level(ph, 1, e, "dia_anterior_maxima"), Level(pl, 1, e, "dia_anterior_minima"), Level(pc, 1, e, "dia_anterior_fechamento")]
+            lv += [
+                Level(ph, 1, e, "dia_anterior_maxima"),
+                Level(pl, 1, e, "dia_anterior_minima"),
+                Level(pc, 1, e, "dia_anterior_fechamento"),
+            ]
         return lv
 
     def next_bar(t: int) -> int:
@@ -220,8 +234,23 @@ def simulate(
         assert pos is not None
         pnl, fee_out = close_pnl(pos.qty, pos.size, pos.fee_in, fill, costs.fee)
         trades.append(
-            Trade(pos.entry_ms, exit_ms, pos.entry_fill, fill, pos.qty, pos.size, pnl, pnl / pos.size * 100, pnl / pos.equity_at_entry,
-                  reason, pos.confidence, pos.regime, pos.stop_tr, pos.t1_tr, pos.fee_in + fee_out)
+            Trade(
+                pos.entry_ms,
+                exit_ms,
+                pos.entry_fill,
+                fill,
+                pos.qty,
+                pos.size,
+                pnl,
+                pnl / pos.size * 100,
+                pnl / pos.equity_at_entry,
+                reason,
+                pos.confidence,
+                pos.regime,
+                pos.stop_tr,
+                pos.t1_tr,
+                pos.fee_in + fee_out,
+            )
         )
         equity += pnl
         day_pnl += pnl
@@ -235,8 +264,13 @@ def simulate(
         if b <= a:
             return False
         hit = oco_check(
-            data.t_open[a:b], data.t_high[a:b], data.t_low[a:b], stop=pos.stop_tr, target=pos.t1_tr,
-            half_spread=costs.half_spread(_hour_of(a)), slip_stop_pct=costs.slip_stop_pct,
+            data.t_open[a:b],
+            data.t_high[a:b],
+            data.t_low[a:b],
+            stop=pos.stop_tr,
+            target=pos.t1_tr,
+            half_spread=costs.half_spread(_hour_of(a)),
+            slip_stop_pct=costs.slip_stop_pct,
         )
         if hit is None:
             return False
@@ -274,7 +308,9 @@ def simulate(
             frames, readers, price = frames_at(t)
             ratio = ratio_at(t)
             ctx = DecisionContext(
-                data.analysis, data.trade, ratio,
+                data.analysis,
+                data.trade,
+                ratio,
                 MarketView(t, price, frames, [], spread, **readers),
                 RiskView([], None, equity, daily_limit_reason=limit),
                 cost_pct,
@@ -308,7 +344,9 @@ def simulate(
         ratio = ratio_at(t)
         risk_trade = max_loss / divisor
         ctx = DecisionContext(
-            data.analysis, data.trade, ratio,
+            data.analysis,
+            data.trade,
+            ratio,
             MarketView(t, price, frames, levels_at(t), spread, **readers),
             RiskView([], risk_trade, equity),
             cost_pct,
@@ -334,9 +372,21 @@ def simulate(
         size = min(d.levels.size_brl, equity)
         lv = d.levels
         pos = _Pos(
-            entry_ms=int(data.t_open_time[k]), entry_fill=fill, qty=size / fill, size=size, fee_in=size * costs.fee,
-            stop_tr=lv.stop * ratio, t1_tr=lv.target1 * ratio, stop_an=lv.stop, t1_an=lv.target1, t2_an=lv.target2,
-            avg_an=fill / ratio, equity_at_entry=equity, confidence=d.confidence, regime=d.regime, checked_until=int(data.t_open_time[k]),
+            entry_ms=int(data.t_open_time[k]),
+            entry_fill=fill,
+            qty=size / fill,
+            size=size,
+            fee_in=size * costs.fee,
+            stop_tr=lv.stop * ratio,
+            t1_tr=lv.target1 * ratio,
+            stop_an=lv.stop,
+            t1_an=lv.target1,
+            t2_an=lv.target2,
+            avg_an=fill / ratio,
+            equity_at_entry=equity,
+            confidence=d.confidence,
+            regime=d.regime,
+            checked_until=int(data.t_open_time[k]),
         )
         stats.buys += 1
 

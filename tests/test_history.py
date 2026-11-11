@@ -28,7 +28,13 @@ BASE = "https://data.binance.vision"
 
 def csv_rows(start_ms, n, step=60_000, micro=False, header=False):
     mult = 1000 if micro else 1
-    lines = ["open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore"] if header else []
+    lines = (
+        [
+            "open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore"
+        ]
+        if header
+        else []
+    )
     for i in range(n):
         t = start_ms + i * step
         lines.append(f"{t * mult},100,101,99,100.5,10,{(t + step - 1) * mult},1000,5,6,600,0")
@@ -85,8 +91,15 @@ def test_plano_no_dia_1_nao_tem_diarios_e_vira_o_ano():
 
 
 def test_url():
-    assert Period("monthly", 2026, 9).url(BASE, "ETHBRL", "5m") == f"{BASE}/data/spot/monthly/klines/ETHBRL/5m/ETHBRL-5m-2026-09.zip"
-    assert Period("daily", 2026, 10, 3).url(BASE, "ETHUSDT", "1m").endswith("/daily/klines/ETHUSDT/1m/ETHUSDT-1m-2026-10-03.zip")
+    assert (
+        Period("monthly", 2026, 9).url(BASE, "ETHBRL", "5m")
+        == f"{BASE}/data/spot/monthly/klines/ETHBRL/5m/ETHBRL-5m-2026-09.zip"
+    )
+    assert (
+        Period("daily", 2026, 10, 3)
+        .url(BASE, "ETHUSDT", "1m")
+        .endswith("/daily/klines/ETHUSDT/1m/ETHUSDT-1m-2026-10-03.zip")
+    )
 
 
 def test_buracos():
@@ -107,7 +120,9 @@ class FakeVision:
     def handler(self, request):
         url = str(request.url)
         self.requests.append(url)
-        m = re.search(r"/(monthly|daily)/klines/(\w+)/(\w+)/\w+-\w+-(\d{4})-(\d{2})(?:-(\d{2}))?\.zip(\.CHECKSUM)?$", url)
+        m = re.search(
+            r"/(monthly|daily)/klines/(\w+)/(\w+)/\w+-\w+-(\d{4})-(\d{2})(?:-(\d{2}))?\.zip(\.CHECKSUM)?$", url
+        )
         kind, _, _, y, mo, d, is_checksum = m.groups()
         label = f"{y}-{mo}" + (f"-{d}" if d else "")
         if kind == "monthly" and label in self.missing_monthly:

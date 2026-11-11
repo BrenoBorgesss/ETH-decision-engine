@@ -40,7 +40,14 @@ async def cmd_status(cfg: Config, secrets: Secrets, args: argparse.Namespace) ->
                 continue
             bid, ask = float(r.data["bidPrice"]), float(r.data["askPrice"])  # type: ignore[index]
             spread = (ask - bid) / ((ask + bid) / 2) * 100
-            prices.add_row(sym, f"{bid:,.2f}", f"{ask:,.2f}", f"{spread:.4f}", f"{r.latency_ms:.0f}", format_local(r.received_ms, tz))
+            prices.add_row(
+                sym,
+                f"{bid:,.2f}",
+                f"{ask:,.2f}",
+                f"{spread:.4f}",
+                f"{r.latency_ms:.0f}",
+                format_local(r.received_ms, tz),
+            )
             report.add(check_age(f"preço {sym}", r.received_ms, now_ms(), sd.preco_max_s, r.source))
         console.print(prices)
 
@@ -59,11 +66,24 @@ async def cmd_status(cfg: Config, secrets: Secrets, args: argparse.Namespace) ->
             closed = df[df["close_time"] < server_now]
             last = closed.iloc[-1] if not closed.empty else None
             report.add(
-                check_candle(f"candles {tf}", int(last["close_time"]) if last is not None else None, tf, server_now, sd.candle_tolerancia_s, r.source)
+                check_candle(
+                    f"candles {tf}",
+                    int(last["close_time"]) if last is not None else None,
+                    tf,
+                    server_now,
+                    sd.candle_tolerancia_s,
+                    r.source,
+                )
             )
             if last is not None:
                 taker = last["taker_buy_base"] / last["volume"] * 100 if last["volume"] else 0
-                candles.add_row(tf, format_local(int(last["open_time"]), tz), f"{last['close']:,.2f}", f"{last['volume']:,.2f}", f"{taker:.0f}%")
+                candles.add_row(
+                    tf,
+                    format_local(int(last["open_time"]), tz),
+                    f"{last['close']:,.2f}",
+                    f"{last['volume']:,.2f}",
+                    f"{taker:.0f}%",
+                )
         console.print(candles)
 
         # Derivativos: só contexto. Se faltarem, é aviso (não bloqueia).
@@ -76,7 +96,9 @@ async def cmd_status(cfg: Config, secrets: Secrets, args: argparse.Namespace) ->
                 f"próximo funding {format_local(int(pi.data['nextFundingTime']), tz)} | "  # type: ignore[index]
                 f"open interest {float(oi.data['openInterest']):,.0f} ETH"  # type: ignore[index]
             )
-            report.add(check_age("derivativos", pi.received_ms, now_ms(), sd.derivativos_max_s, pi.source, critical=False))
+            report.add(
+                check_age("derivativos", pi.received_ms, now_ms(), sd.derivativos_max_s, pi.source, critical=False)
+            )
         except BinanceError as exc:
             report.add(Check("derivativos", False, redact(exc), critical=False))
 
@@ -142,7 +164,11 @@ async def cmd_live(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> i
                 try:
                     r = await client.get("/api/v3/ticker/price", {"symbol": sym})
                     ws_mid = (tickers[sym][0] + tickers[sym][1]) / 2 if sym in tickers else None
-                    rest_check[:] = [check_divergence("WebSocket x REST", ws_mid, float(r.data["price"]), sd.divergencia_ws_rest_max_pct)]  # type: ignore[index]
+                    rest_check[:] = [
+                        check_divergence(
+                            "WebSocket x REST", ws_mid, float(r.data["price"]), sd.divergencia_ws_rest_max_pct
+                        )
+                    ]  # type: ignore[index]
                 except BinanceError as exc:
                     rest_check[:] = [Check("WebSocket x REST", False, redact(exc))]
                 try:
@@ -153,7 +179,9 @@ async def cmd_live(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> i
         def render() -> Table:
             now = now_ms()
             report = HealthReport([check_clock(offset, sd.desvio_relogio_max_ms), *rest_check])
-            t = Table(title=f"{sym} ao vivo | {format_local(now, tz)} (Brasília) | WS {'conectado' if stream.connected else 'DESCONECTADO'} | reconexões {stream.reconnects}")
+            t = Table(
+                title=f"{sym} ao vivo | {format_local(now, tz)} (Brasília) | WS {'conectado' if stream.connected else 'DESCONECTADO'} | reconexões {stream.reconnects}"
+            )
             for col in ("Item", "Valor", "Idade / status"):
                 t.add_column(col)
             for s in monitored:
@@ -164,13 +192,23 @@ async def cmd_live(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> i
                 t.add_row(f"{s} bid/ask", value, ("[green]" if c.ok else "[red]") + c.detail + "[/]")
             for tf, buf in buffers.items():
                 last = buf.latest_closed()
-                c = check_candle(f"candle {tf}", int(last["close_time"]) if last else None, tf, now + offset, sd.candle_tolerancia_s)
+                c = check_candle(
+                    f"candle {tf}", int(last["close_time"]) if last else None, tf, now + offset, sd.candle_tolerancia_s
+                )
                 report.add(c)
                 cur = buf.latest()
-                t.add_row(f"candle {tf}", f"fech. {last['close']:,.2f} | atual {cur['close']:,.2f}" if last and cur else "-", ("[green]" if c.ok else "[red]") + c.detail + "[/]")
+                t.add_row(
+                    f"candle {tf}",
+                    f"fech. {last['close']:,.2f} | atual {cur['close']:,.2f}" if last and cur else "-",
+                    ("[green]" if c.ok else "[red]") + c.detail + "[/]",
+                )
             for c in rest_check:
                 t.add_row(c.name, "", ("[green]" if c.ok else "[red]") + c.detail + "[/]")
-            t.caption = "Dados OK" if report.ok else "PROBLEMA NOS DADOS -> qualquer sinal seria ESPERAR: " + "; ".join(report.problems)
+            t.caption = (
+                "Dados OK"
+                if report.ok
+                else "PROBLEMA NOS DADOS -> qualquer sinal seria ESPERAR: " + "; ".join(report.problems)
+            )
             return t
 
         tasks = [asyncio.create_task(stream.run(stop)), asyncio.create_task(divergence_loop())]

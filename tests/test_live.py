@@ -21,7 +21,9 @@ ROOT = Path(__file__).resolve().parents[1]
 def run_analysis(monkeypatch, when: datetime, *, paper: PaperView | None = None, latency_s: float = 0.0):
     clock = FakeClock(datetime_to_ms(when))
     cfg = load_config(ROOT / "config" / "config.yaml", ROOT / DEMO_RELATIVE)
-    cfg.aprendizado.pasta = str(ROOT / "tests" / "_sem_aprendizado")  # pasta inexistente: nenhum ciclo de aprendizado interfere
+    cfg.aprendizado.pasta = str(
+        ROOT / "tests" / "_sem_aprendizado"
+    )  # pasta inexistente: nenhum ciclo de aprendizado interfere
     server = FakeBinance(clock, latency_s=latency_s)
     paper = paper or PaperView("ETHBRL", fee=0.001, capital=1000.0, risk_per_trade=10.0)
 
@@ -29,7 +31,9 @@ def run_analysis(monkeypatch, when: datetime, *, paper: PaperView | None = None,
         async def no_sleep(_s):
             return None
 
-        async with BinanceReadOnlyClient(cfg.binance, Secrets(), transport=server.transport(), sleep=no_sleep, clock=clock) as client:
+        async with BinanceReadOnlyClient(
+            cfg.binance, Secrets(), transport=server.transport(), sleep=no_sleep, clock=clock
+        ) as client:
             return await analyze_live(cfg, Secrets(), client, sqlite3.connect(":memory:"), paper=paper)
 
     return asyncio.run(go()), server, cfg
@@ -67,7 +71,9 @@ def test_analise_ao_vivo_tem_o_resultado_esperado_neste_instante(monkeypatch):
         "preco": round(d.price, 4),
         "travas": sorted(d.strategy_gates),
         "sinais": {s.name: round(s.score, 6) for s in d.signals},
-        "niveis": [round(x, 4) for x in (d.levels.entry, d.levels.stop, d.levels.target1, d.levels.target2, d.levels.size_brl)],
+        "niveis": [
+            round(x, 4) for x in (d.levels.entry, d.levels.stop, d.levels.target1, d.levels.target2, d.levels.size_brl)
+        ],
         "verificacoes": [(c.name, c.ok) for c in res.health.checks],
     }
     assert foto == FOTO_ESPERADA
@@ -82,8 +88,16 @@ def test_candle_atrasado_vira_esperar(monkeypatch):
 
 def test_posicao_virtual_abaixo_do_stop_vira_vender(monkeypatch):
     posicao = PaperView(
-        "ETHBRL", fee=0.001, capital=1000.0, risk_per_trade=10.0, qty=0.05, entry_price=99_999.0,
-        opened_ms=datetime_to_ms(QUANDO) - 600_000, stop=99_000.0, target1=100_500.0, target2=101_000.0,
+        "ETHBRL",
+        fee=0.001,
+        capital=1000.0,
+        risk_per_trade=10.0,
+        qty=0.05,
+        entry_price=99_999.0,
+        opened_ms=datetime_to_ms(QUANDO) - 600_000,
+        stop=99_000.0,
+        target1=100_500.0,
+        target2=101_000.0,
     )
     res, _, _ = run_analysis(monkeypatch, QUANDO, paper=posicao)
     assert res.decision.action == "VENDER" and res.decision.exit_reason == "stop"
@@ -133,7 +147,8 @@ def test_cache_de_indicadores_reaproveita_so_quando_os_candles_sao_os_mesmos():
 
     mais_um = todos.iloc[1:601].reset_index(drop=True)  # chegou um candle novo: recalcula
     pd.testing.assert_frame_equal(
-        cache.compute(("ETHBRL", "1h"), mais_um, cfg.indicadores, cfg.regime, **kw), compute_indicators(mais_um, cfg.indicadores, cfg.regime, **kw)
+        cache.compute(("ETHBRL", "1h"), mais_um, cfg.indicadores, cfg.regime, **kw),
+        compute_indicators(mais_um, cfg.indicadores, cfg.regime, **kw),
     )
     alterado = df.copy()
     alterado.loc[300, "close"] += 0.01  # mesmo tamanho e mesmos horários, um valor diferente: recalcula
@@ -149,7 +164,10 @@ def test_segunda_analise_seguida_da_o_mesmo_resultado_usando_o_cache(monkeypatch
     assert live.INDICATOR_CACHE.misses == 5 and live.INDICATOR_CACHE.hits == 0
     segunda, _, _ = run_analysis(monkeypatch, QUANDO_COMPRA)
     assert live.INDICATOR_CACHE.hits == 5
-    assert (segunda.decision.action, segunda.decision.confidence) == (primeira.decision.action, primeira.decision.confidence)
+    assert (segunda.decision.action, segunda.decision.confidence) == (
+        primeira.decision.action,
+        primeira.decision.confidence,
+    )
     assert segunda.decision.levels == primeira.decision.levels
 
 

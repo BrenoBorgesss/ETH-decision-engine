@@ -25,6 +25,7 @@ REQUIRED = {  # por papel do timeframe na estratégia
 @dataclass
 class BacktestData:
     """Tudo que a simulação precisa, preparado uma vez: candles com indicadores do par de análise, candles de 1m do par de operação e tabelas auxiliares."""
+
     analysis: str
     trade: str
     frames: dict[str, pd.DataFrame]  # par de análise, com indicadores (o 1m fica sem indicadores)
@@ -75,7 +76,9 @@ def _require_valid(df: pd.DataFrame, symbol: str, tf: str) -> None:
     """Recusa histórico com candle inválido: o resultado do backtest não seria confiável."""
     quality = inspect_klines(df, tf)
     if not quality.ok or quality.duplicates or quality.out_of_order:
-        raise ValueError(f"histórico de {symbol} {tf} com problema ({quality.summary()}): rode cryptoagent historico verificar")
+        raise ValueError(
+            f"histórico de {symbol} {tf} com problema ({quality.summary()}): rode cryptoagent historico verificar"
+        )
 
 
 def load_backtest_data(cfg: Config, trade_symbol: str, *, season_cost_pct: float | None = None) -> BacktestData:
@@ -89,7 +92,11 @@ def load_backtest_data(cfg: Config, trade_symbol: str, *, season_cost_pct: float
         if raw.empty:
             raise FileNotFoundError(f"sem histórico de {sym} {tf}: rode cryptoagent historico baixar")
         _require_valid(raw, sym, tf)
-        frames[tf] = raw if tf == p.tf_timing else compute_indicators(raw, cfg.indicadores, cfg.regime, tz_name=tz, day_start=day_start)
+        frames[tf] = (
+            raw
+            if tf == p.tf_timing
+            else compute_indicators(raw, cfg.indicadores, cfg.regime, tz_name=tz, day_start=day_start)
+        )
     close_times = {tf: f["close_time"].to_numpy() for tf, f in frames.items()}
 
     trade_1m = store.load(trade_symbol, "1m")

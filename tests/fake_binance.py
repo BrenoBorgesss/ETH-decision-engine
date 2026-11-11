@@ -33,7 +33,9 @@ class FakeClock:
 class FakeBinance:
     """Servidor falso. `latency_s` simula a demora de rede de cada consulta."""
 
-    def __init__(self, clock: FakeClock, symbol: str = "ETHBRL", latency_s: float = 0.0, account: dict | None = None) -> None:
+    def __init__(
+        self, clock: FakeClock, symbol: str = "ETHBRL", latency_s: float = 0.0, account: dict | None = None
+    ) -> None:
         self.clock = clock
         self.symbol = symbol
         self.latency_s = latency_s
@@ -67,24 +69,61 @@ class FakeBinance:
                 df = df[df["open_time"] >= int(q["startTime"])].head(int(q.get("limit", 500)))
             else:
                 df = df.tail(int(q.get("limit", 500)))
-            rows = [[int(r[0]), *(f"{x:.8f}" for x in r[1:6]), int(r[6]), f"{r[7]:.8f}", int(r[8]), f"{r[9]:.8f}", f"{r[10]:.8f}", "0"] for r in df[KLINE_COLUMNS].itertuples(index=False)]
+            rows = [
+                [
+                    int(r[0]),
+                    *(f"{x:.8f}" for x in r[1:6]),
+                    int(r[6]),
+                    f"{r[7]:.8f}",
+                    int(r[8]),
+                    f"{r[9]:.8f}",
+                    f"{r[10]:.8f}",
+                    "0",
+                ]
+                for r in df[KLINE_COLUMNS].itertuples(index=False)
+            ]
             return httpx.Response(200, json=rows)
         if url.path == "/sapi/v1/account/apiRestrictions" and self.account is not None:
-            return httpx.Response(200, json={"ipRestrict": True, "enableReading": True, "enableWithdrawals": False, "enableSpotAndMarginTrading": False})
+            return httpx.Response(
+                200,
+                json={
+                    "ipRestrict": True,
+                    "enableReading": True,
+                    "enableWithdrawals": False,
+                    "enableSpotAndMarginTrading": False,
+                },
+            )
         if url.path == "/api/v3/account" and self.account is not None:
             return httpx.Response(200, json={"balances": self.account.get("balances", [])})
         if url.path == "/api/v3/account/commission" and self.account is not None:
-            return httpx.Response(200, json={"standardCommission": {"maker": "0.001", "taker": "0.001"}, "discount": {"enabledAccount": False}})
+            return httpx.Response(
+                200,
+                json={
+                    "standardCommission": {"maker": "0.001", "taker": "0.001"},
+                    "discount": {"enabledAccount": False},
+                },
+            )
         if url.path == "/api/v3/myTrades" and self.account is not None:
             a, b = int(q.get("startTime", 0)), int(q.get("endTime", 10**15))
             return httpx.Response(200, json=[t for t in self.account.get("trades", []) if a <= t["time"] <= b])
         price = self.last_price()
         if url.path == "/api/v3/ticker/bookTicker":
-            return httpx.Response(200, json={"symbol": q["symbol"], "bidPrice": f"{price * 0.9999:.2f}", "bidQty": "1.5", "askPrice": f"{price * 1.0001:.2f}", "askQty": "1.2"})
+            return httpx.Response(
+                200,
+                json={
+                    "symbol": q["symbol"],
+                    "bidPrice": f"{price * 0.9999:.2f}",
+                    "bidQty": "1.5",
+                    "askPrice": f"{price * 1.0001:.2f}",
+                    "askQty": "1.2",
+                },
+            )
         if url.path == "/api/v3/depth":
             bids = [[f"{price * (0.9999 - i * 0.0001):.2f}", "1.00000000"] for i in range(20)]
             asks = [[f"{price * (1.0001 + i * 0.0001):.2f}", "0.80000000"] for i in range(20)]
             return httpx.Response(200, json={"lastUpdateId": 1, "bids": bids, "asks": asks})
         if url.path == "/fapi/v1/premiumIndex":
-            return httpx.Response(200, json={"symbol": q["symbol"], "lastFundingRate": "0.00010000", "nextFundingTime": now + 3_600_000})
+            return httpx.Response(
+                200, json={"symbol": q["symbol"], "lastFundingRate": "0.00010000", "nextFundingTime": now + 3_600_000}
+            )
         return httpx.Response(404, json={"code": -1, "msg": "rota não simulada"})

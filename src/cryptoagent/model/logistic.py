@@ -23,6 +23,7 @@ MODEL_FILE_VERSION = 1
 @dataclass
 class LogisticModel:
     """Um modelo treinado, pronto para prever e para ser salvo."""
+
     features: list[str]
     mean: list[float]  # média de cada variável no treino (também usada para preencher valores ausentes)
     scale: list[float]  # desvio de cada variável no treino
@@ -56,7 +57,9 @@ class LogisticModel:
         """Grava o modelo em JSON (troca atômica)."""
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.to_dict(), ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        tmp.write_text(
+            json.dumps(self.to_dict(), ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8"
+        )
         tmp.replace(path)
 
     @classmethod
@@ -69,7 +72,12 @@ class LogisticModel:
 
 
 def train(
-    df: pd.DataFrame, features: list[str] | tuple[str, ...], *, seed: int, regularization_c: float, info: dict | None = None
+    df: pd.DataFrame,
+    features: list[str] | tuple[str, ...],
+    *,
+    seed: int,
+    regularization_c: float,
+    info: dict | None = None,
 ) -> LogisticModel:
     """Treina a regressão logística nas linhas de `df` (colunas `features` e `rotulo`, mais `t_ms` e `fim_ms`)."""
     from sklearn.linear_model import LogisticRegression

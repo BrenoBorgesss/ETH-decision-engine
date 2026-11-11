@@ -24,7 +24,9 @@ def conn(tmp_path):
 
 
 def book(conn, **kw):
-    base = dict(capital=1000, max_loss_brl=30, divisor=3, costs=COSTS, tz="America/Sao_Paulo", day_start="00:00", now_ms=T)
+    base = dict(
+        capital=1000, max_loss_brl=30, divisor=3, costs=COSTS, tz="America/Sao_Paulo", day_start="00:00", now_ms=T
+    )
     base.update(kw)
     return PaperBook(conn, "padrao", "ETHBRL", **base)
 
@@ -53,10 +55,14 @@ def test_execucao_compartilhada():
     pnl, fee_out = close_pnl(1.0, 100.0, 0.1, 102.0, 0.001)
     assert fee_out == pytest.approx(0.102) and pnl == pytest.approx(102 - 0.102 - 100 - 0.1)
     # stop e alvo no mesmo candle: pior caso (stop)
-    hit = oco_check(np.array([100.0]), np.array([103.0]), np.array([98.0]), stop=99, target=102, half_spread=0, slip_stop_pct=0)
+    hit = oco_check(
+        np.array([100.0]), np.array([103.0]), np.array([98.0]), stop=99, target=102, half_spread=0, slip_stop_pct=0
+    )
     assert hit.reason == "stop" and hit.fill == 99
     # abriu abaixo do stop (gap): executa na abertura
-    hit = oco_check(np.array([97.0]), np.array([97.5]), np.array([96.0]), stop=99, target=102, half_spread=0, slip_stop_pct=0)
+    hit = oco_check(
+        np.array([97.0]), np.array([97.5]), np.array([96.0]), stop=99, target=102, half_spread=0, slip_stop_pct=0
+    )
     assert hit.fill == 97
 
 
@@ -64,7 +70,9 @@ def test_compra_e_alvo_virtual(conn):
     b = book(conn)
     tid, why = b.open(buy_decision(), ratio=1.0, bid=99.9, ask=100.1, t_ms=T, record=rec(7))
     assert tid and why is None and b.open_trade()["signal_id"] == 7
-    assert b.open(buy_decision(), ratio=1.0, bid=99.9, ask=100.1, t_ms=T, record=rec(8))[0] is None  # uma posição por vez
+    assert (
+        b.open(buy_decision(), ratio=1.0, bid=99.9, ask=100.1, t_ms=T, record=rec(8))[0] is None
+    )  # uma posição por vez
     assert b.check_oco(bars([(100.2, 101.0, 99.5, 100.8)]), 0.001) is None
     assert b.check_oco(bars([(100.2, 101.0, 99.5, 100.8), (101.0, 102.5, 100.9, 102.2)]), 0.001) == "alvo1"
     closed = b.closed_trades()[0]
@@ -91,9 +99,33 @@ def test_niveis_traduzidos_para_o_par_de_operacao(conn):
 def test_avaliacao_dos_sinais_contra_o_mercado():
     sig = pd.DataFrame(
         [
-            {"id": 1, "time_ms": T, "action": "COMPRAR", "confidence": 70.0, "entry": 100.0, "stop": 99.0, "target1": 102.0},
-            {"id": 2, "time_ms": T, "action": "ESPERAR", "confidence": 30.0, "entry": 100.0, "stop": 99.5, "target1": 103.0},
-            {"id": 3, "time_ms": T, "action": "ESPERAR", "confidence": 20.0, "entry": None, "stop": None, "target1": None},
+            {
+                "id": 1,
+                "time_ms": T,
+                "action": "COMPRAR",
+                "confidence": 70.0,
+                "entry": 100.0,
+                "stop": 99.0,
+                "target1": 102.0,
+            },
+            {
+                "id": 2,
+                "time_ms": T,
+                "action": "ESPERAR",
+                "confidence": 30.0,
+                "entry": 100.0,
+                "stop": 99.5,
+                "target1": 103.0,
+            },
+            {
+                "id": 3,
+                "time_ms": T,
+                "action": "ESPERAR",
+                "confidence": 20.0,
+                "entry": None,
+                "stop": None,
+                "target1": None,
+            },
         ]
     )
     b = bars([(100, 101, 99.6, 100.5), (100.5, 102.3, 100.4, 102.0), (102, 102.1, 99.0, 99.2)])
@@ -108,13 +140,33 @@ def test_alvo_que_nao_paga_o_custo_nao_conta_como_acerto():
     from cryptoagent.paper.report import signal_cost_pct
 
     # alvo a 0,05% e custo de 0,2%: tocar no alvo = prejuízo
-    sig = pd.DataFrame([
-        {"id": 1, "time_ms": T, "action": "ESPERAR", "confidence": 20.0, "entry": 100.0, "stop": 99.0, "target1": 100.05,
-         "rr": None, "details_json": '{"cost_pct": 0.2}'},
-        # sinal antigo sem cost_pct: o custo sai do risco/retorno gravado (alvo 2%, stop 1%, custo 0,2% -> rr 1,8/1,2)
-        {"id": 2, "time_ms": T, "action": "ESPERAR", "confidence": 20.0, "entry": 100.0, "stop": 99.0, "target1": 102.0,
-         "rr": 1.8 / 1.2, "details_json": "{}"},
-    ])
+    sig = pd.DataFrame(
+        [
+            {
+                "id": 1,
+                "time_ms": T,
+                "action": "ESPERAR",
+                "confidence": 20.0,
+                "entry": 100.0,
+                "stop": 99.0,
+                "target1": 100.05,
+                "rr": None,
+                "details_json": '{"cost_pct": 0.2}',
+            },
+            # sinal antigo sem cost_pct: o custo sai do risco/retorno gravado (alvo 2%, stop 1%, custo 0,2% -> rr 1,8/1,2)
+            {
+                "id": 2,
+                "time_ms": T,
+                "action": "ESPERAR",
+                "confidence": 20.0,
+                "entry": 100.0,
+                "stop": 99.0,
+                "target1": 102.0,
+                "rr": 1.8 / 1.2,
+                "details_json": "{}",
+            },
+        ]
+    )
     assert signal_cost_pct(next(sig.itertuples())) == 0.2
     assert signal_cost_pct(list(sig.itertuples())[1]) == pytest.approx(0.2)
     b = bars([(100, 102.5, 99.9, 102.0)])
@@ -143,9 +195,23 @@ def test_variante_de_estudo_so_ignora_travas_de_estrategia(conn):
     assert not study_entry_ok(d)
 
     b = book(conn)
-    b.open(buy_decision(), ratio=1.0, bid=99.9, ask=100.1, t_ms=T, record=EntryRecord(T, 100.0, 1, "x", bypassed={"tendencia": "x"}))
+    b.open(
+        buy_decision(),
+        ratio=1.0,
+        bid=99.9,
+        ask=100.1,
+        t_ms=T,
+        record=EntryRecord(T, 100.0, 1, "x", bypassed={"tendencia": "x"}),
+    )
     b.check_oco(bars([(99.5, 99.6, 98.5, 98.7)]), 0.001)  # stop
-    b.open(buy_decision(), ratio=1.0, bid=99.9, ask=100.1, t_ms=T + 5 * MIN, record=EntryRecord(T + 5 * MIN, 100.0, 2, "x", bypassed={}))
+    b.open(
+        buy_decision(),
+        ratio=1.0,
+        bid=99.9,
+        ask=100.1,
+        t_ms=T + 5 * MIN,
+        record=EntryRecord(T + 5 * MIN, 100.0, 2, "x", bypassed={}),
+    )
     later = bars([(100.0, 102.5, 99.9, 102.0)])
     later[["open_time", "close_time"]] += 5 * MIN
     b.check_oco(later, 0.001)  # alvo
@@ -180,7 +246,11 @@ def test_regras_de_tamanho_do_par_arredondam_e_recusam(conn):
     b = book(conn, filters=f)
     tid, why = b.open(buy_decision(size=500.0), ratio=1.0, bid=99.9, ask=100.1, t_ms=T, record=rec())
     pos = b.open_trade()
-    assert tid and pos["qty"] == pytest.approx(round(pos["qty"], 4)) and pos["size"] == pytest.approx(pos["qty"] * pos["entry_price"])
+    assert (
+        tid
+        and pos["qty"] == pytest.approx(round(pos["qty"], 4))
+        and pos["size"] == pytest.approx(pos["qty"] * pos["entry_price"])
+    )
     b.close(fill=101.0, t_ms=T + MIN, reason="x")
     tid, why = b.open(buy_decision(size=5.0), ratio=1.0, bid=99.9, ask=100.1, t_ms=T + 2 * MIN, record=rec(9))
     assert tid is None and "abaixo do valor mínimo" in why
@@ -191,12 +261,39 @@ def test_regras_de_tamanho_do_par_arredondam_e_recusam(conn):
 def test_filtros_lidos_da_resposta_real_da_binance():
     from cryptoagent.paper.filters import SymbolFilters
 
-    resp = {"symbols": [{"symbol": "ETHBRL", "filters": [
-        {"filterType": "PRICE_FILTER", "minPrice": "0.01000000", "maxPrice": "200000.00000000", "tickSize": "0.01000000"},
-        {"filterType": "LOT_SIZE", "minQty": "0.00010000", "maxQty": "45000.00000000", "stepSize": "0.00010000"},
-        {"filterType": "MARKET_LOT_SIZE", "minQty": "0.00000000", "maxQty": "10.44144375", "stepSize": "0.00000000"},
-        {"filterType": "NOTIONAL", "minNotional": "10.00000000", "applyMinToMarket": True, "maxNotional": "9000000.00000000"},
-    ]}]}
+    resp = {
+        "symbols": [
+            {
+                "symbol": "ETHBRL",
+                "filters": [
+                    {
+                        "filterType": "PRICE_FILTER",
+                        "minPrice": "0.01000000",
+                        "maxPrice": "200000.00000000",
+                        "tickSize": "0.01000000",
+                    },
+                    {
+                        "filterType": "LOT_SIZE",
+                        "minQty": "0.00010000",
+                        "maxQty": "45000.00000000",
+                        "stepSize": "0.00010000",
+                    },
+                    {
+                        "filterType": "MARKET_LOT_SIZE",
+                        "minQty": "0.00000000",
+                        "maxQty": "10.44144375",
+                        "stepSize": "0.00000000",
+                    },
+                    {
+                        "filterType": "NOTIONAL",
+                        "minNotional": "10.00000000",
+                        "applyMinToMarket": True,
+                        "maxNotional": "9000000.00000000",
+                    },
+                ],
+            }
+        ]
+    }
     f = SymbolFilters.from_exchange_info(resp, "ETHBRL")
     assert (f.min_qty, f.step, f.max_market_qty, f.min_notional, f.tick) == (0.0001, 0.0001, 10.44144375, 10.0, 0.01)
     with pytest.raises(ValueError):
@@ -213,14 +310,27 @@ def test_perda_maxima_do_dia_em_reais_e_capital_inicial_preservado(conn):
 
 def test_operacao_guarda_tudo_do_momento_da_compra(conn):
     b = book(conn)
-    record = EntryRecord(T, 100.0, 3, "preço 3 ATR abaixo do VWAP", features={"setup_rsi": 25.0}, scenario={"regime": "lateral", "hora_local": 10})
+    record = EntryRecord(
+        T,
+        100.0,
+        3,
+        "preço 3 ATR abaixo do VWAP",
+        features={"setup_rsi": 25.0},
+        scenario={"regime": "lateral", "hora_local": 10},
+    )
     b.open(buy_decision(), ratio=1.0, bid=100.4, ask=100.6, t_ms=T + 1000, record=record)
     b.close_market(bid=101.9, ask=102.1, t_ms=T + 10 * MIN, reason="alvo1", decision_ms=T + 10 * MIN - 1000)
     r = conn.execute("SELECT * FROM paper_trades").fetchone()
     assert (r["decision_ms"], r["decision_price"], r["entry_ms"], r["signal_id"]) == (T, 100.0, T + 1000, 3)
     assert r["entry_price"] > 100.5  # executado no preço DEPOIS do atraso, com meio spread e slippage
-    assert r["entry_reason"].startswith("preço 3 ATR") and '"setup_rsi": 25.0' in r["features_json"] and '"lateral"' in r["scenario_json"]
-    assert r["exit_decision_ms"] == T + 10 * MIN - 1000 and r["pnl"] == pytest.approx(r["qty"] * r["exit_price"] * 0.999 - r["size"] - r["fee_in"])
+    assert (
+        r["entry_reason"].startswith("preço 3 ATR")
+        and '"setup_rsi": 25.0' in r["features_json"]
+        and '"lateral"' in r["scenario_json"]
+    )
+    assert r["exit_decision_ms"] == T + 10 * MIN - 1000 and r["pnl"] == pytest.approx(
+        r["qty"] * r["exit_price"] * 0.999 - r["size"] - r["fee_in"]
+    )
 
 
 def test_banco_da_simulacao_nao_tem_tabelas_da_conta_real(conn):

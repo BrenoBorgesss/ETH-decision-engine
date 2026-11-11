@@ -31,7 +31,14 @@ class DemoService(LiveService):
     """Serviço do painel que repete o histórico em velocidade acelerada, com carteira virtual."""
 
     def __init__(
-        self, cfg: Config, console: Console, *, start_ms: int, end_ms: int, costs: CostSchedule, minutes_per_second: float = 4.0,
+        self,
+        cfg: Config,
+        console: Console,
+        *,
+        start_ms: int,
+        end_ms: int,
+        costs: CostSchedule,
+        minutes_per_second: float = 4.0,
         db_name: str = "painel-demo.sqlite",
     ) -> None:
         cfg = cfg.model_copy(deep=True)
@@ -55,9 +62,17 @@ class DemoService(LiveService):
         self.costs = costs
         pc = cfg.paper
         book = PaperBook(
-            self.signal_conn, "padrao", pc.par, capital=pc.capital, max_loss_brl=pc.perda_max_dia_brl, divisor=cfg.risco.divisor_perda_diaria,
-            costs=PaperCosts(costs.fee, costs.slip_market_pct, costs.slip_stop_pct), tz=cfg.fuso.local, day_start=cfg.fuso.inicio_dia_local,
-            now_ms=start_ms, filters=load_saved(cfg.path(pc.filtros_arquivo), pc.par),
+            self.signal_conn,
+            "padrao",
+            pc.par,
+            capital=pc.capital,
+            max_loss_brl=pc.perda_max_dia_brl,
+            divisor=cfg.risco.divisor_perda_diaria,
+            costs=PaperCosts(costs.fee, costs.slip_market_pct, costs.slip_stop_pct),
+            tz=cfg.fuso.local,
+            day_start=cfg.fuso.inicio_dia_local,
+            now_ms=start_ms,
+            filters=load_saved(cfg.path(pc.filtros_arquivo), pc.par),
         )
         self.variant = Variant("padrao", cfg, book)
         self.finished = False
@@ -78,9 +93,14 @@ class DemoService(LiveService):
         mid = (bid + ask) / 2 if bid else None
         half = (ask - bid) / (ask + bid) if bid else 0.0
         return {
-            "capital_inicial": book.initial_capital, "patrimonio": book.equity, "resultado_brl": book.equity - book.initial_capital,
-            "resultado_dia_brl": book.day_pnl(self.now(), mid, half), "perda_max_dia": book.max_loss_day,
-            "posicao": None if pos is None else {"qtd": pos["qty"], "entrada": pos["entry_price"], "stop": pos["stop"], "alvo1": pos["target1"]},
+            "capital_inicial": book.initial_capital,
+            "patrimonio": book.equity,
+            "resultado_brl": book.equity - book.initial_capital,
+            "resultado_dia_brl": book.day_pnl(self.now(), mid, half),
+            "perda_max_dia": book.max_loss_day,
+            "posicao": None
+            if pos is None
+            else {"qtd": pos["qty"], "entrada": pos["entry_price"], "stop": pos["stop"], "alvo1": pos["target1"]},
             "fim_do_periodo": self.finished,
         }
 
@@ -100,8 +120,19 @@ class DemoService(LiveService):
                     bt = await client.get("/api/v3/ticker/bookTicker", {"symbol": pc.par})
                     bid, ask = float(bt.data["bidPrice"]), float(bt.data["askPrice"])  # type: ignore[index]
                     self.tickers[pc.par] = (bid, ask, now)
-                    out = await _cycle(v, self.cfg, self.secrets, client, self.signal_conn, now, bid, ask, (ask - bid) / (ask + bid),
-                                       lambda m: log.info("demo: %s", m), client.advance)
+                    out = await _cycle(
+                        v,
+                        self.cfg,
+                        self.secrets,
+                        client,
+                        self.signal_conn,
+                        now,
+                        bid,
+                        ask,
+                        (ask - bid) / (ask + bid),
+                        lambda m: log.info("demo: %s", m),
+                        client.advance,
+                    )
                 except Exception as exc:  # o painel mostra o erro, sem rastreamento de pilha
                     log.exception("Erro no ciclo do painel de demonstração")
                     self.error = redact(exc)
