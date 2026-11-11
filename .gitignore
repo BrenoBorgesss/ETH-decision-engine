@@ -10,9 +10,10 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Dados locais (histórico, custos, sinais) e logs
-data/
-logs/
+# Dados locais (histórico, custos, sinais) e logs. A barra inicial limita a regra à RAIZ:
+# sem ela, "data/" também ignorava o pacote de código src/cryptoagent/data/.
+/data/
+/logs/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

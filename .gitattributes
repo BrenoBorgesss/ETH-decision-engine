@@ -1,0 +1,8 @@
+# Fim de linha LF no repositório e na cópia de trabalho; scripts do Windows em CRLF.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.parquet binary
+*.sqlite binary
+*.png binary
+*.gif binary
