@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, field
 
 from cryptoagent.timeutils import INTERVAL_MS, parse_hhmm
 
+DEMO_RELATIVE = Path("config") / "demo.yaml"  # sobreposição do modo demonstração
 CONFIG_RELATIVE = Path("config") / "config.yaml"
 # Únicas variáveis de ambiente tratadas como segredo. Só este módulo as lê.
 SECRET_ENV_VARS = ("BINANCE_API_KEY", "BINANCE_API_SECRET")
@@ -151,7 +152,8 @@ class Historico(_Section):
     @field_validator("intervalos")
     @classmethod
     def _intervalos(cls, v: dict[str, list[str]]) -> dict[str, list[str]]:
-        return {sym.upper(): [_check_interval(i) for i in ivs] for sym, ivs in v.items()}
+        # lista vazia = par desligado (permite a uma sobreposição, como o modo demo, tirar um par)
+        return {sym.upper(): [_check_interval(i) for i in ivs] for sym, ivs in v.items() if ivs}
 
 
 class Custos(_Section):

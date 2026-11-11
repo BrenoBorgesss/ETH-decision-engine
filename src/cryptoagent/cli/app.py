@@ -24,12 +24,20 @@ from cryptoagent.cli.painel import cmd_alert_test, cmd_panel
 from cryptoagent.cli.paper import cmd_paper_report, cmd_paper_run
 from cryptoagent.cli.sazonalidade import cmd_season_analyze, cmd_season_now
 from cryptoagent.cli.sessao import cmd_session_show, cmd_session_start
-from cryptoagent.config import load_config, load_secrets
+from cryptoagent.config import DEMO_RELATIVE, Secrets, find_root, load_config, load_secrets
 from cryptoagent.logging_setup import LOG_FILE, setup_logging
 from cryptoagent.security.redact import redact
 from cryptoagent.timeutils import INTERVAL_MS
 
 # -------------------------------------------------------------------- main
+
+# Comandos que funcionam no modo demonstração: só leem o histórico de exemplo, sem rede e sem chave.
+DEMO_COMMANDS = {
+    cmd_history_check: "historico verificar",
+    cmd_indicators_validate: "indicadores validar",
+    cmd_backtest: "backtest --rapido",
+}
+DEMO_COSTS_RELATIVE = Path("exemplos") / "custos_demo.json"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +45,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cryptoagent", description="Assistente de decisão cripto (somente leitura).")
     parser.add_argument("--config", type=Path, default=None, help="caminho do config.yaml")
     parser.add_argument("--sobrepor", type=Path, default=None, help="YAML com campos que substituem os do config (ex.: uma hipótese)")
+    parser.add_argument(
+        "--demo", action="store_true",
+        help="modo demonstração: usa os candles de exemplo do repositório, sem internet e sem chave (comandos: " + ", ".join(DEMO_COMMANDS.values()) + ")",
+    )
     parser.add_argument("--version", action="version", version=f"cryptoagent {__version__}")
     sub = parser.add_subparsers(dest="grupo")
 
@@ -164,12 +176,27 @@ def main(argv: list[str] | None = None) -> int:
     if not hasattr(args, "func"):
         parser.print_help()
         return 1
+    if args.demo:
+        if args.sobrepor is not None:
+            console.print("[red]--demo e --sobrepor não podem ser usados juntos.[/]")
+            return 1
+        if args.func not in DEMO_COMMANDS:
+            console.print("[yellow]Este comando precisa de dados ao vivo e não roda no modo demonstração.[/]")
+            console.print("Comandos disponíveis com --demo: " + "; ".join(f"cryptoagent --demo {c}" for c in DEMO_COMMANDS.values()))
+            return 2
     try:
-        cfg = load_config(args.config, args.sobrepor)
+        overlay = (args.config.resolve().parent.parent if args.config else find_root()) / DEMO_RELATIVE if args.demo else args.sobrepor
+        cfg = load_config(args.config, overlay)
     except Exception as exc:
         console.print(f"[red]Erro no arquivo de configuração:[/] {escape(str(exc))}")
         return 1
-    secrets = load_secrets(cfg.root)
+    if args.demo:
+        secrets = Secrets()  # o modo demonstração nem lê o .env
+        if args.func is cmd_backtest and args.custos_arquivo is None:
+            args.custos_arquivo = str(cfg.path(DEMO_COSTS_RELATIVE))
+        console.print("[bold cyan]MODO DEMONSTRAÇÃO[/]: candles de exemplo do repositório, sem internet e sem chave da Binance.")
+    else:
+        secrets = load_secrets(cfg.root)
     setup_logging(cfg, secrets)
     try:
         return asyncio.run(args.func(cfg, secrets, args)) or 0

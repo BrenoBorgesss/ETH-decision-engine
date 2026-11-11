@@ -111,6 +111,7 @@ async def cmd_indicators_validate(cfg: Config, secrets: Secrets, args: argparse.
     console.print(t)
     console.print(
         "[dim]Esperado: 0 NaN depois do aquecimento; RSI entre 0 e 100; ~88–95% dos fechamentos dentro das bandas de 2 desvios "
-        "(cripto tem caudas gordas); VWAP reiniciando em todos os dias.[/]"
+        "(cripto tem caudas gordas); VWAP reiniciando em todos os dias. NaN e dias de VWAP que sobrarem costumam vir de períodos "
+        "sem negociação (volume zero), comuns no 1m de pares pouco líquidos como ETHBRL.[/]"
     )
     return 0

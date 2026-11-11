@@ -18,3 +18,6 @@ __pycache__/
 *.sqlite-wal
 *.sqlite-shm
 *.parquet
+
+# Exceção: amostra pública de candles do modo demonstração (sem dados de conta)
+!/exemplos/historico/**/*.parquet

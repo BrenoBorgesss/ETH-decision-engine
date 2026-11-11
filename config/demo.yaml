@@ -1,0 +1,33 @@
+# Modo demonstração (cryptoagent --demo ...): roda SEM internet e SEM chave da Binance,
+# usando a amostra de candles públicos de exemplos/historico.
+# Este arquivo só lista o que muda em relação ao config.yaml.
+
+mercado:
+  simbolo_analise: ETHBRL        # no demo, análise e operação no mesmo par (a amostra só tem ETHBRL)
+  pares_candidatos: [ETHBRL]
+  par_operacao: ETHBRL
+
+historico:
+  pasta: exemplos/historico
+  intervalos:
+    ETHBRL: [1m, 5m, 15m, 1h, 4h]
+    ETHUSDT: []                  # lista vazia = par fora do demo
+    USDTBRL: []
+
+custos:
+  banco: data/demo/costs.sqlite  # não existe: o demo usa o spread padrão do config, sem medições suas
+
+conta:
+  banco: data/demo/agent.sqlite  # o demo nunca lê nem grava no banco da sua conta
+
+sazonalidade:
+  relatorio_pasta: data/demo/reports
+
+backtest:
+  pares: [ETHBRL]
+  meses_treino: 1                # a amostra tem ~3 meses: 1 de treino (agosto) e 1 de teste (setembro)
+  meses_teste: 1
+  relatorio_pasta: data/demo/reports
+
+logs:
+  pasta: data/demo/logs
