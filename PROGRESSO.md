@@ -239,11 +239,54 @@ Ferramentas de análise (ruff 0.17.4, vulture 2.16, pylint) instaladas num ambie
 
 ## ETAPA 4 — COLETA DE DADOS
 
-- [ ] **4.1** Módulo central de coleta com timeout, retry com backoff exponencial e tratamento de rate limit.
-- [ ] **4.2** Validação dos dados (nulos, duplicados, timestamps fora de ordem, outliers, lacunas de candles).
-- [ ] **4.3** Cache local (SQLite ou parquet) com coleta incremental.
-- [ ] **4.4** Valores em R$ (par ETH/BRL ou conversão confiável) e timezone consistente.
-- [ ] **4.5** Modo offline/demonstração com dados históricos de exemplo (sem dados pessoais).
+Backup antes da etapa: tag git `backup-antes-etapa-4` (aponta para `7e663fe`).
+
+- [x] **4.1** Módulo central de coleta com timeout, retry com backoff exponencial e tratamento de rate limit.
+  - Situação encontrada: o cliente REST (`data/rest.py`) já tinha timeout, repetição com espera crescente, 429/418 e limite de peso. O download dos arquivos de histórico (`data/history.py`) tinha política própria e mais fraca: espera linear, sem tratar 429 nem 418, e repetia até erro 4xx (problema C4 do diagnóstico).
+  - Feito: `data/retry.py` com uma `RetryPolicy` única (tentativas, espera inicial × 2^tentativa até um teto, sorteio de 0,5 a 1,5×, `Retry-After` com valor padrão e teto), usada pelos dois. O download agora: repete falha de rede, timeout e 5xx; no 429 espera o `Retry-After`; no 418 e em 4xx para na hora; 403/404 continua significando "arquivo não existe".
+  - A atualização incremental pela REST passou a gravar o que já chegou quando a rede cai no meio (antes perdia todas as páginas já baixadas).
+  - Números antes fixos no código foram para o config: `binance.espera_inicial_s`, `espera_max_s`, `espera_429_padrao_s`, `espera_429_max_s`; `historico.espera_max_s`, `max_consultas_rest`. Os valores padrão são os mesmos de antes (0,5 s, 30 s, 60 s, 2000). Mudou de propósito: a espera do download era 1,5 s × tentativa e agora é 1,5 s × 2^tentativa; o 429 passa a ter teto de 300 s.
+  - Evidência (falhas de rede simuladas): 8 testes novos em `tests/test_history.py` — sequência falha de conexão → timeout → 503 → sucesso com esperas `[1.0, 2.0, 4.0]`; desistência depois de 3 tentativas com esperas `[1.0, 2.0]`; 429 espera `12.0`; 418 e 400 com 1 chamada e nenhuma espera; 404 devolve vazio sem repetir. Os 4 testes equivalentes do cliente REST (`tests/test_rest_client.py`) continuam passando sem alteração. Commit `fc3c5fe`.
+- [x] **4.2** Validação dos dados (nulos, duplicados, timestamps fora de ordem, outliers, lacunas de candles).
+  - Situação encontrada: só havia remoção de duplicados, ordenação e busca de lacunas (problema C2).
+  - Feito: `data/validation.py` (`clean_klines`, `inspect_klines`, `find_outliers`, `QualityReport`). Verifica valor ausente/não finito, duplicados, ordem, horário fora da grade do intervalo, fechamento incoerente com a abertura, preço ≤ 0, máxima < mínima, abertura/fechamento fora da faixa, volume negativo, candle do futuro, outliers e lacunas. Linhas inválidas são removidas; duplicados e ordem são corrigidos; outliers e lacunas são só relatados (podem ser reais).
+  - Onde entra: download e atualização do histórico (descarta e registra no log); `historico verificar` (colunas Inválidos e Outliers; código de saída 2 se houver linha com problema); análise ao vivo (candle inválido vira verificação crítica → ESPERAR); backtest (recusa histórico com candle inválido).
+  - Critério de outlier: retorno a mais de `historico.outlier_desvios` (30) desvios robustos da mediana. Erro meu corrigido antes do commit: a primeira versão usava o desvio absoluto mediano, que fica perto de zero no USDTBRL (44,9% dos retornos de 1m são zero) e marcava 4.575 candles de 5m como outlier. Troquei pelo percentil 90 dos desvios ÷ 1,645; passou a marcar 7.
+  - Evidência nos dados reais (14 séries, 2,34 milhões de candles): 0 inválidos, 0 duplicados, 0 fora de ordem, 0 lacunas; outliers: ETHUSDT 1m 16, 5m 2; ETHBRL 1m 10; USDTBRL 1m 61, 5m 7, 15m 3; demais 0. A tabela limpa é idêntica à original em todas (`igual=True`), então o backtest não mudou: SHA-256 `c348cc24…cf544`, igual ao baseline. Tempo da validação: 0,44 s na maior série (628 mil candles).
+  - 15 testes novos em `tests/test_validation.py`. Commit `f9da9a7`.
+- [x] **4.3** Cache local (SQLite ou parquet) com coleta incremental.
+  - Situação encontrada: já existia (Parquet por par/intervalo + manifesto dos arquivos já baixados + complemento pela REST a partir do último candle). Faltavam a prova e o aviso de desalinhamento (problema C3).
+  - Feito: gravação parcial em caso de queda (item 4.1); `historico verificar` ganhou a coluna Atraso (candles que faltam para a série alcançar a mais recente) e o aviso "As séries terminam em momentos diferentes".
+  - Demonstração real (pasta temporária, sem tocar em `data/history`): `historico baixar --meses 1 --simbolos ETHBRL` com 1h e 15m. 1ª execução: 11 arquivos novos por série, 3 e 15 candles via REST, 10,2 s. 2ª execução: 0 arquivos novos, 11 "já tinha", 0 via REST, 1,8 s, mesmas 987 e 3.951 linhas.
+  - Teste novo: queda de rede depois de 2 páginas → as 2.000 linhas ficam gravadas; a execução seguinte começa exatamente no candle 2.010 e a terceira não traz nada.
+  - Achado real mostrado pelo comando: no seu histórico, ETHBRL 1m vai até 11/11 03:00 UTC, os 15m até 10/11 21:45 e as demais séries pararam em 22/10 (até 28.660 candles de atraso). Não corrigi (seria baixar dados para a sua pasta); basta rodar `cryptoagent historico baixar`.
+- [x] **4.4** Valores em R$ (par ETH/BRL ou conversão confiável) e timezone consistente.
+  - Auditoria: os preços vêm do próprio par ETHBRL (cotação direta em R$). Quando a análise é feita no ETHUSDT, a conversão usa a razão entre os preços atuais dos dois pares, e os dois passam pela verificação de idade (`engine/live.py`). Todo horário é guardado em ms UTC (int64) e só vira horário de Brasília na exibição (`timeutils.py`, com zoneinfo).
+  - Evidência nos dados reais: ETHBRL × (ETHUSDT × USDTBRL) em 599.361 candles de 1m: diferença mediana 0,0196%, percentil 99 0,1247%, máxima 2,1632%; em 9.989 candles de 1h: mediana 0,0177%, máxima 0,2942%. Todas as séries de 1h começam em hora cheia UTC.
+  - Feito: a validação (4.2) reprova horário fora da grade UTC; teste novo `test_codigo_nao_usa_horario_sem_fuso` varre `src/` atrás de `datetime.now()` sem fuso, `utcnow`, `date.today`, `fromtimestamp` sem fuso (0 ocorrências); tabelas de `historico` passaram a usar o formato brasileiro de número (628.021 em vez de 628,021). Commit `2e6eae6`.
+- [x] **4.5** Modo offline/demonstração com dados históricos de exemplo (sem dados pessoais).
+  - Feito: opção global `--demo`. Usa `config/demo.yaml` (sobreposição), não lê o `.env`, não usa a rede e grava só em `data/demo/`. Comandos disponíveis: `historico verificar`, `indicadores validar`, `backtest`. Os outros respondem com uma mensagem clara e código 2.
+  - Amostra em `exemplos/historico/ETHBRL`: 1m, 5m, 15m e 1h copiados do histórico público (25/06 a 01/10/2026 UTC); 4h montado somando o 1h. Total 7,79 MB. Gerada e validada por `scripts/gerar_amostra_demo.py`. Só tem colunas de mercado (teste confere).
+  - Prova da montagem do 4h: no ETHUSDT, que tem 1h e 4h publicados, os 2.497 candles montados batem com os reais (abertura, máxima, mínima, fechamento, horário e nº de negócios iguais em 2.497/2.497; volumes com diferença relativa máxima de 2,22e-16).
+  - `exemplos/custos_demo.json`: taxa 0,1% e spread 0,04% do config ("do config (sem leitura da conta)"), nenhuma medição da sua conta.
+  - Execução real: `cryptoagent --demo backtest --rapido` em 7,6 s → fora da amostra 31/08 a 30/09/2026: 10 operações, −2,79%, drawdown −2,79%, acerto 20,0%, Sharpe −5,56; comprar e segurar +8,50%. É uma demonstração de que roda, não uma avaliação (1 mês de teste).
+  - 6 testes em `tests/test_demo.py`, com a rede (`httpx.AsyncClient.send`) e a leitura de chaves (`load_secrets`) trocadas por funções que falham se chamadas. Commit `cd19439`.
+  - Decisão: no demo a análise é feita no próprio ETHBRL (no uso normal é no ETHUSDT), para a amostra caber no repositório; incluir o ETHUSDT de 1m dobraria o tamanho.
+- [ADIADO] **Painel e análise ao vivo no modo demo.** O demo desta etapa cobre os comandos que leem o histórico. Mostrar o painel sem internet exige reproduzir candles gravados como se fossem ao vivo, que é o modo replay da Etapa 7.5; a tela é da Etapa 10. Proponho entregar lá.
+- [ADIADO] **C5 do diagnóstico** (cada atualização regrava o Parquet inteiro, 31 MB no 1m). É desempenho: medir e decidir na Etapa 5.
+- **Achado novo (C7):** no ETHBRL, 27.883 de 142.560 candles de 1m da amostra têm volume zero (par pouco negociado). Nesses trechos alguns indicadores ficam indefinidos: 56 NaN no 1m (VWAP 26, RVOL 17, %B 13) e 1 no 5m, depois do aquecimento. O backtest não é afetado hoje (o 1m não usa indicadores e os do 5m exigidos estão completos), e no uso normal a análise é no ETHUSDT. Tratar na Etapa 6. Acrescentei uma frase explicando isso no rodapé de `indicadores validar`.
+
+### Verificação final da Etapa 4
+- `python -m pytest -q` → `263 passed, 1 warning in 24.21s` (eram 233; +30 testes).
+- Backtest de referência com custos congelados depois de tudo: SHA-256 `c348cc24a1f7e7aca7a610c8e9c0f8d820ca6ffaa9c5992a6b4c77de959cf544`, idêntico ao baseline (13 operações, −3,67%).
+- `--help`: única diferença em relação à Etapa 3 é a opção nova `--demo`.
+- `git status --short` → vazio.
+
+### Problemas durante a Etapa 4
+- Critério de outlier errado na primeira versão (ver 4.2); visto ao rodar nos dados reais e corrigido antes do commit.
+- A primeira amostra do demo terminava em 30/09 e o backtest recusou ("histórico curto demais"): o walk-forward só aceita um mês de teste se existir candle do mês seguinte. Estendi a amostra em 1 dia.
+- Um teste do demo falhou porque a tabela era cortada no terminal estreito do pytest; fixei a largura no teste.
+- Um script de edição enviado por heredoc falhou de novo por causa de aspas; nada foi aplicado pela metade.
 
 ## ETAPA 5 — PERFORMANCE E EFICIÊNCIA
 
@@ -342,3 +385,10 @@ Ferramentas de análise (ruff 0.17.4, vulture 2.16, pylint) instaladas num ambie
 - Removidos: `src/cryptoagent/cli.py` (conteúdo movido para o pacote acima)
 - Alterados: 54 arquivos de `src/cryptoagent` (docstrings, anotações e limpeza; lista exata em `git diff --name-status backup-antes-etapa-3 HEAD`, que mostra 15 criados, 1 removido e 57 alterados no total), `tests/test_backtest.py`, `tests/test_readonly_guard.py`, `PROGRESSO.md`
 - Não tocados: `.env`, `data/`, `logs/`, `config/`, `README.md`
+
+### Etapa 4
+- Criados: `src/cryptoagent/data/retry.py`, `src/cryptoagent/data/validation.py`, `config/demo.yaml`, `scripts/gerar_amostra_demo.py`, `exemplos/LEIAME.md`, `exemplos/custos_demo.json`, `exemplos/historico/ETHBRL/1m.parquet`, `5m.parquet`, `15m.parquet`, `1h.parquet`, `4h.parquet`, `tests/test_validation.py`, `tests/test_demo.py`
+- Alterados: `.gitignore`, `config/config.yaml`, `src/cryptoagent/config.py`, `src/cryptoagent/data/rest.py`, `src/cryptoagent/data/history.py`, `src/cryptoagent/data/health.py`, `src/cryptoagent/engine/live.py`, `src/cryptoagent/backtest/data.py`, `src/cryptoagent/cli/app.py`, `src/cryptoagent/cli/historico.py`, `src/cryptoagent/cli/indicadores.py`, `tests/test_history.py`, `tests/test_timeutils.py`, `PROGRESSO.md`
+- Removidos: nenhum
+- Não tocados: `.env`, `data/history`, `data/*.sqlite`, `logs/`, `README.md`. Criada pelo programa (ignorada pelo git): `data/demo/` (relatórios e log do modo demo)
+- Fora do repositório (temporários, no scratchpad da sessão): pasta `hist_incremental` da demonstração do 4.3, scripts de medição
