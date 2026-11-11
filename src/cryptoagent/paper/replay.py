@@ -79,7 +79,7 @@ class ReplayClient(BinanceReadOnlyClient):
 
     async def advance(self, seconds: float) -> None:
         """A "espera" do replay: só adianta o relógio simulado."""
-        self.clock.t += int(round(seconds * 1000))
+        self.clock.t += round(seconds * 1000)
 
     def _get_series(self, symbol: str, interval: str) -> _Series:
         key = (symbol, interval)

@@ -46,7 +46,7 @@ def ramp(value: float, start: float, full: float) -> float:
     return float(min(1.0, max(0.0, (value - start) / (full - start))))
 
 
-def _last(ctx: DecisionContext, tf: str) -> Any:  # noqa: ANN401 - Series do pandas ou ArrayRow
+def _last(ctx: DecisionContext, tf: str) -> Any:
     return ctx.market.last(tf)
 
 

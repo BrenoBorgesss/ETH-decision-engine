@@ -1,0 +1,3 @@
+# Commits só de formatação (git blame --ignore-revs-file .git-blame-ignore-revs)
+# style: ruff format em todo o código (Etapa 11)
+680f991654cdcc7e10ad719cc9e7f99786e95bc0

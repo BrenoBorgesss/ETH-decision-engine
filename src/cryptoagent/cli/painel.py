@@ -23,10 +23,7 @@ async def cmd_panel(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> 
     from cryptoagent.dashboard.server import create_app
     from cryptoagent.dashboard.service import LiveService
 
-    if getattr(args, "demo", False):
-        service = _demo_service(cfg, args)
-    else:
-        service = LiveService(cfg, secrets, console)
+    service = _demo_service(cfg, args) if getattr(args, "demo", False) else LiveService(cfg, secrets, console)
     app = create_app(service)
     port = args.porta or cfg.painel.porta
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", access_log=False))

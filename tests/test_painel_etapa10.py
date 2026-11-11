@@ -158,7 +158,7 @@ def test_painel_de_demonstracao_roda_sem_rede_e_mostra_a_carteira_virtual(tmp_pa
     cfg = demo_cfg(tmp_path)
     cfg.paper.replay_pasta = str(tmp_path / "replay")
     cfg.conta.banco = str(tmp_path / "demo_agent.sqlite")
-    costs = CostSchedule("ETHBRL", 0.001, {h: 0.04 for h in range(24)}, [], 0.01, 0.05, "teste")
+    costs = CostSchedule("ETHBRL", 0.001, dict.fromkeys(range(24), 0.04), [], 0.01, 0.05, "teste")
     start = ms(2026, 9, 8, 10) + 5000
     svc = DemoService(
         cfg, Console(quiet=True), start_ms=start, end_ms=start + 50 * 60_000, costs=costs, minutes_per_second=10_000

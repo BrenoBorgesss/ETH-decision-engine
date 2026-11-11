@@ -107,10 +107,10 @@ def test_estrategia_nao_validada_transforma_compra_em_aguardar_mas_nao_bloqueia_
 def test_limiar_de_confianca_e_configuravel():
     d = decide(ctx(), P)
     assert d.action == "COMPRAR"
-    exigente = P.model_copy(update={"confianca_minima": {k: d.confidence + 1 for k in P.confianca_minima}})
+    exigente = P.model_copy(update={"confianca_minima": dict.fromkeys(P.confianca_minima, d.confidence + 1)})
     alto = decide(ctx(), exigente)
     assert alto.action == "ESPERAR" and "confianca" in alto.strategy_gates
-    no_limite = P.model_copy(update={"confianca_minima": {k: d.confidence for k in P.confianca_minima}})
+    no_limite = P.model_copy(update={"confianca_minima": dict.fromkeys(P.confianca_minima, d.confidence)})
     assert decide(ctx(), no_limite).action == "COMPRAR"
 
 

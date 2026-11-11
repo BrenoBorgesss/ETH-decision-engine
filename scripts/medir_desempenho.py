@@ -72,7 +72,7 @@ def median_s(fn: Callable[[], object], repeats: int) -> float:
     return statistics.median(times)
 
 
-def load_cfg(demo: bool):  # noqa: ANN201
+def load_cfg(demo: bool):
     """Config normal ou do modo demonstração."""
     from cryptoagent.config import DEMO_RELATIVE, load_config
 
@@ -133,7 +133,7 @@ def sec_indicadores(demo: bool) -> dict:
     cfg = load_cfg(demo)
     store = HistoryStore(cfg.path(cfg.historico.pasta))
     sym = cfg.mercado.simbolo_analise
-    kw = dict(tz_name=cfg.fuso.local, day_start=cfg.fuso.inicio_dia_local)
+    kw = {"tz_name": cfg.fuso.local, "day_start": cfg.fuso.inicio_dia_local}
     out: dict = {"repeticoes_historico": 3, "repeticoes_ao_vivo": 30, "historico": {}, "ao_vivo_1000_candles": {}}
     live_total = 0.0
     for tf in cfg.estrategia.timeframes:
@@ -182,7 +182,7 @@ def sec_backtest(demo: bool) -> dict:
         "carregar_e_preparar_s": t1 - t0,
         "simular_s": t2 - t1,
         "total_s": t2 - t0,
-        "candles_de_decisao": int(len(data.frames[data.decision_tf])),
+        "candles_de_decisao": len(data.frames[data.decision_tf]),
         "operacoes_fora_da_amostra": rep.default.metrics.get("operacoes"),
         "retorno_total_pct": rep.default.metrics.get("retorno_total_pct"),
         "pico_memoria_apos_carregar_mb": mem_load,
@@ -210,12 +210,11 @@ def sec_ao_vivo(demo: bool) -> dict:
     from datetime import UTC, datetime
 
     sys.path.insert(0, str(ROOT / "tests"))
-    from fake_binance import FakeBinance, FakeClock
-
     from cryptoagent.config import Secrets
     from cryptoagent.data.rest import BinanceReadOnlyClient
     from cryptoagent.engine import live
     from cryptoagent.timeutils import datetime_to_ms
+    from fake_binance import FakeBinance, FakeClock
 
     cfg = load_cfg(True)
     start = datetime_to_ms(datetime(2026, 9, 1, 15, 15, 7, tzinfo=UTC))
@@ -273,7 +272,7 @@ def main() -> int:
     }
     for name in SECTIONS:
         cmd = [sys.executable, str(Path(__file__).resolve()), "--secao", name, *(["--demo"] if args.demo else [])]
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", cwd=ROOT, check=False)
         if proc.returncode != 0:
             print(f"seção {name} falhou:\n{proc.stderr[-2000:]}")
             return 1

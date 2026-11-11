@@ -61,7 +61,7 @@ def test_sessao_salva_e_lida(conn):
 
 
 def test_nao_pode_aumentar_perda_maxima_no_meio_do_dia(conn):
-    kw = dict(par_operacao="ETHBRL", saldo_em="BRL", candidates=CANDIDATES)
+    kw = {"par_operacao": "ETHBRL", "saldo_em": "BRL", "candidates": CANDIDATES}
     daily.save_session(conn, date(2026, 10, 22), capital_brl=1000, max_loss_brl=30, **kw)
     daily.save_session(conn, date(2026, 10, 22), capital_brl=1200, max_loss_brl=20, **kw)  # reduzir: ok
     with pytest.raises(daily.SessionError):

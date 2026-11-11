@@ -163,7 +163,7 @@ def evaluate(
             },
         }
         last = next(o.model for o in reversed(outcomes) if o.model is not None)
-        rep.coefficients = sorted(zip(last.features, last.coef), key=lambda x: abs(x[1]), reverse=True)
+        rep.coefficients = sorted(zip(last.features, last.coef, strict=True), key=lambda x: abs(x[1]), reverse=True)
 
     # ---- operar de verdade no simulador (uma posição por vez, perda máxima do dia, mesmos custos)
     starts = np.array([o.fold.test_start_ms for o in outcomes])
@@ -180,12 +180,12 @@ def evaluate(
         model = model_at(t)
         return model is not None and model.predict_one(extract_features(ctx, d, p, tz)) >= mc.limiar_probabilidade
 
-    common = dict(
-        capital=bt.capital,
-        loss_pct_day=bt.perda_max_dia_pct,
-        divisor=cfg.risco.divisor_perda_diaria,
-        spread_max_pct=cfg.custos.spread_max_pct,
-    )
+    common = {
+        "capital": bt.capital,
+        "loss_pct_day": bt.perda_max_dia_pct,
+        "divisor": cfg.risco.divisor_perda_diaria,
+        "spread_max_pct": cfg.custos.spread_max_pct,
+    }
     rules = simulate(data, p, cfg.indicadores, costs, label="regras", **common)
     chall = simulate(data, p, cfg.indicadores, costs, label="desafiador", entry_rule=entry_rule, **common)
 

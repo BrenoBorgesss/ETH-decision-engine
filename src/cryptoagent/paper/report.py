@@ -198,7 +198,7 @@ def variant_report(
     now = now or now_ms()
     st = conn.execute("SELECT * FROM paper_state WHERE variant = ?", (variant,)).fetchone()
     started = int(st["started_ms"]) if st else now
-    if st is not None and "initial_capital" in st.keys():
+    if st is not None and "initial_capital" in st.keys():  # noqa: SIM118 - sqlite3.Row: `in` compara valores, não colunas
         capital = float(st["initial_capital"])
     rows = conn.execute(
         "SELECT * FROM paper_trades WHERE variant = ? AND exit_ms IS NOT NULL ORDER BY entry_ms", (variant,)

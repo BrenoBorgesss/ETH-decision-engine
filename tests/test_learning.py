@@ -22,7 +22,7 @@ from cryptoagent.model.logistic import LogisticModel
 from test_engine import P, ctx, pos
 
 ROOT = Path(__file__).resolve().parents[1]
-COSTS = CostSchedule("ETHBRL", 0.001, {h: 0.04 for h in range(24)}, [], 0.01, 0.05, "teste")
+COSTS = CostSchedule("ETHBRL", 0.001, dict.fromkeys(range(24), 0.04), [], 0.01, 0.05, "teste")
 A = Aprendizado()
 
 CAMPEAO = {"operacoes": 40, "expectativa_pct": 0.05, "retorno_total_pct": 2.0, "drawdown_max_pct": -3.0}
@@ -282,7 +282,7 @@ def test_reavaliacao_automatica_dispara_na_virada_do_dia_e_por_operacoes(tmp_pat
         day1 = 1_788_300_000_000
         auto.maybe_start(day1)  # primeira vez: só marca o dia
         await asyncio.sleep(0)
-        for i in range(2):
+        for _ in range(2):
             conn.execute(
                 "INSERT INTO paper_trades (variant, symbol, decision_ms, decision_price, entry_ms, entry_price, qty, size, fee_in, "
                 "equity_at_entry, checked_until_ms, exit_ms, pnl) VALUES ('padrao','ETHBRL',1,1,1,1,1,1,0,1,1,2,0)"

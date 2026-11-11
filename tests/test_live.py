@@ -132,7 +132,7 @@ def test_cache_de_indicadores_reaproveita_so_quando_os_candles_sao_os_mesmos():
     from cryptoagent.indicators.compute import compute_indicators
 
     cfg = load_config(ROOT / "config" / "config.yaml", ROOT / DEMO_RELATIVE)
-    kw = dict(tz_name=cfg.fuso.local, day_start=cfg.fuso.inicio_dia_local)
+    kw = {"tz_name": cfg.fuso.local, "day_start": cfg.fuso.inicio_dia_local}
     todos = pd.read_parquet(ROOT / "exemplos" / "historico" / "ETHBRL" / "1h.parquet")
     df = todos.iloc[:600].reset_index(drop=True)
     cache = IndicatorCache()

@@ -77,14 +77,14 @@ def run_pair(
     """Roda o pacote de testes de um par (ver a descrição do módulo). Com `quick=True`, pula a grade do walk-forward e a ablação."""
     t0 = time.perf_counter()
     bt, p0, tz = cfg.backtest, cfg.estrategia, cfg.fuso.local
-    common = dict(
-        ind=cfg.indicadores,
-        costs=costs,
-        capital=bt.capital,
-        loss_pct_day=bt.perda_max_dia_pct,
-        divisor=cfg.risco.divisor_perda_diaria,
-        spread_max_pct=cfg.custos.spread_max_pct,
-    )
+    common = {
+        "ind": cfg.indicadores,
+        "costs": costs,
+        "capital": bt.capital,
+        "loss_pct_day": bt.perda_max_dia_pct,
+        "divisor": cfg.risco.divisor_perda_diaria,
+        "spread_max_pct": cfg.custos.spread_max_pct,
+    }
     s5 = data.frames[p0.tf_gatilho]
     valid_times = s5.loc[s5["close_time"] >= data.first_valid_ms, "open_time"]
     folds = make_folds(valid_times, bt.meses_treino, bt.meses_teste)
@@ -159,7 +159,7 @@ def run_pair(
 
     # ---- walk-forward na grade
     keys = list(bt.grade)
-    combos = [dict(zip(keys, vals)) for vals in itertools.product(*(bt.grade[k] for k in keys))]
+    combos = [dict(zip(keys, vals, strict=True)) for vals in itertools.product(*(bt.grade[k] for k in keys))]
     runs = []
     for n, combo in enumerate(combos, 1):
         progress(f"{data.trade}: grade {n}/{len(combos)} {combo}...")
@@ -229,7 +229,7 @@ def run_pair(
     rep.ablation.append(Variant(f"conjunto mínimo ({', '.join(base_signals)})", rep.default.metrics))
     for extra in EXTRAS_TESTABLE:
         if extra not in base_signals:
-            ablate(f"+ {extra}", p0.model_copy(update={"sinais_ativos": base_signals + [extra]}))
+            ablate(f"+ {extra}", p0.model_copy(update={"sinais_ativos": [*base_signals, extra]}))
     ablate(
         "+ todos os extras testáveis",
         p0.model_copy(update={"sinais_ativos": base_signals + [e for e in EXTRAS_TESTABLE if e not in base_signals]}),

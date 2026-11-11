@@ -85,12 +85,12 @@ class OperationLedger:
     @property
     def open_qty(self) -> float:
         """Quantidade aberta (soma dos lotes)."""
-        return sum(l.qty for l in self.lots)
+        return sum(lot.qty for lot in self.lots)
 
     @property
     def open_cost(self) -> float:
         """Custo total da posição aberta, em moeda de cotação."""
-        return sum(l.qty * l.cost for l in self.lots)
+        return sum(lot.qty * lot.cost for lot in self.lots)
 
     @property
     def avg_cost(self) -> float | None:
@@ -158,7 +158,7 @@ class OperationLedger:
     def unrealized(self, exit_price: float, exit_fee_rate: float) -> float:
         """Resultado não realizado da posição aberta se fosse vendida a `exit_price`, já descontada a taxa de saída."""
         net_exit = exit_price * (1 - exit_fee_rate)
-        return sum(l.qty * (net_exit - l.cost) for l in self.lots)
+        return sum(lot.qty * (net_exit - lot.cost) for lot in self.lots)
 
 
 class MissingDayStartPrice(Exception):
@@ -241,5 +241,5 @@ def compute_day(
         mark_price=exit_price,
         day_start_price=day_start_price,
         attributions=attributions,
-        open_lots=[(l.trade_id, l.qty, l.time_ms) for l in real.lots],
+        open_lots=[(lot.trade_id, lot.qty, lot.time_ms) for lot in real.lots],
     )

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import importlib
 import logging
 import sys
@@ -259,10 +260,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """Ponto de entrada do programa: lê os argumentos, o config e as chaves, liga o log e executa o comando. Devolve o código de saída."""
     for stream in (sys.stdout, sys.stderr):
-        try:
+        with contextlib.suppress(AttributeError, ValueError):
             stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
-        except (AttributeError, ValueError):
-            pass
     parser = build_parser()
     args = parser.parse_args(argv)
     if not hasattr(args, "func"):

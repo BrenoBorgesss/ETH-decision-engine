@@ -35,7 +35,7 @@ class ArrayRow:
         self._columns = columns
         self._index = index
 
-    def __getitem__(self, column: str) -> Any:  # noqa: ANN401 - o tipo depende da coluna
+    def __getitem__(self, column: str) -> Any:
         return self._columns[column][self._index]
 
 
@@ -61,7 +61,7 @@ class MarketView:
     rows: Callable[[str, int], Any] | None = None
     tails: Callable[[str, str, int], np.ndarray] | None = None  # (timeframe, coluna, n) -> últimos n valores
 
-    def last(self, tf: str, back: int = 1) -> Any:  # noqa: ANN401 - Series do pandas ou ArrayRow
+    def last(self, tf: str, back: int = 1) -> Any:
         """Linha do candle fechado mais recente de `tf` (`back=1`) ou do anterior (`back=2`). Aceita `linha["coluna"]`."""
         if self.rows is not None:
             return self.rows(tf, back)

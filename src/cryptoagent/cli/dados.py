@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 
 from rich.live import Live
 from rich.table import Table
@@ -127,7 +128,7 @@ async def cmd_live(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> i
     async with BinanceReadOnlyClient(cfg.binance, secrets) as client:
         offset, _ = await client.sync_time()
         for tf, buf in buffers.items():
-            df, r = await client.klines(sym, tf, limit=200)
+            df, _r = await client.klines(sym, tf, limit=200)
             buf.load_frame(df, client.server_now_ms())
 
         last_seen: dict[str, int] = {}
@@ -156,10 +157,8 @@ async def cmd_live(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> i
         stop = asyncio.Event()
 
         async def divergence_loop() -> None:
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop.wait(), timeout=5)  # espera o primeiro preço do WebSocket
-            except TimeoutError:
-                pass
             while not stop.is_set():
                 try:
                     r = await client.get("/api/v3/ticker/price", {"symbol": sym})
@@ -171,10 +170,8 @@ async def cmd_live(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> i
                     ]  # type: ignore[index]
                 except BinanceError as exc:
                     rest_check[:] = [Check("WebSocket x REST", False, redact(exc))]
-                try:
+                with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stop.wait(), timeout=30)
-                except TimeoutError:
-                    pass
 
         def render() -> Table:
             now = now_ms()

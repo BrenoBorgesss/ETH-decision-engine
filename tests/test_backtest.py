@@ -89,8 +89,8 @@ def make_cfg(tmp_path, one_min: pd.DataFrame) -> Config:
     return cfg
 
 
-COSTS = CostSchedule("ETHUSDT", 0.001, {h: 0.002 for h in range(24)}, [], 0.01, 0.05, "teste")
-FREE = CostSchedule("ETHUSDT", 0.0, {h: 0.0 for h in range(24)}, [], 0.0, 0.0, "teste")
+COSTS = CostSchedule("ETHUSDT", 0.001, dict.fromkeys(range(24), 0.002), [], 0.01, 0.05, "teste")
+FREE = CostSchedule("ETHUSDT", 0.0, dict.fromkeys(range(24), 0.0), [], 0.0, 0.0, "teste")
 
 
 @pytest.fixture(scope="module")

@@ -194,7 +194,7 @@ def test_simulacao_bloqueia_novas_compras_depois_da_perda_maxima_do_dia(tmp_path
     cfg.paper.perda_max_dia_brl = 3.0
     cfg.risco.divisor_perda_diaria = 1.0
     db = tmp_path / "replay.sqlite"
-    _, lines = run_replay(cfg, db, ms(2026, 9, 8, 9), ms(2026, 9, 8, 13))
+    _, _lines = run_replay(cfg, db, ms(2026, 9, 8, 9), ms(2026, 9, 8, 13))
     conn = sqlite3.connect(db)
     trades = conn.execute("SELECT exit_reason, pnl FROM paper_trades").fetchall()
     bloqueados = conn.execute(

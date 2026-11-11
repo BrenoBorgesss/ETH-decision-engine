@@ -14,6 +14,7 @@ gravado é o de chegada no PC (UTC), e o relógio do PC é conferido com o da Bi
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import sqlite3
 from dataclasses import dataclass, field
@@ -246,10 +247,8 @@ class CostRecorder:
 
 
 async def _wait(stop: asyncio.Event, seconds: float) -> None:
-    try:
+    with contextlib.suppress(TimeoutError):
         await asyncio.wait_for(stop.wait(), timeout=seconds)
-    except TimeoutError:
-        pass
 
 
 async def _stop_after(stop: asyncio.Event, seconds: float) -> None:

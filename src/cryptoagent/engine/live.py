@@ -22,11 +22,11 @@ from cryptoagent.engine.context import DecisionContext, MarketView, PositionView
 from cryptoagent.engine.decision import Decision, decide
 from cryptoagent.engine.journal import auto_associate, levels_for_open_lots
 from cryptoagent.engine.reliability import check_reliability
-from cryptoagent.learning.panorama import MomentView
-from cryptoagent.learning.state import apply_model_champion, champion_config, champion_metrics, load_state, moment_view
 from cryptoagent.indicators.cache import IndicatorCache
 from cryptoagent.indicators.structure import Level, previous_day_levels, support_resistance
 from cryptoagent.indicators.volume import book_imbalance
+from cryptoagent.learning.panorama import MomentView
+from cryptoagent.learning.state import apply_model_champion, champion_config, champion_metrics, load_state, moment_view
 from cryptoagent.seasonality.analysis import load_profiles
 from cryptoagent.seasonality.compare import candle_vs_same_hour, context_multiplier
 from cryptoagent.seasonality.cost_model import build_cost_model
@@ -92,7 +92,7 @@ async def _fetch_candles(
     rest_tfs = [tf for tf in tfs if tf not in candles]
     limits, default_limit = cfg.binance.candles_por_consulta, cfg.binance.candles_por_consulta_padrao
     fetched = await asyncio.gather(*(client.klines(sym, tf, limit=limits.get(tf, default_limit)) for tf in rest_tfs))
-    sources = {tf: (df, r.source) for tf, (df, r) in zip(rest_tfs, fetched)}
+    sources = {tf: (df, r.source) for tf, (df, r) in zip(rest_tfs, fetched, strict=True)}
     sources.update({tf: (df, "binance-ws:kline") for tf, df in candles.items() if tf in tfs})
     return sources
 

@@ -83,7 +83,9 @@ def group_stats(df: pd.DataFrame) -> dict:
 def build(dataset: pd.DataFrame, *, until_ms: int, model_calibration: list[dict] | None = None) -> dict:
     """Panorama completo a partir dos momentos cujo resultado já era conhecido em `until_ms`."""
     df = dataset[dataset["fim_ms"] < until_ms].copy()
-    df["cenario"] = [scenario_key(r, h, a) for r, h, a in zip(df["regime"], df["hora_local"], df["setup_atr_pctl"])]
+    df["cenario"] = [
+        scenario_key(r, h, a) for r, h, a in zip(df["regime"], df["hora_local"], df["setup_atr_pctl"], strict=True)
+    ]
     scenarios = {k: group_stats(g) for k, g in df.groupby("cenario")}
     calib = []
     bins = pd.cut(df["confianca_regras"], CONF_BINS, right=False)

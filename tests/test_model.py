@@ -14,7 +14,7 @@ from cryptoagent.model.logistic import LogisticModel, train
 from cryptoagent.model.walkforward import evaluate
 
 ROOT = Path(__file__).resolve().parents[1]
-COSTS = CostSchedule("ETHBRL", 0.001, {h: 0.04 for h in range(24)}, [], 0.01, 0.05, "teste")
+COSTS = CostSchedule("ETHBRL", 0.001, dict.fromkeys(range(24), 0.04), [], 0.01, 0.05, "teste")
 
 
 @pytest.fixture(scope="module")
@@ -36,9 +36,9 @@ def test_conjunto_de_dados_tem_as_variaveis_e_rotulos_coerentes(demo):
 
 
 def test_resultado_do_rotulo_usa_os_custos(demo):
-    cfg, data, ds = demo
+    _cfg, data, ds = demo
     row = ds.iloc[0]
-    free = CostSchedule("ETHBRL", 0.0, {h: 0.0 for h in range(24)}, [], 0.0, 0.0, "x")
+    free = CostSchedule("ETHBRL", 0.0, dict.fromkeys(range(24), 0.0), [], 0.0, 0.0, "x")
     # mesmo momento, com e sem custos: o resultado com custos é pior
     i = int(np.searchsorted(data.close_times["5m"], int(row["t_ms"]) - 1, side="left"))
     hour = int(data.decision_hours[i])
@@ -100,7 +100,7 @@ def test_walk_forward_treina_so_com_resultados_conhecidos_antes_do_teste(demo, m
     rep = evaluate(cfg, data, COSTS, ds)
     trained = [o for o in rep.folds if o.model is not None]
     assert trained and len(seen) == len(trained)
-    for o, df in zip(trained, seen):
+    for o, df in zip(trained, seen, strict=True):
         assert (df["fim_ms"] < o.fold.test_start_ms).all()  # nenhum rótulo do futuro
         assert (df["t_ms"] >= o.fold.train_start_ms).all()
     assert rep.rules["operacoes"] >= 0 and "retorno_total_pct" in rep.challenger

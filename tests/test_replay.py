@@ -18,7 +18,7 @@ from cryptoagent.timeutils import datetime_to_ms
 
 ROOT = Path(__file__).resolve().parents[1]
 SP = ZoneInfo("America/Sao_Paulo")
-COSTS = CostSchedule("ETHBRL", 0.001, {h: 0.04 for h in range(24)}, [], 0.01, 0.05, "teste")
+COSTS = CostSchedule("ETHBRL", 0.001, dict.fromkeys(range(24), 0.04), [], 0.01, 0.05, "teste")
 
 
 def demo_cfg(tmp_path):

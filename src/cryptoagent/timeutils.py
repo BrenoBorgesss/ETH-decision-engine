@@ -22,7 +22,6 @@ import pandas as pd
 
 from cryptoagent.intervals import INTERVAL_MS
 
-UTC = UTC
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 

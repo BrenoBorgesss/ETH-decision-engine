@@ -206,11 +206,11 @@ def test_bollinger_a_mao():
 
 def naive_adx(df, n):
     """ADX como no livro de Wilder: somas suavizadas (TR14, +DM14, −DM14)."""
-    h, l, c = df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
+    h, lo, c = df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
     tr, pdm, mdm = [], [], []
     for i in range(1, len(df)):
-        tr.append(max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1])))
-        up, down = h[i] - h[i - 1], l[i - 1] - l[i]
+        tr.append(max(h[i] - lo[i], abs(h[i] - c[i - 1]), abs(lo[i] - c[i - 1])))
+        up, down = h[i] - h[i - 1], lo[i - 1] - lo[i]
         pdm.append(up if up > down and up > 0 else 0.0)
         mdm.append(down if down > up and down > 0 else 0.0)
     s_tr, s_p, s_m = sum(tr[:n]), sum(pdm[:n]), sum(mdm[:n])
@@ -369,7 +369,9 @@ def test_niveis_do_dia_anterior_em_brasilia():
 
 
 def test_regras_de_regime():
-    s = lambda *v: pd.Series(v, dtype=float)
+    def s(*v):
+        return pd.Series(v, dtype=float)
+
     reg = classify_regime(
         adx=s(30, 30, 15, 22, 30, np.nan),
         plus_di=s(25, 10, 20, 20, 25, 20),

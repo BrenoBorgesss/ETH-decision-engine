@@ -95,11 +95,11 @@ def wick_rejection(df: pd.DataFrame, min_wick_ratio: float = 0.5) -> pd.DataFram
     Altista: pavio inferior >= `min_wick_ratio` do tamanho do candle e fechamento na metade de cima
     (vendedores empurraram para baixo e compradores devolveram).
     """
-    o, h, l, c = df["open"], df["high"], df["low"], df["close"]
-    rng = (h - l).where(h > l)
-    lower = (np.minimum(o, c) - l) / rng
+    o, h, lo, c = df["open"], df["high"], df["low"], df["close"]
+    rng = (h - lo).where(h > lo)
+    lower = (np.minimum(o, c) - lo) / rng
     upper = (h - np.maximum(o, c)) / rng
-    mid = (h + l) / 2
+    mid = (h + lo) / 2
     return pd.DataFrame(
         {
             "lower_wick_ratio": lower,
@@ -171,7 +171,7 @@ def support_resistance_arrays(
     for prices, positions in ((sh, sh_pos), (sl, sl_pos)):
         w = prices[start : at_pos + 1]
         mask = ~np.isnan(w)
-        points.extend(zip(w[mask].tolist(), positions[start : at_pos + 1][mask].astype(int).tolist()))
+        points.extend(zip(w[mask].tolist(), positions[start : at_pos + 1][mask].astype(int).tolist(), strict=True))
     points.sort()
     tol = tolerance_atr * atr_value
     clusters: list[list[tuple[float, int]]] = []
@@ -184,7 +184,7 @@ def support_resistance_arrays(
         else:
             clusters.append([p])
             sums.append(p[0])
-    levels = [Level(s / len(c), len(c), max(x[1] for x in c), "pivos") for c, s in zip(clusters, sums)]
+    levels = [Level(s / len(c), len(c), max(x[1] for x in c), "pivos") for c, s in zip(clusters, sums, strict=True)]
     levels.sort(key=lambda lv: (lv.touches, lv.last_pos), reverse=True)
     return sorted(levels[:max_levels], key=lambda lv: lv.price)
 

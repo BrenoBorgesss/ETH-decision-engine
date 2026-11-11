@@ -126,11 +126,11 @@ def _equity_svg(r: PairReport, capital: float) -> str:
     eq = equity_curve(trades, capital)
     if eq.empty:
         return "<p class='muted'>Sem operações no período fora da amostra.</p>"
-    xs = [r.oos_start] + eq["time_ms"].tolist()
-    ys = [capital] + eq["equity"].tolist()
+    xs = [r.oos_start, *eq["time_ms"].tolist()]
+    ys = [capital, *eq["equity"].tolist()]
     w, h, pad = 900, 220, 30
     x0, x1 = r.oos_start, r.oos_end
-    y0, y1 = min(ys + [capital]) * 0.995, max(ys + [capital]) * 1.005
+    y0, y1 = min([*ys, capital]) * 0.995, max([*ys, capital]) * 1.005
 
     def sx(x: float) -> float:
         return pad + (x - x0) / (x1 - x0) * (w - 2 * pad)
@@ -138,7 +138,7 @@ def _equity_svg(r: PairReport, capital: float) -> str:
     def sy(y: float) -> float:
         return h - pad - (y - y0) / (y1 - y0) * (h - 2 * pad)
 
-    pts = " ".join(f"{sx(x):.1f},{sy(y):.1f}" for x, y in zip(xs, ys))
+    pts = " ".join(f"{sx(x):.1f},{sy(y):.1f}" for x, y in zip(xs, ys, strict=True))
     base = sy(capital)
     return (
         f"<svg viewBox='0 0 {w} {h}' role='img' aria-label='Curva de patrimônio'>"

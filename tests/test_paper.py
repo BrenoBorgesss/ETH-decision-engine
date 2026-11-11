@@ -24,9 +24,15 @@ def conn(tmp_path):
 
 
 def book(conn, **kw):
-    base = dict(
-        capital=1000, max_loss_brl=30, divisor=3, costs=COSTS, tz="America/Sao_Paulo", day_start="00:00", now_ms=T
-    )
+    base = {
+        "capital": 1000,
+        "max_loss_brl": 30,
+        "divisor": 3,
+        "costs": COSTS,
+        "tz": "America/Sao_Paulo",
+        "day_start": "00:00",
+        "now_ms": T,
+    }
     base.update(kw)
     return PaperBook(conn, "padrao", "ETHBRL", **base)
 
@@ -185,7 +191,7 @@ def test_variante_de_estudo_so_ignora_travas_de_estrategia(conn):
     assert study_entry_ok(d)
     d.blocks.append("dados atrasados")  # trava de SEGURANÇA: nunca é ignorada
     assert not study_entry_ok(d)
-    d.blocks = list(d.strategy_gates.values()) + [LIMIT_TEXT]  # perda máxima do dia também não
+    d.blocks = [*d.strategy_gates.values(), LIMIT_TEXT]  # perda máxima do dia também não
     assert not study_entry_ok(d)
     d.strategy_gates["distancia_alvo"] = "alvo 1 a só 0,05%"  # trava de CUSTO: nunca é ignorada
     d.blocks = list(d.strategy_gates.values())

@@ -35,15 +35,32 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")
 class ServiceLike(Protocol):
     """O que o servidor do painel precisa do serviço ao vivo (permite usar um serviço falso nos testes)."""
 
-    def snapshot(self) -> dict: ...
-    def candles_payload(self, tf: str) -> dict: ...
-    def season_payload(self) -> dict: ...
-    def save_session(self, data: dict) -> dict: ...
-    def associate(self, data: dict) -> None: ...
-    def simulation_payload(self) -> dict: ...
-    def journal_payload(self) -> dict: ...
-    def add_journal(self, data: dict) -> dict: ...
-    def remove_journal(self, data: dict) -> None: ...
+    def snapshot(self) -> dict:
+        """Estado atual (decisão, conta, saúde) para a página."""
+
+    def candles_payload(self, tf: str) -> dict:
+        """Candles, indicadores e marcadores do tempo gráfico `tf`."""
+
+    def season_payload(self) -> dict:
+        """Análise por horário."""
+
+    def save_session(self, data: dict) -> dict:
+        """Grava as respostas do início do dia."""
+
+    def associate(self, data: dict) -> None:
+        """Confirma ou corrige a ligação de uma compra a um sinal."""
+
+    def simulation_payload(self) -> dict:
+        """Dados da aba Simulação."""
+
+    def journal_payload(self) -> dict:
+        """Dados da aba Operações reais."""
+
+    def add_journal(self, data: dict) -> dict:
+        """Registra uma operação real feita à mão."""
+
+    def remove_journal(self, data: dict) -> None:
+        """Apaga um registro manual."""
 
 
 def create_app(service: ServiceLike, token: str | None = None, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS) -> FastAPI:

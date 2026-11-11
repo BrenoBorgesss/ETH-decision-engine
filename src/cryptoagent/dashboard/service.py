@@ -11,7 +11,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import math
 import sqlite3
 from collections.abc import Iterable
 from dataclasses import asdict
@@ -48,7 +50,7 @@ def _clean(obj: object) -> object:
     if isinstance(obj, str):
         return redact(obj)
     if isinstance(obj, float):
-        return None if obj != obj or obj in (float("inf"), float("-inf")) else obj
+        return obj if math.isfinite(obj) else None
     if isinstance(obj, dict):
         return {str(k): _clean(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
@@ -185,10 +187,8 @@ class LiveService:
             except Exception:
                 log.exception("Erro inesperado na análise")
                 self.error = "erro inesperado na análise (detalhes no arquivo de log)"
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self.trigger.wait(), timeout=extra)
-            except TimeoutError:
-                pass
             self.trigger.clear()
             await asyncio.sleep(1.5)  # dá tempo de os outros timeframes fecharem o mesmo candle
 
@@ -389,7 +389,7 @@ class LiveService:
                 "t": int(t // 1000) + off,
                 **{c: (float(row[c]) if pd.notna(row[c]) else None) for c in cols if c in f.columns},
             }
-            for t, off, (_, row) in zip(f["open_time"], offsets, f.iterrows())
+            for t, off, (_, row) in zip(f["open_time"], offsets, f.iterrows(), strict=True)
         ]
         lv = res.decision.levels
         levels = {} if lv is None else {"entrada": lv.entry, "stop": lv.stop, "alvo1": lv.target1, "alvo2": lv.target2}

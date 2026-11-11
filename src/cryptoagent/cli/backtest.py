@@ -7,8 +7,8 @@ from pathlib import Path
 
 from rich.table import Table
 
-from cryptoagent.cli._shared import _account_taker_fees, console
 from cryptoagent.backtest.costs import CostSchedule
+from cryptoagent.cli._shared import _account_taker_fees, console
 from cryptoagent.config import Config, Secrets
 from cryptoagent.timeutils import format_local
 

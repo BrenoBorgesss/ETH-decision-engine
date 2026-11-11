@@ -195,8 +195,10 @@ def test_update_from_rest_so_grava_candles_fechados(tmp_path):
 from cryptoagent.data.history import HistoryDownloadError, _fetch  # noqa: E402
 from cryptoagent.data.retry import RetryPolicy  # noqa: E402
 
+RETRY_TESTE = RetryPolicy(attempts=4, base_s=1.0, max_s=30.0, jitter=False)
 
-def fetch_with(handler, retry=RetryPolicy(attempts=4, base_s=1.0, max_s=30.0, jitter=False)):
+
+def fetch_with(handler, retry=RETRY_TESTE):
     sleeps: list[float] = []
 
     async def fake_sleep(s):
@@ -271,7 +273,7 @@ def test_download_418_e_erro_do_cliente_param_na_hora():
     for status in (418, 400):
         calls = []
 
-        def handler(req, status=status):
+        def handler(req, status=status, calls=calls):
             calls.append(1)
             return httpx.Response(status)
 

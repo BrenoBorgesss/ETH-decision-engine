@@ -1,5 +1,6 @@
 """Análise por horário: perfis, validação fora da amostra, comparação com o histórico e multiplicador."""
 
+import itertools
 from datetime import datetime
 
 import numpy as np
@@ -81,7 +82,7 @@ def test_janelas_walk_forward_teste_sempre_depois_do_treino():
     assert len(folds) >= 5
     for f in folds:
         assert f.train_start_ms < f.train_end_ms == f.test_start_ms < f.test_end_ms
-    assert all(a.test_start_ms < b.test_start_ms for a, b in zip(folds, folds[1:]))
+    assert all(a.test_start_ms < b.test_start_ms for a, b in itertools.pairwise(folds))
     assert folds[-1].test_end_ms <= int(b["open_time"].max())  # só meses de teste completos
 
 

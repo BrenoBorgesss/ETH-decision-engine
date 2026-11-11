@@ -38,8 +38,6 @@ log = logging.getLogger(__name__)
 class HistoryDownloadError(Exception):
     """Falha ao baixar ou ler um arquivo de histórico."""
 
-    pass
-
 
 @dataclass(frozen=True)
 class Period:
@@ -297,7 +295,8 @@ class KlinesSource(Protocol):
 
     async def klines(
         self, symbol: str, interval: str, *, start_ms: int | None = ..., end_ms: int | None = ..., limit: int = ...
-    ) -> tuple[pd.DataFrame, object]: ...
+    ) -> tuple[pd.DataFrame, object]:
+        """Candles de `symbol` no tempo gráfico `interval` e a origem da resposta."""
 
 
 async def update_from_rest(

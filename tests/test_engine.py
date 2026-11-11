@@ -79,7 +79,7 @@ def test_cenario_de_livro_gera_comprar_com_niveis_coerentes():
     # tamanho: no stop, perde exatamente o risco por operação (R$ 10)
     assert lv.size_brl * lv.risk_net_pct / 100 == pytest.approx(10.0)
     assert d.disclaimer == DISCLAIMER
-    assert 3 <= len(d.reasons_for) + len(d.reasons_against)
+    assert len(d.reasons_for) + len(d.reasons_against) >= 3
 
 
 def test_confianca_e_o_produto_das_parcelas():
@@ -191,9 +191,15 @@ def test_sem_esticamento_nao_compra():
 
 
 def pos(**kw):
-    base = dict(
-        qty=0.1, avg_cost=99.0, opened_ms=T - 30 * MIN, stop=98.0, target1=102.0, target2=104.0, source="sinal #1"
-    )
+    base = {
+        "qty": 0.1,
+        "avg_cost": 99.0,
+        "opened_ms": T - 30 * MIN,
+        "stop": 98.0,
+        "target1": 102.0,
+        "target2": 104.0,
+        "source": "sinal #1",
+    }
     base.update(kw)
     return PositionView(**base)
 
@@ -309,11 +315,11 @@ def test_com_posicao_os_suportes_e_resistencias_nao_mudam_a_decisao():
     Isso só é equivalente se nenhuma regra de saída usar os níveis. Este teste garante que não usa."""
     niveis = [Level(98.5, 3, 5, "pivos"), Level(100.8, 2, 6, "pivos"), Level(101.5, 1, 7, "dia_anterior_maxima")]
     cenarios = [
-        dict(position=pos(), price=97.9),
-        dict(position=pos(), price=102.1),
-        dict(position=pos(opened_ms=T - 200 * MIN), price=100.0),
-        dict(position=pos(), price=100.2),
-        dict(position=pos(stop=None, target1=None, target2=None), price=100.2),
+        {"position": pos(), "price": 97.9},
+        {"position": pos(), "price": 102.1},
+        {"position": pos(opened_ms=T - 200 * MIN), "price": 100.0},
+        {"position": pos(), "price": 100.2},
+        {"position": pos(stop=None, target1=None, target2=None), "price": 100.2},
     ]
     for c in cenarios:
         sem, com = decide(ctx(**c), P), decide(ctx(levels=niveis, **c), P)

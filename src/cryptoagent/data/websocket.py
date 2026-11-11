@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import json
 import logging
@@ -84,10 +85,8 @@ class BinanceStream:
                 break
             self.reconnects += 1
             delay = min(backoff, self._max_backoff) * (0.5 + random.random())
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop.wait(), timeout=delay)
-            except TimeoutError:
-                pass
             backoff = min(backoff * 2, self._max_backoff)
 
     async def _dispatch(self, stream: str, data: dict, received: int) -> None:

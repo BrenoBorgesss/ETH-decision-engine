@@ -41,7 +41,7 @@ def simulation_payload(
                 rows = conn.execute("SELECT * FROM paper_trades WHERE variant = ? ORDER BY entry_ms", (v,)).fetchall()
                 closed = [r for r in rows if r["exit_ms"] is not None]
                 opened = next((r for r in rows if r["exit_ms"] is None), None)
-                initial = float(st["initial_capital"]) if "initial_capital" in st.keys() else float(st["equity"])
+                initial = float(st["initial_capital"]) if "initial_capital" in st.keys() else float(st["equity"])  # noqa: SIM118 - sqlite3.Row: `in` compara valores, não colunas
                 end = end_ms or now_ms()
                 metrics = compute_metrics(
                     to_backtest_trades(closed), int(st["started_ms"]), max(end, int(st["started_ms"]) + 1), initial, tz
@@ -56,7 +56,7 @@ def simulation_payload(
                         "capital_inicial": initial,
                         "patrimonio": float(st["equity"]),
                         "resultado_brl": float(st["equity"]) - initial,
-                        "perda_max_dia": float(st["max_loss_day"]) if "max_loss_day" in st.keys() else None,
+                        "perda_max_dia": float(st["max_loss_day"]) if "max_loss_day" in st.keys() else None,  # noqa: SIM118 - sqlite3.Row: `in` compara valores, não colunas
                         "desde_ms": int(st["started_ms"]),
                         "metricas": metrics,
                         "curva": curve,
@@ -84,7 +84,7 @@ def simulation_payload(
                                 "motivo_saida": r["exit_reason"],
                                 "confianca": r["confidence"],
                                 "regime": r["regime"],
-                                "motivo_entrada": r["entry_reason"] if "entry_reason" in r.keys() else None,
+                                "motivo_entrada": r["entry_reason"] if "entry_reason" in r.keys() else None,  # noqa: SIM118 - sqlite3.Row: `in` compara valores, não colunas
                             }
                             for r in reversed(closed[-max_trades:])
                         ],
