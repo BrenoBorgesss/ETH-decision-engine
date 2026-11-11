@@ -23,7 +23,10 @@ async def cmd_panel(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> 
     from cryptoagent.dashboard.server import create_app
     from cryptoagent.dashboard.service import LiveService
 
-    service = LiveService(cfg, secrets, console)
+    if getattr(args, "demo", False):
+        service = _demo_service(cfg, args)
+    else:
+        service = LiveService(cfg, secrets, console)
     app = create_app(service)
     port = args.porta or cfg.painel.porta
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", access_log=False))
@@ -41,6 +44,24 @@ async def cmd_panel(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> 
         console.print(f"[bold red]RECUSADO:[/] {escape(service.fatal)}")
         return 3
     return 0
+
+
+def _demo_service(cfg: Config, args: argparse.Namespace) -> object:
+    """Painel da demonstração: replay acelerado da amostra, com carteira virtual (ver dashboard/demo.py)."""
+    from datetime import datetime, timedelta
+
+    from cryptoagent.backtest.costs import load_schedules
+    from cryptoagent.dashboard.demo import DemoService
+    from cryptoagent.timeutils import datetime_to_ms, zone
+
+    start = datetime.fromisoformat(args.inicio or "2026-09-08T09:30").replace(tzinfo=zone(cfg.fuso.local)) + timedelta(seconds=cfg.paper.atraso_s)
+    start_ms = datetime_to_ms(start)
+    costs = load_schedules(cfg.path("exemplos/custos_demo.json"))[cfg.paper.par]
+    console.print(
+        f"[bold cyan]Painel de demonstração[/]: carteira VIRTUAL sobre o histórico de exemplo, a partir de {start:%d/%m/%Y %H:%M}, "
+        f"{args.velocidade:g} minuto(s) simulado(s) por segundo. Nada é real."
+    )
+    return DemoService(cfg, console, start_ms=start_ms, end_ms=start_ms + args.horas * 3_600_000, costs=costs, minutes_per_second=args.velocidade)
 
 
 async def cmd_alert_test(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:

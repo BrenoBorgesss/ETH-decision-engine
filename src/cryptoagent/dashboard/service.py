@@ -37,6 +37,9 @@ from cryptoagent.timeutils import format_local, now_ms, zone
 
 log = logging.getLogger(__name__)
 
+# Texto exato pedido para o aviso do painel (aparece em destaque no topo e no rodapé).
+DISCLAIMER_PAINEL = "Ferramenta educacional, não é recomendação financeira. Resultados simulados não garantem resultados reais."
+
 
 def _clean(obj: object) -> object:
     """Tudo que vai para a página passa pelo filtro de segredos e vira JSON simples."""
@@ -76,6 +79,14 @@ class LiveService:
         self.needs_backfill: set[str] = set(self.buffers)
         self.started_ms = now_ms()
         self.analyses = 0
+        self.mode = "real"  # "real" = conta Binance (somente leitura); "demo" = carteira virtual sobre o histórico
+        self.signal_conn = self.conn  # onde os sinais são gravados (no demo: o banco da simulação)
+        self.signal_mode = "ao_vivo"
+        self.sim_db_path = cfg.path(cfg.paper.banco)
+
+    def now(self) -> int:
+        """Agora (no demo, o relógio simulado)."""
+        return now_ms()
 
     # --------------------------------------------------------------- WebSocket
 
@@ -192,15 +203,16 @@ class LiveService:
 
     def snapshot(self) -> dict:
         """Estado completo para a página (decisão, saúde, custos, conta, sinais, paper), já sem segredos e em JSON simples."""
-        now = now_ms()
+        now = self.now()
         cfg = self.cfg
         res = self.last
         out: dict = {
             "agora_ms": now,
             "fuso": cfg.fuso.local,
+            "modo": self.mode,
             "fatal": self.fatal,
             "erro": self.error,
-            "aviso_legal": "Não é recomendação financeira e não há garantia de resultado.",
+            "aviso_legal": DISCLAIMER_PAINEL,
             "simbolo_analise": self.sym,
             "ws": {
                 "conectado": self.stream.connected,
@@ -265,21 +277,32 @@ class LiveService:
                 "travas": acc.reasons,
                 "moeda": acc.quote_asset,
             }
-        out["sinais"] = [dict(x) for x in self.conn.execute(
-            "SELECT id, time_ms, trade_symbol, action, confidence, price, stop, target1 FROM signals WHERE mode = 'ao_vivo' ORDER BY id DESC LIMIT 15"
+        out["sinais"] = [dict(x) for x in self.signal_conn.execute(
+            "SELECT id, time_ms, trade_symbol, action, confidence, price, stop, target1 FROM signals WHERE mode = ? ORDER BY id DESC LIMIT 15",
+            (self.signal_mode,),
         )]
-        out["compras"] = [dict(x) for x in self.conn.execute(
-            "SELECT symbol, trade_id, time_ms, price, qty, signal_id, association FROM account_trades WHERE is_buyer = 1 ORDER BY time_ms DESC LIMIT 10"
-        )]
-        out["sinais_compra"] = [dict(x) for x in self.conn.execute(
-            "SELECT id, time_ms, price FROM signals WHERE mode = 'ao_vivo' AND action = 'COMPRAR' ORDER BY id DESC LIMIT 10"
-        )]
+        if self.mode == "real":
+            out["compras"] = [dict(x) for x in self.conn.execute(
+                "SELECT symbol, trade_id, time_ms, price, qty, signal_id, association FROM account_trades WHERE is_buyer = 1 ORDER BY time_ms DESC LIMIT 10"
+            )]
+            out["sinais_compra"] = [dict(x) for x in self.conn.execute(
+                "SELECT id, time_ms, price FROM signals WHERE mode = 'ao_vivo' AND action = 'COMPRAR' ORDER BY id DESC LIMIT 10"
+            )]
         out["paper"] = self._paper_summary()
+        out["carteira_virtual"] = self.virtual_wallet()
+        out["panorama"] = None if res.moment is None or not res.moment.stats else {
+            "cenario": res.moment.scenario, **res.moment.stats, "fator": res.moment.factor,
+        }
+        out["campeao"] = res.champion
         return _clean(out)
+
+    def virtual_wallet(self) -> dict | None:
+        """Carteira virtual em uso (só no modo demonstração, em que a decisão é tomada para ela)."""
+        return None
 
     def _paper_summary(self) -> list[dict]:
         """Resumo da carteira virtual, lido do banco SÓ da simulação (vazio se a simulação nunca rodou)."""
-        db = self.cfg.path(self.cfg.paper.banco)
+        db = self.sim_db_path
         if not db.is_file():
             return []
         conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)  # só leitura
@@ -312,8 +335,63 @@ class LiveService:
         ]
         lv = res.decision.levels
         levels = {} if lv is None else {"entrada": lv.entry, "stop": lv.stop, "alvo1": lv.target1, "alvo2": lv.target2}
-        return _clean({"tf": tf, "simbolo": self.sym, "candles": rows, "niveis": levels,
+        return _clean({"tf": tf, "simbolo": self.sym, "candles": rows, "niveis": levels, "marcadores": self._markers(f, tf),
                        "suportes": [{"preco": x.price, "origem": x.source} for x in (res.ctx.market.levels if res.ctx else [])]})
+
+    def _markers(self, frame: pd.DataFrame, tf: str) -> list[dict]:
+        """Sinais COMPRAR e VENDER marcados no candle em que foram dados (horário local, como o gráfico)."""
+        if frame.empty:
+            return []
+        from cryptoagent.timeutils import floor_to_interval
+
+        first = int(frame["open_time"].iloc[0])
+        rows = self.signal_conn.execute(
+            "SELECT time_ms, action, confidence FROM signals WHERE mode = ? AND action IN ('COMPRAR', 'VENDER') AND time_ms >= ? ORDER BY time_ms",
+            (self.signal_mode, first),
+        ).fetchall()
+        z = zone(self.cfg.fuso.local)
+        out = []
+        for r in rows:
+            t = floor_to_interval(int(r["time_ms"]) - 1, tf)  # candle que fechou quando o sinal foi dado
+            off = int(pd.Timestamp(t, unit="ms", tz="UTC").tz_convert(z).utcoffset().total_seconds())
+            out.append({"t": t // 1000 + off, "acao": r["action"], "confianca": r["confidence"]})
+        return out
+
+    def simulation_payload(self) -> dict:
+        """Aba Simulação: carteiras virtuais, operações, curva de capital, versões e calibração."""
+        from cryptoagent.dashboard.views import simulation_payload
+
+        return _clean(simulation_payload(self.sim_db_path, self.cfg.path(self.cfg.aprendizado.pasta), self.cfg.fuso.local, end_ms=self.now()))
+
+    def journal_payload(self) -> dict:
+        """Aba Operações reais: o diário manual e o resultado por dia."""
+        from cryptoagent.dashboard.views import journal_payload
+
+        return _clean(journal_payload(self.conn, self.cfg.fuso.local, self.cfg.fuso.inicio_dia_local))
+
+    def add_journal(self, data: dict) -> dict:
+        """Registra uma operação REAL feita por você (diário manual). Devolve o id."""
+        from cryptoagent.account import journal
+        from cryptoagent.timeutils import datetime_to_ms
+
+        side = {"compra": "buy", "venda": "sell"}[str(data["lado"])]
+        qty, price = float(data["qtd"]), float(data["preco"])
+        fee = float(data["taxa"]) if data.get("taxa") not in (None, "") else qty * price * self.cfg.custos.taxa_padrao_taker
+        when = None
+        if data.get("quando"):
+            from datetime import datetime
+
+            when = datetime_to_ms(datetime.fromisoformat(str(data["quando"])).replace(tzinfo=zone(self.cfg.fuso.local)))
+        par = str(data.get("par") or self.cfg.mercado.par_operacao or self.cfg.paper.par).upper()
+        tid = journal.add_manual_trade(self.conn, symbol=par, side=side, qty=qty, price=price, fee_quote=fee, time_ms=when, note=str(data.get("nota") or ""))
+        return {"id": tid}
+
+    def remove_journal(self, data: dict) -> None:
+        """Apaga um registro do diário manual."""
+        from cryptoagent.account import journal
+
+        if not journal.remove_manual_trade(self.conn, int(data["id"])):
+            raise ValueError("registro não encontrado")
 
     def season_payload(self) -> dict:
         """Mapa de calor e perfil por hora do par em uso, se a análise por horário já foi gerada."""

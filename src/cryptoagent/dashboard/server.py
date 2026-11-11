@@ -12,6 +12,7 @@ navegador chamar o painel por um nome de domínio dele para ler o estado (saldo,
 
 from __future__ import annotations
 
+import logging
 import secrets as pysecrets
 from pathlib import Path
 from typing import Protocol
@@ -25,6 +26,7 @@ from cryptoagent.security.redact import redact
 from cryptoagent.session.daily import SessionError
 
 STATIC = Path(__file__).parent / "static"
+log = logging.getLogger(__name__)
 
 # Únicos nomes pelos quais o painel aceita ser chamado (a porta é ignorada na comparação).
 LOCAL_HOSTS = ("127.0.0.1", "localhost")
@@ -37,6 +39,10 @@ class ServiceLike(Protocol):
     def season_payload(self) -> dict: ...
     def save_session(self, data: dict) -> dict: ...
     def associate(self, data: dict) -> None: ...
+    def simulation_payload(self) -> dict: ...
+    def journal_payload(self) -> dict: ...
+    def add_journal(self, data: dict) -> dict: ...
+    def remove_journal(self, data: dict) -> None: ...
 
 
 def create_app(service: ServiceLike, token: str | None = None, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS) -> FastAPI:
@@ -46,6 +52,12 @@ def create_app(service: ServiceLike, token: str | None = None, allowed_hosts: tu
     app.state.token = token
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(allowed_hosts), www_redirect=False)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+    @app.exception_handler(Exception)
+    async def unexpected(request: Request, exc: Exception) -> JSONResponse:
+        # Nunca mostra rastreamento de pilha na tela: o detalhe técnico vai só para o arquivo de log.
+        log.exception("Erro inesperado no painel em %s", request.url.path)
+        return JSONResponse({"detail": "Erro inesperado no painel. Os detalhes técnicos estão no arquivo de log."}, status_code=500)
 
     def check(x_painel_token: str | None) -> None:
         if not x_painel_token or not pysecrets.compare_digest(x_painel_token, token):
@@ -78,6 +90,33 @@ def create_app(service: ServiceLike, token: str | None = None, allowed_hosts: tu
             return JSONResponse({"ok": True, "sessao": service.save_session(data)})
         except (SessionError, ValueError, KeyError, TypeError) as exc:
             raise HTTPException(status_code=400, detail=redact(exc)) from None
+
+    @app.get("/api/simulacao")
+    async def simulacao() -> JSONResponse:
+        return JSONResponse(service.simulation_payload(), headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/diario")
+    async def diario() -> JSONResponse:
+        return JSONResponse(service.journal_payload(), headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/diario")
+    async def diario_adicionar(request: Request, x_painel_token: str | None = Header(default=None)) -> JSONResponse:
+        check(x_painel_token)
+        data = await request.json()
+        try:
+            return JSONResponse({"ok": True, **service.add_journal(data)})
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=f"registro não salvo: {redact(exc)}") from None
+
+    @app.post("/api/diario/remover")
+    async def diario_remover(request: Request, x_painel_token: str | None = Header(default=None)) -> JSONResponse:
+        check(x_painel_token)
+        data = await request.json()
+        try:
+            service.remove_journal(data)
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=redact(exc)) from None
+        return JSONResponse({"ok": True})
 
     @app.post("/api/associar")
     async def associar(request: Request, x_painel_token: str | None = Header(default=None)) -> JSONResponse:

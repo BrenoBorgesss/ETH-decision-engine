@@ -230,7 +230,11 @@ async def _fresh_quote(client: BinanceReadOnlyClient, symbol: str, sleep: Callab
 async def _cycle(
     v: Variant, cfg: Config, secrets: Secrets, client: BinanceReadOnlyClient, conn: sqlite3.Connection, now: int, bid: float, ask: float,
     half: float, say: Callable[[str], None], sleep: Callable[[float], Awaitable[None]],
-) -> None:
+) -> tuple[LiveResult, int] | None:
+    """Um minuto de uma variante: confere a OCO virtual e, se fechou um candle de gatilho, decide e executa.
+
+    Devolve (resultado da análise, id do sinal gravado), ou None se não houve análise neste minuto.
+    """
     pc, book, tz = cfg.paper, v.book, cfg.fuso.local
     # 1) OCO virtual nos candles de 1m fechados desde a última verificação
     pos = book.open_trade()
@@ -245,7 +249,7 @@ async def _cycle(
     tf = v.cfg.estrategia.tf_gatilho
     last_close = floor_to_interval(now, tf) - 1  # fim do último candle de gatilho fechado
     if last_close <= book.last_decision_close_ms:
-        return  # este candle já foi analisado
+        return None  # este candle já foi analisado
     view = book.view(now, (bid + ask) / 2, half)
     res = await analyze_live(v.cfg, secrets, client, conn, paper=view, use_champion=v.name == "padrao")
     d = res.decision
@@ -289,3 +293,4 @@ async def _cycle(
             note = f" -> venda virtual ({d.exit_reason}), resultado R$ {num(pnl)}"
     why = d.blocks[0] if d.blocks else (d.reasons_for[0] if d.reasons_for else "")
     say(f"{format_local(now, tz)} [{v.name}] {d.action} {num(d.confidence, 0)}%{note} | sinal #{sid} | {why[:110]} | patrimônio virtual R$ {num(book.equity)}")
+    return res, sid

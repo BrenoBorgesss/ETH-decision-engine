@@ -67,7 +67,7 @@ def test_demo_roda_o_backtest_sem_rede_e_sem_chave(sem_rede_e_sem_chave, capsys)
 
 
 def test_demo_recusa_comandos_que_precisam_de_dados_ao_vivo(sem_rede_e_sem_chave, capsys):
-    for comando in (["analisar"], ["painel"], ["conta", "status"], ["paper", "rodar"], ["historico", "baixar"]):
+    for comando in (["analisar"], ["conta", "status"], ["paper", "rodar"], ["historico", "baixar"]):
         assert app.main(["--demo", *comando]) == 2
     assert "não roda no modo demonstração" in capsys.readouterr().out
 

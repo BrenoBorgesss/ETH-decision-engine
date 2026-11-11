@@ -41,6 +41,7 @@ DEMO_COMMANDS = {
     "aprendizado:cmd_learning_cycle": "aprendizado reavaliar",
     "aprendizado:cmd_learning_versions": "aprendizado versoes",
     "aprendizado:cmd_learning_panorama": "aprendizado panorama",
+    "painel:cmd_panel": "painel",
 }
 DEMO_COSTS_RELATIVE = Path("exemplos") / "custos_demo.json"
 
@@ -95,6 +96,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("painel", help="painel ao vivo no navegador + alertas")
     p.add_argument("--porta", type=int, default=None)
     p.add_argument("--sem-navegador", dest="sem_navegador", action="store_true", help="não abre o navegador sozinho")
+    p.add_argument("--inicio", default=None, metavar="AAAA-MM-DDTHH:MM", help="só com --demo: de onde o histórico começa a ser repetido (horário local)")
+    p.add_argument("--velocidade", type=float, default=4.0, help="só com --demo: minutos simulados por segundo (padrão 4)")
+    p.add_argument("--horas", type=float, default=12.0, help="só com --demo: quantas horas repetir (padrão 12)")
     p.set_defaults(func="painel:cmd_panel")
 
     alertas = sub.add_parser("alertas", help="alertas").add_subparsers(dest="acao")

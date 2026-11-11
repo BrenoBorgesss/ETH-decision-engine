@@ -22,9 +22,9 @@ FORBIDDEN = [
 ]
 
 
-# Única exceção: as rotas LOCAIS do painel (127.0.0.1) que recebem o formulário da sessão e a
-# associação. São decoradores do FastAPI, não chamadas para fora.
-LOCAL_ROUTES = {("cryptoagent/dashboard/server.py", re.compile(r"^\s*@app\.post\(\"/api/[a-z]+\"\)\s*$"))}
+# Única exceção: as rotas LOCAIS do painel (127.0.0.1) que recebem os formulários (sessão do dia, associação e
+# diário manual). São decoradores do FastAPI em server.py, não chamadas para fora.
+LOCAL_ROUTES = {("cryptoagent/dashboard/server.py", re.compile(r"^\s*@app\.post\(\"/api/[a-z]+(?:/[a-z]+)?\"\)\s*$"))}
 
 
 def _allowed(rel: str, line: str) -> bool:

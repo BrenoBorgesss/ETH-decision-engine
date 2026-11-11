@@ -190,6 +190,7 @@ def test_resumo_do_paper_vem_do_banco_da_simulacao_em_modo_leitura(tmp_path):
     cfg.paper.banco = str(tmp_path / "simulacao.sqlite")
     fake = LiveService.__new__(LiveService)  # só o método de leitura, sem abrir conexões nem a Binance
     fake.cfg = cfg
+    fake.sim_db_path = cfg.path(cfg.paper.banco)
     assert fake._paper_summary() == []  # simulação nunca rodou
     conn = sim_db.connect(tmp_path / "simulacao.sqlite")
     conn.execute("INSERT INTO paper_state (variant, equity, initial_capital, max_loss_day, started_ms) VALUES ('padrao', 1010, 1000, 30, 1)")
