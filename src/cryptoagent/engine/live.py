@@ -22,6 +22,8 @@ from cryptoagent.engine.context import DecisionContext, MarketView, PositionView
 from cryptoagent.engine.decision import Decision, decide
 from cryptoagent.engine.journal import auto_associate, levels_for_open_lots
 from cryptoagent.engine.reliability import check_reliability
+from cryptoagent.learning.panorama import MomentView
+from cryptoagent.learning.state import apply_model_champion, champion_config, champion_metrics, load_state, moment_view
 from cryptoagent.indicators.cache import IndicatorCache
 from cryptoagent.indicators.structure import Level, previous_day_levels, support_resistance
 from cryptoagent.indicators.volume import book_imbalance
@@ -30,6 +32,7 @@ from cryptoagent.seasonality.compare import candle_vs_same_hour, context_multipl
 from cryptoagent.seasonality.cost_model import build_cost_model
 from cryptoagent.seasonality.profiles import add_buckets
 from cryptoagent.security.redact import redact
+from cryptoagent.timeutils import ms_to_local
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,8 @@ class LiveResult:
     hour_note: str = ""
     trade_bid: float | None = None  # melhor compra/venda do par de operação no momento da análise
     trade_ask: float | None = None
+    moment: MomentView | None = None  # panorama do cenário de agora (aprendizado contínuo)
+    champion: str = ""  # versão campeã usada na decisão
 
     @property
     def market_extras(self) -> dict:
@@ -221,13 +226,19 @@ async def analyze_live(
     *,
     paper: PaperView | None = None,
     candles: dict[str, pd.DataFrame] | None = None,
+    use_champion: bool = True,
 ) -> LiveResult:
     """Análise ao vivo. Com `paper`, usa a carteira virtual em vez da conta real (a conta nem é lida).
 
     `candles` (opcional): candles já recebidos pelo WebSocket, por timeframe. Os timeframes que
     faltarem são buscados pela API REST (fallback).
+    `use_champion`: decide com a estratégia campeã do aprendizado contínuo (as variantes de estudo do
+    paper passam False, porque testam a própria configuração).
     """
     t0 = time.perf_counter()
+    learning = load_state(cfg)
+    if use_champion:
+        cfg = champion_config(cfg, learning)
     p, sd = cfg.estrategia, cfg.saude_dados
     sym = cfg.mercado.simbolo_analise
     health = HealthReport()
@@ -270,6 +281,18 @@ async def analyze_live(
 
     season, hour_note = await _season_context(cfg, client, trade_sym, server_now, health)
 
+    # ---- aprendizado contínuo: cenário pouco visto e mudança de regime detectada no último ciclo
+    setup = frames[p.tf_setup]
+    local = ms_to_local(server_now, cfg.fuso.local)
+    moment = moment_view(
+        str(setup["regime"].iloc[-1]) if len(setup) else None, local.hour + local.minute / 60,
+        float(setup["atr_pctl"].iloc[-1]) if len(setup) and pd.notna(setup["atr_pctl"].iloc[-1]) else None, cfg, learning,
+    )
+    novelty = SeasonView(moment.factor, [moment.reason] if moment.reason else [])
+    if learning.drift_summary:
+        health.add(Check("estabilidade dos dados", False, f"mudança de regime no último ciclo de aprendizado ({learning.drift_summary})", critical=False))
+    champion_name = f"v{learning.champion.id} {learning.champion.name}" if learning.champion else "regras (config atual)"
+
     # ---- posição da operação (traduzida para o par de análise)
     position = None
     if paper is not None:
@@ -284,9 +307,11 @@ async def analyze_live(
             data_warnings=health.warnings, daily_limit_reason=paper.daily_limit_reason,
         )
         market = MarketView(server_now, a_mid, frames, levels, spread_pct, imbalance, funding)
-        ctx = DecisionContext(sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True)
+        ctx = DecisionContext(sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True, novelty=novelty)
         decision = decide(ctx, p, spread_max_pct=cfg.custos.spread_max_pct)
-        return LiveResult(decision, ctx, None, health, ratio, ages, (time.perf_counter() - t0) * 1000, hour_note, t_bid, t_ask)
+        if use_champion:
+            decision = apply_model_champion(decision, ctx, cfg, learning)
+        return LiveResult(decision, ctx, None, health, ratio, ages, (time.perf_counter() - t0) * 1000, hour_note, t_bid, t_ask, moment, champion_name)
 
     if account.day is not None and account.day.open_qty > 1e-9:
         auto_associate(conn, trade_sym)
@@ -315,10 +340,14 @@ async def analyze_live(
         capital_brl=account.effective_capital_brl,
         data_warnings=health.warnings,
         daily_limit_reason=limit_reason,
-        validation_reason=check_reliability(cfg, trade_sym, client.local_now_ms()).block_reason,
+        validation_reason=check_reliability(
+            cfg, trade_sym, client.local_now_ms(), champion=champion_metrics(learning) if use_champion else None
+        ).block_reason,
     )
     market = MarketView(server_now, a_mid, frames, levels, spread_pct, imbalance, funding)
-    ctx = DecisionContext(sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True)
+    ctx = DecisionContext(sym, trade_sym, ratio, market, risk, cost.breakeven_pct, position, season, live=True, novelty=novelty)
     decision = decide(ctx, p, spread_max_pct=cfg.custos.spread_max_pct)
+    if use_champion:
+        decision = apply_model_champion(decision, ctx, cfg, learning)
     ages["saldo_s"] = (client.local_now_ms() - account.balances_ms) / 1000 if account.balances_ms else -1
-    return LiveResult(decision, ctx, account, health, ratio, ages, (time.perf_counter() - t0) * 1000, hour_note, t_bid, t_ask)
+    return LiveResult(decision, ctx, account, health, ratio, ages, (time.perf_counter() - t0) * 1000, hour_note, t_bid, t_ask, moment, champion_name)

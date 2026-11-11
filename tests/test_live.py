@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def run_analysis(monkeypatch, when: datetime, *, paper: PaperView | None = None, latency_s: float = 0.0):
     clock = FakeClock(datetime_to_ms(when))
     cfg = load_config(ROOT / "config" / "config.yaml", ROOT / DEMO_RELATIVE)
+    cfg.aprendizado.pasta = str(ROOT / "tests" / "_sem_aprendizado")  # pasta inexistente: nenhum ciclo de aprendizado interfere
     server = FakeBinance(clock, latency_s=latency_s)
     paper = paper or PaperView("ETHBRL", fee=0.001, capital=1000.0, risk_per_trade=10.0)
 

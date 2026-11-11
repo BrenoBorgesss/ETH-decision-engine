@@ -91,6 +91,13 @@ def print_decision(res: LiveResult, cfg: Config) -> None:
         console.print("[bold yellow]Lembrete: coloque a ordem de STOP (ou OCO) na Binance logo após comprar. O agente não envia ordens.[/]")
     if res.hour_note:
         console.print(f"[dim]Horário: {escape(res.hour_note)}[/]")
+    if res.moment is not None and res.moment.stats:
+        from cryptoagent.learning.panorama import as_lines
+
+        for line in as_lines(res.moment):
+            console.print(f"[dim]Panorama: {escape(line)}[/]")
+    if res.champion:
+        console.print(f"[dim]Estratégia campeã do aprendizado contínuo: {escape(res.champion)}[/]")
     ages = ", ".join(f"{k} {num(v, 1)}" for k, v in res.data_ages.items() if v >= 0)
     console.print(f"[dim]Idade dos dados (s): {ages} | latência da análise {num(res.latency_ms, 0)} ms | {d.disclaimer}[/]")
 

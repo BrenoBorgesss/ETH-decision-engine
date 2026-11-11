@@ -38,6 +38,9 @@ DEMO_COMMANDS = {
     "backtest:cmd_backtest": "backtest --rapido",
     "modelo:cmd_model_train": "modelo treinar",
     "paper:cmd_paper_replay": "paper replay",
+    "aprendizado:cmd_learning_cycle": "aprendizado reavaliar",
+    "aprendizado:cmd_learning_versions": "aprendizado versoes",
+    "aprendizado:cmd_learning_panorama": "aprendizado panorama",
 }
 DEMO_COSTS_RELATIVE = Path("exemplos") / "custos_demo.json"
 
@@ -137,6 +140,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func="modelo:cmd_model_train")
 
+    aprend = sub.add_parser("aprendizado", help="aprendizado contínuo: campeão x desafiantes, versões e panoramas").add_subparsers(dest="acao")
+    p = aprend.add_parser("reavaliar", help="roda um ciclo de reavaliação (campeão x desafiantes, mudança de regime, panoramas)")
+    p.add_argument("--ate", default=None, metavar="AAAA-MM-DD", help="ponto no tempo: usa só dados anteriores a este dia (horário local)")
+    p.add_argument("--custos-arquivo", default=None, metavar="ARQUIVO.json", help="custos congelados (os mesmos do backtest)")
+    p.set_defaults(func="aprendizado:cmd_learning_cycle")
+    p = aprend.add_parser("versoes", help="histórico de versões da estratégia, com as métricas de cada avaliação")
+    p.set_defaults(func="aprendizado:cmd_learning_versions")
+    p = aprend.add_parser("panorama", help="panorama por cenário e calibração da confiança (do último ciclo)")
+    p.add_argument("-n", type=int, default=15, help="quantos cenários mostrar")
+    p.set_defaults(func="aprendizado:cmd_learning_panorama")
+
     sinais = sub.add_parser("sinais", help="histórico de sinais e associação com suas compras").add_subparsers(dest="acao")
     p = sinais.add_parser("listar", help="últimos sinais e compras associadas")
     p.add_argument("-n", type=int, default=20)
@@ -223,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.demo:
         secrets = config.Secrets()  # o modo demonstração nem lê o .env
-        if args.func in ("backtest:cmd_backtest", "modelo:cmd_model_train", "paper:cmd_paper_replay") and args.custos_arquivo is None:
+        if args.func in ("backtest:cmd_backtest", "modelo:cmd_model_train", "paper:cmd_paper_replay", "aprendizado:cmd_learning_cycle") and args.custos_arquivo is None:
             args.custos_arquivo = str(cfg.path(DEMO_COSTS_RELATIVE))
         console.print("[bold cyan]MODO DEMONSTRAÇÃO[/]: candles de exemplo do repositório, sem internet e sem chave da Binance.")
     else:

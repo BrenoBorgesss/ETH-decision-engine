@@ -25,6 +25,7 @@ def demo_cfg(tmp_path):
     cfg = load_config(ROOT / "config" / "config.yaml", ROOT / DEMO_RELATIVE)
     cfg.conta.banco = str(tmp_path / "conta_real_nao_pode_existir.sqlite")
     cfg.sazonalidade.relatorio_pasta = str(tmp_path / "sem_perfil")
+    cfg.aprendizado.pasta = str(tmp_path / "sem_aprendizado")
     return cfg
 
 

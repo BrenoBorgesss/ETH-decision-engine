@@ -88,12 +88,15 @@ async def run_paper(
     db_path: Path | None = None, client: BinanceReadOnlyClient | None = None, max_cycles: int | None = None,
     until_ms: int | None = None, say: Callable[[str], None] = print, sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     adjust: Callable[[Config], Config] | None = None,
+    auto_learning: bool = False,
 ) -> None:
     """Laço do paper trading (ver a descrição do módulo).
 
     `capital` e `max_loss_brl` (R$) substituem os do config. `client` permite o replay (cliente com histórico e
     relógio simulado); sem ele, conecta na Binance (só leitura). Para depois de `max_cycles` minutos ou ao chegar
     em `until_ms`. `adjust` ajusta o config de cada variante (o replay desliga o perfil por horário).
+    `auto_learning`: roda o ciclo de reavaliação em segundo plano na virada do dia local e a cada
+    `aprendizado.reavaliar_a_cada_operacoes` operações virtuais fechadas (sem travar o laço).
     """
     pc = cfg.paper
     capital = capital if capital is not None else pc.capital
@@ -124,11 +127,14 @@ async def run_paper(
             "Nenhuma ordem real é enviada."
         )
         cycles = 0
+        learning = _AutoLearning(cfg, conn, db_path or cfg.path(pc.banco), fee, say) if auto_learning else None
         while True:
             await client.sync_time()
             now = client.server_now_ms()
             if until_ms is not None and now >= until_ms:
                 break
+            if learning is not None:
+                learning.maybe_start(now)
             try:
                 bt = await client.get("/api/v3/ticker/bookTicker", {"symbol": pc.par})
                 bid, ask = float(bt.data["bidPrice"]), float(bt.data["askPrice"])  # type: ignore[index]
@@ -144,9 +150,73 @@ async def run_paper(
             next_min = floor_to_interval(client.server_now_ms(), "1m") + 60_000
             await sleep(max(1.0, (next_min - client.server_now_ms()) / 1000 + pc.atraso_s))
     finally:
+        if learning is not None and learning.task is not None and not learning.task.done():
+            say("Aguardando o ciclo de reavaliação em andamento terminar...")
+            await asyncio.gather(learning.task, return_exceptions=True)
         conn.close()
         if own_client:
             await client.aclose()
+
+
+class _AutoLearning:
+    """Dispara o ciclo de reavaliação (em outra thread) na virada do dia local e a cada N operações virtuais fechadas."""
+
+    def __init__(self, cfg: Config, conn: sqlite3.Connection, db_path: Path, fee: float, say: Callable[[str], None]) -> None:
+        self.cfg, self.conn, self.db_path, self.fee, self.say = cfg, conn, db_path, fee, say
+        self.task: asyncio.Task | None = None
+        self.last_day = self._meta("aprendizado_dia")
+        self.last_count = int(self._meta("aprendizado_operacoes") or 0)
+
+    def _meta(self, key: str) -> str | None:
+        row = self.conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else None
+
+    def _set(self, key: str, value: str) -> None:
+        self.conn.execute("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
+        self.conn.commit()
+
+    def maybe_start(self, now: int) -> None:
+        """Começa um ciclo se chegou a hora (e se nenhum está rodando)."""
+        from cryptoagent.timeutils import local_trading_day
+
+        if self.task is not None and not self.task.done():
+            return
+        a = self.cfg.aprendizado
+        day = local_trading_day(now, self.cfg.fuso.local, self.cfg.fuso.inicio_dia_local).isoformat()
+        closed = int(self.conn.execute("SELECT COUNT(*) FROM paper_trades WHERE exit_ms IS NOT NULL AND variant = 'padrao'").fetchone()[0])
+        trigger = None
+        if self.last_day is None:
+            self.last_day = day
+            self._set("aprendizado_dia", day)
+        elif a.reavaliar_no_fim_do_dia and day != self.last_day:
+            trigger = f"fim do dia {self.last_day}"
+        if trigger is None and closed - self.last_count >= a.reavaliar_a_cada_operacoes:
+            trigger = f"{closed - self.last_count} operações virtuais fechadas"
+        if trigger is None:
+            return
+        self.last_day, self.last_count = day, closed
+        self._set("aprendizado_dia", day)
+        self._set("aprendizado_operacoes", str(closed))
+        self.say(f"Reavaliação automática ({trigger}) iniciada em segundo plano.")
+        self.task = asyncio.create_task(asyncio.to_thread(self._run, trigger))
+
+    def _run(self, trigger: str) -> None:
+        from cryptoagent.backtest.costs import build_schedule
+        from cryptoagent.learning.cycle import run_cycle
+
+        c, bt = self.cfg, self.cfg.backtest
+        pair = c.paper.par
+        costs = build_schedule(pair, self.fee, c.sazonalidade.spread_padrao_pct.get(pair, 0.05), c.path(c.custos.banco), c.fuso.local,
+                               min_samples=bt.amostras_min_spread_hora, slip_market=bt.slippage_mercado_pct, slip_stop=bt.slippage_stop_pct,
+                               fee_source="paper trading")
+        try:
+            r = run_cycle(c, costs, trigger=trigger, sim_db=self.db_path, progress=lambda m: None)
+        except Exception as exc:  # o paper continua rodando mesmo se a reavaliação falhar
+            log.exception("Falha no ciclo de reavaliação")
+            self.say(f"[aviso] reavaliação automática falhou: {redact(exc)}")
+            return
+        self.say(f"Reavaliação {r.number} concluída: " + (f"campeão trocado para v{r.champion_after.id} ({r.champion_after.name})"
+                 if r.promoted else f"campeão mantido (v{r.champion_after.id})") + f". Relatório: {r.report_path}")
 
 
 async def _fresh_quote(client: BinanceReadOnlyClient, symbol: str, sleep: Callable[[float], Awaitable[None]], delay_s: float) -> tuple[float, float, int]:
@@ -177,7 +247,7 @@ async def _cycle(
     if last_close <= book.last_decision_close_ms:
         return  # este candle já foi analisado
     view = book.view(now, (bid + ask) / 2, half)
-    res = await analyze_live(v.cfg, secrets, client, conn, paper=view)
+    res = await analyze_live(v.cfg, secrets, client, conn, paper=view, use_champion=v.name == "padrao")
     d = res.decision
     sid = save_signal(
         conn, d, ratio=res.ratio, mode="paper", data_ages=res.data_ages, latency_ms=res.latency_ms, variant=v.name, market_extras=res.market_extras

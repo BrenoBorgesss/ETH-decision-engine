@@ -33,6 +33,7 @@ async def cmd_paper_run(cfg: Config, secrets: Secrets, args: argparse.Namespace)
     console.print(f"[dim]Taxa usada na carteira virtual: {fee * 100:.4f}% por lado ({source}). Banco da simulação: {cfg.path(cfg.paper.banco)}[/]")
     await run_paper(
         cfg, secrets, fee=fee, capital=args.capital, max_loss_brl=args.perda_max, max_cycles=args.ciclos, say=lambda msg: console.print(escape(msg)),
+        auto_learning=True,
     )
     return 0
 
@@ -179,6 +180,7 @@ async def cmd_paper_replay(cfg: Config, secrets: Secrets, args: argparse.Namespa
     def adjust(c: Config) -> Config:
         c = c.model_copy(deep=True)
         c.sazonalidade.relatorio_pasta = str(no_profile)  # perfil salvo usa dados posteriores: desligado no replay
+        c.aprendizado.pasta = str(no_profile)  # campeão e panorama atuais também usam dados posteriores: desligados
         return c
 
     client = ReplayClient(cfg, start_ms=start, costs=costs)

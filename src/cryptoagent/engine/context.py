@@ -119,4 +119,6 @@ class DecisionContext:
     cost_pct: float  # custo de ida e volta (ponto de equilíbrio) no par de operação, em %
     position: PositionView | None = None
     season: SeasonView = field(default_factory=SeasonView)
+    # Cenário pouco visto no histórico (aprendizado contínuo): fator < 1 reduz a confiança. Fica em 1 no backtest.
+    novelty: SeasonView = field(default_factory=SeasonView)
     live: bool = True  # False no backtest

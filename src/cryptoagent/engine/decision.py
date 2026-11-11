@@ -165,6 +165,8 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
         ConfidencePart("qualidade dos dados", quality, "sem avisos" if quality == 1 else "; ".join(ctx.risk.data_warnings)),
         ConfidencePart("horário", ctx.season.factor, "; ".join(ctx.season.reasons) or "sem efeito"),
     ]
+    if ctx.novelty.factor != 1 or ctx.novelty.reasons:
+        d.parts.append(ConfidencePart("cenário", ctx.novelty.factor, "; ".join(ctx.novelty.reasons) or "cenário conhecido"))
     d.confidence = _confidence(d.parts)
 
     ranked = sorted((s for s in signals if s.available), key=lambda s: s.contribution, reverse=True)

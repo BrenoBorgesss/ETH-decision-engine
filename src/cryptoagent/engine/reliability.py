@@ -45,13 +45,24 @@ def _read(path: Path) -> dict | None:
         return None
 
 
-def check_reliability(cfg: Config, trade_symbol: str, now_ms: int) -> Reliability:
-    """Confere o último backtest do par contra os critérios de `confiabilidade`."""
+def check_reliability(cfg: Config, trade_symbol: str, now_ms: int, *, champion: dict | None = None) -> Reliability:
+    """Confere o último backtest do par contra os critérios de `confiabilidade`.
+
+    `champion`: métricas fora da amostra da estratégia campeã do aprendizado contínuo, quando ela não é o
+    motor de regras padrão (nesse caso o backtest.json, que é das regras padrão, não se aplica).
+    """
     from cryptoagent.backtest.provenance import parameters, params_hash
 
     c = cfg.confiabilidade
     if not c.exigir_validacao:
         return Reliability(True)
+    if champion is not None:
+        if champion.get("_params_sha256") != params_hash(parameters(cfg)):
+            return Reliability(False, ["a estratégia campeã foi avaliada com outros parâmetros (rode: cryptoagent aprendizado reavaliar)"])
+        age_days = (now_ms - int(champion.get("_avaliado_ms", 0))) / DAY_MS
+        if age_days > c.idade_max_relatorio_dias:
+            return Reliability(False, [f"a última avaliação da estratégia campeã tem {age_days:.0f} dias (máximo {c.idade_max_relatorio_dias})"])
+        return _criteria(champion, c)
     folder = cfg.path(cfg.backtest.relatorio_pasta)
     report, meta = _read(folder / "backtest.json"), _read(folder / "backtest.meta.json")
     if not report or trade_symbol not in report:
@@ -64,7 +75,11 @@ def check_reliability(cfg: Config, trade_symbol: str, now_ms: int) -> Reliabilit
     if age_days > c.idade_max_relatorio_dias:
         return Reliability(False, [f"o último backtest tem {age_days:.0f} dias (máximo {c.idade_max_relatorio_dias}); rode de novo"])
 
-    m = (report[trade_symbol].get("padrao") or {}).get("metricas") or {}
+    return _criteria((report[trade_symbol].get("padrao") or {}).get("metricas") or {}, c)
+
+
+def _criteria(m: dict, c: object) -> Reliability:
+    """Aplica os critérios de `confiabilidade` a um conjunto de métricas fora da amostra."""
     n = int(m.get("operacoes") or 0)
     exp = m.get("expectativa_pct")
     pf = m.get("fator_lucro")
