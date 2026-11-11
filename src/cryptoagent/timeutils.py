@@ -13,14 +13,14 @@ Regras do projeto:
 from __future__ import annotations
 
 import time as _time
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta, timezone
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
 
-UTC = timezone.utc
+UTC = UTC
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 INTERVAL_MS: dict[str, int] = {

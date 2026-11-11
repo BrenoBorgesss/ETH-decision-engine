@@ -26,7 +26,8 @@ def save_signal(
 ) -> int:
     """Grava a decisão. Preços e níveis vão no par de OPERAÇÃO (multiplicados por `ratio`)."""
     lv = d.levels
-    t = lambda x: x * ratio if x is not None else None
+    def t(x):
+        return x * ratio if x is not None else None
     details = {
         "parts": [asdict(p) for p in d.parts],
         "reasons_for": d.reasons_for,
@@ -71,10 +72,6 @@ def save_signal(
     )
     conn.commit()
     return int(cur.lastrowid)
-
-
-def last_signal(conn: sqlite3.Connection, trade_symbol: str, mode: str = "ao_vivo") -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM signals WHERE trade_symbol = ? AND mode = ? ORDER BY time_ms DESC, id DESC LIMIT 1", (trade_symbol, mode)).fetchone()
 
 
 def auto_associate(conn: sqlite3.Connection, trade_symbol: str, window_min: float = 30) -> int:

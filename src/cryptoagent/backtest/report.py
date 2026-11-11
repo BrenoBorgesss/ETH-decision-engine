@@ -47,7 +47,8 @@ def _clean(obj):
 
 
 def to_dict(r: PairReport) -> dict:
-    v = lambda x: {"nome": x.name, "metricas": x.metrics, "nota": x.note} if x else None
+    def v(x):
+        return {"nome": x.name, "metricas": x.metrics, "nota": x.note} if x else None
     return _clean(
         {
             "par": r.pair,
@@ -124,8 +125,10 @@ def _equity_svg(r: PairReport, capital: float) -> str:
     w, h, pad = 900, 220, 30
     x0, x1 = r.oos_start, r.oos_end
     y0, y1 = min(ys + [capital]) * 0.995, max(ys + [capital]) * 1.005
-    sx = lambda x: pad + (x - x0) / (x1 - x0) * (w - 2 * pad)
-    sy = lambda y: h - pad - (y - y0) / (y1 - y0) * (h - 2 * pad)
+    def sx(x):
+        return pad + (x - x0) / (x1 - x0) * (w - 2 * pad)
+    def sy(y):
+        return h - pad - (y - y0) / (y1 - y0) * (h - 2 * pad)
     pts = " ".join(f"{sx(x):.1f},{sy(y):.1f}" for x, y in zip(xs, ys))
     base = sy(capital)
     return (

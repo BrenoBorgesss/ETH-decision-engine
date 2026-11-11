@@ -30,6 +30,7 @@ from cryptoagent.seasonality.profiles import add_buckets
 from cryptoagent.security.redact import redact
 from cryptoagent.timeutils import now_ms
 
+
 @dataclass(frozen=True)
 class PaperView:
     """Carteira VIRTUAL do paper trading, usada no lugar da conta real."""

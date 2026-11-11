@@ -27,8 +27,8 @@ from cryptoagent.data.websocket import BinanceStream
 from cryptoagent.engine.journal import save_signal, set_association
 from cryptoagent.engine.live import LiveResult, analyze_live
 from cryptoagent.fmt import num
-from cryptoagent.security.redact import redact
 from cryptoagent.seasonality.analysis import load_profiles
+from cryptoagent.security.redact import redact
 from cryptoagent.session import daily
 from cryptoagent.storage import agent_db
 from cryptoagent.timeutils import format_local, now_ms, zone

@@ -41,7 +41,8 @@ def _print_gate_study(rep, min_trades: int) -> None:
     t = Table(title="Cada trava: operações que ela teria BARRADO x as que deixaria passar (% líquido, com taxas)")
     for col in ("Trava", "Barradas: n", "acerto", "média", "Liberadas: n", "acerto", "média"):
         t.add_column(col)
-    f = lambda v, s=False: "-" if v is None else pct(v, 3 if s else 0, sign=s)
+    def f(v, s=False):
+        return "-" if v is None else pct(v, 3 if s else 0, sign=s)
     for g in rep.gates:
         t.add_row(GATE_PT[g.gate], str(g.n_blocked), f(g.win_blocked_pct), f(g.avg_blocked_pct, True), str(g.n_passed), f(g.win_passed_pct), f(g.avg_passed_pct, True))
     console.print(t)

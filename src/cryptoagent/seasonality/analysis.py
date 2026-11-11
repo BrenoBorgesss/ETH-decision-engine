@@ -33,9 +33,6 @@ class SymbolAnalysis:
     validation: ValidationReport
     folga: float
 
-    def hour_row(self, hour: int) -> pd.Series:
-        return self.hours.loc[hour]
-
 
 def analyze_symbol(df: pd.DataFrame, symbol: str, cfg: Config, cost: CostModel) -> SymbolAnalysis:
     s = cfg.sazonalidade
@@ -61,7 +58,8 @@ def analyze_symbol(df: pd.DataFrame, symbol: str, cfg: Config, cost: CostModel) 
 
 def to_dict(a: SymbolAnalysis) -> dict:
     v = a.validation
-    grid = lambda col: [[float(a.heat[col].get((d, h), float("nan"))) for h in range(24)] for d in range(7)]
+    def grid(col):
+        return [[float(a.heat[col].get((d, h), float("nan"))) for h in range(24)] for d in range(7)]
     return {
         "symbol": a.symbol,
         "timeframe": a.timeframe,

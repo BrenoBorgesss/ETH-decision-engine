@@ -10,18 +10,13 @@ from cryptoagent.cli._shared import console
 from cryptoagent.config import Config, Secrets
 from cryptoagent.data import history
 from cryptoagent.data.rest import BinanceReadOnlyClient
+from cryptoagent.engine.decision import REGIME_PT as DECISION_REGIME_PT
 from cryptoagent.timeutils import format_local
 
 # -------------------------------------------------------------- indicadores
 
-REGIME_PT = {
-    "tendencia_alta": "tendência de alta",
-    "tendencia_baixa": "tendência de baixa",
-    "lateral": "lateral",
-    "alta_volatilidade": "alta volatilidade",
-    "transicao": "transição",
-    "indefinido": "indefinido (aquecendo)",
-}
+# Mesmos nomes do motor de decisão; aqui o "indefinido" explica o motivo (indicadores aquecendo).
+REGIME_PT = {**DECISION_REGIME_PT, "indefinido": "indefinido (aquecendo)"}
 
 
 async def cmd_indicators_show(cfg: Config, secrets: Secrets, args: argparse.Namespace) -> int:

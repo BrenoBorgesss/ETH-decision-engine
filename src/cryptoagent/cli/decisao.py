@@ -26,7 +26,8 @@ def print_decision(res, cfg: Config) -> None:
     ratio = res.ratio
     tz = cfg.fuso.local
     tq = split_symbol(d.trade_symbol)[1]
-    tp = lambda x: num(x * ratio, 2) + f" {tq}"
+    def tp(x):
+        return num(x * ratio, 2) + f" {tq}"
     console.print()
     from cryptoagent.engine.decision import REGIME_PT as ENGINE_REGIME_PT
 

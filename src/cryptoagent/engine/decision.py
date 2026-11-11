@@ -103,7 +103,8 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
             r_stop, r_t1, r_t2 = rules_levels_for_position(ctx, p)
             stop, t1, t2 = stop or r_stop, t1 or r_t1, t2 or r_t2
         ctx = _with_position_levels(ctx, stop, t1, t2)
-        tp = lambda x: num(x * ctx.trade_price_ratio)  # textos sempre no par de OPERAÇÃO
+        def tp(x):
+            return num(x * ctx.trade_price_ratio)  # textos sempre no par de OPERAÇÃO
         d.position_note = (
             f"posição de operação: {num(pos.qty, 6)} ETH a custo médio {tp(pos.avg_cost)} | stop {tp(stop)} | alvo 1 {tp(t1)} | alvo 2 {tp(t2)} ({pos.source})"
             if stop and t1 and t2

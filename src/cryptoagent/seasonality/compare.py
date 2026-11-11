@@ -85,7 +85,8 @@ def context_multiplier(hour_class: str | None, hour_pattern_validated: bool, act
     """Multiplicador de confiança da análise por horário (sempre <= 1: só reduz, nunca cria sinal)."""
     ctx = ContextFactor(1.0)
     label = {"compensa": "compensa", "neutro": "neutro", "nao_compensa": "não compensa"}.get(hour_class or "", hour_class)
-    fmt = lambda x: f"{x:g}".replace(".", ",")
+    def fmt(x):
+        return f"{x:g}".replace(".", ",")
     if hour_class and hour_pattern_validated:
         mult = {"compensa": s.mult_compensa, "neutro": s.mult_neutro, "nao_compensa": s.mult_nao_compensa}[hour_class]
         ctx.factor *= mult

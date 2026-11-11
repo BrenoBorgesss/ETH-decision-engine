@@ -49,7 +49,6 @@ class RiskView:
     blocked_reasons: list[str]  # conta, sessão, perda do dia, saúde dos dados...
     risk_per_trade_brl: float | None
     capital_brl: float | None
-    quote_to_brl: float = 1.0  # converte a moeda do par de ANÁLISE para R$ (ex.: USDTBRL)
     data_warnings: list[str] = field(default_factory=list)  # avisos não críticos (ex.: derivativos fora)
     # Perda máxima do dia atingida. Fica separada das outras travas porque, com posição aberta,
     # ainda permite VENDER nas saídas que reduzem risco (stop, invalidação, tempo).
