@@ -15,7 +15,7 @@ cryptoagent diario adicionar|listar|remover   diário manual (contingência sem 
 Cada grupo de comandos mora em um módulo deste pacote; `app` monta tudo.
 """
 
-from cryptoagent.cli._shared import console
+from cryptoagent.cli._console import console
 from cryptoagent.cli.app import build_parser, main
 
 __all__ = ["build_parser", "console", "main"]

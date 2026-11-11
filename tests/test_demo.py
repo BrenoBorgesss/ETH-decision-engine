@@ -7,6 +7,7 @@ import httpx
 import pandas as pd
 import pytest
 
+from cryptoagent import config
 from cryptoagent.cli import app
 from cryptoagent.config import DEMO_RELATIVE, load_config
 from cryptoagent.data.models import KLINE_COLUMNS
@@ -27,7 +28,7 @@ def sem_rede_e_sem_chave(monkeypatch):
         raise AssertionError("o modo demonstração tentou ler o .env")
 
     monkeypatch.setattr(httpx.AsyncClient, "send", rede_proibida)
-    monkeypatch.setattr(app, "load_secrets", chave_proibida)
+    monkeypatch.setattr(config, "load_secrets", chave_proibida)
     monkeypatch.setenv("CRYPTOAGENT_HOME", str(ROOT))
     monkeypatch.setenv("COLUMNS", "250")  # terminal largo: as tabelas não cortam os nomes
     for name in ("BINANCE_API_KEY", "BINANCE_API_SECRET"):

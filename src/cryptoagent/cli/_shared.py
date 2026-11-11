@@ -4,18 +4,19 @@ from __future__ import annotations
 
 import logging
 
-from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
 from cryptoagent.account.permissions import check_permissions
+from cryptoagent.cli._console import console
 from cryptoagent.config import Config, Secrets
 from cryptoagent.data.health import HealthReport
 from cryptoagent.data.rest import BinanceError, BinanceReadOnlyClient
 from cryptoagent.security.redact import redact
 
 log = logging.getLogger("cryptoagent")
-console = Console()
+
+__all__ = ["console", "log"]
 
 
 # --------------------------------------------------------------------- saída
