@@ -49,7 +49,7 @@ def test_servidor_do_painel_nao_conecta_em_nada_externo():
 
 
 def test_painel_so_escuta_no_proprio_computador():
-    cli = (SRC / "cryptoagent" / "cli.py").read_text(encoding="utf-8")
+    cli = "\n".join(p.read_text(encoding="utf-8") for p in sorted((SRC / "cryptoagent" / "cli").glob("*.py")))
     assert 'host="127.0.0.1"' in cli and "0.0.0.0" not in cli
 
 
