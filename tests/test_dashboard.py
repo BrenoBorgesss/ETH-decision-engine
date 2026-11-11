@@ -13,6 +13,7 @@ from cryptoagent.security.redact import register_secrets
 from cryptoagent.session.daily import SessionError
 
 TOKEN = "token-de-teste-123"
+LOCAL = "http://127.0.0.1:8765"  # o painel só aceita ser chamado por 127.0.0.1/localhost
 SECRET = "SEGREDO_DA_CHAVE_0123456789"
 
 
@@ -43,7 +44,7 @@ class FakeService:
 def client():
     register_secrets([SECRET])
     svc = FakeService()
-    return TestClient(create_app(svc, token=TOKEN)), svc
+    return TestClient(create_app(svc, token=TOKEN), base_url=LOCAL), svc
 
 
 def test_pagina_traz_o_token_e_estado_nao_vaza_segredo(client):
@@ -91,10 +92,30 @@ def test_rotas_rodam_na_thread_do_servico(tmp_path):
             return {"thread": threading.get_ident()}
 
     svc = SqliteService()
-    with TestClient(create_app(svc, token=TOKEN)) as c:
+    with TestClient(create_app(svc, token=TOKEN), base_url=LOCAL) as c:
         a = c.get("/api/estado").json()["thread"]
         b = c.get("/api/estado").json()["thread"]
     assert a == b  # mesma thread em toda chamada (a do loop), nunca um pool de threads
+
+
+@pytest.mark.parametrize("host", ["evil.example.com", "evil.example.com:8765", "127.0.0.1.evil.example.com", "192.168.0.10:8765"])
+def test_host_de_fora_e_recusado_em_todas_as_rotas(host):
+    """DNS rebinding: um site externo chamando o painel pelo próprio domínio não lê nem altera nada."""
+    svc = FakeService()
+    c = TestClient(create_app(svc, token=TOKEN), base_url=f"http://{host}")
+    for path in ("/", "/api/estado", "/api/candles", "/api/sazonalidade", "/static/app.js"):
+        r = c.get(path)
+        assert r.status_code == 400, path
+        assert TOKEN not in r.text
+    body = {"capital": 1000, "perda_max": 30, "par": "ETHBRL"}
+    assert c.post("/api/sessao", json=body, headers={"X-Painel-Token": TOKEN}).status_code == 400
+    assert svc.sessions == []
+
+
+@pytest.mark.parametrize("base", ["http://127.0.0.1:8765", "http://localhost:8765", "http://127.0.0.1"])
+def test_host_local_e_aceito(base):
+    c = TestClient(create_app(FakeService(), token=TOKEN), base_url=base)
+    assert c.get("/api/estado").status_code == 200
 
 
 def test_arquivos_estaticos(client):
@@ -119,6 +140,21 @@ def test_regras_de_alerta():
     s = alert_for_change("ESPERAR", dec("VENDER", "stop"), 12000)
     assert s.urgent and "URGENTE" in s.title
     assert alert_for_change(None, dec("COMPRAR"), 12000) is not None
+
+
+def test_notificacao_do_windows_nao_herda_as_chaves(monkeypatch):
+    """O PowerShell que mostra a notificação é um processo filho: não pode receber as chaves do .env."""
+    import cryptoagent.alerts.notify as n
+
+    seen = {}
+    monkeypatch.setenv("BINANCE_API_KEY", SECRET)
+    monkeypatch.setenv("BINANCE_API_SECRET", SECRET + "_B")
+    monkeypatch.setattr(n.subprocess, "Popen", lambda cmd, **kw: seen.update(kw))
+    Alerter(Alertas(terminal=False, windows=True), Console(quiet=True))._toast(n.Alert(1, "título", "corpo"))
+    env = seen["env"]
+    assert env["CA_TITLE"] == "título" and env["CA_BODY"] == "corpo"
+    assert "BINANCE_API_KEY" not in env and "BINANCE_API_SECRET" not in env
+    assert SECRET not in " ".join(env.values())
 
 
 def test_alerta_de_perda_maxima_so_uma_vez_por_dia():

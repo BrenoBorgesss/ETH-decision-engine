@@ -129,9 +129,10 @@ Os sinais são calculados no ETHUSDT, que é mais líquido, e os preços são tr
 ## Segurança
 
 - **Só leitura:** o cliente da Binance só faz consultas GET, a uma lista fixa de endpoints de leitura. Testes varrem o código procurando chamadas de ordem, saque ou transferência.
+- **Não existe código de execução real.** Não há função, flag nem configuração que envie ordem: o programa só lê dados, gera sinais e simula com dinheiro virtual. Se um dia isso for acrescentado, a regra do projeto é ficar desligado por padrão, atrás de uma flag explícita e com aviso claro.
 - **Chave verificada:** as permissões são conferidas ao iniciar e a cada hora. Com qualquer permissão além de leitura, o agente para.
 - **Segredos:** as chaves só vêm do `.env`. Logs, mensagens de erro e a página do painel passam por um filtro que mascara chaves e assinaturas.
-- **Painel:** só escuta no próprio computador (`127.0.0.1`). O que altera algo exige um token que só a página do painel tem.
+- **Painel:** só escuta no próprio computador (`127.0.0.1`) e recusa chamadas cujo cabeçalho `Host` não seja `127.0.0.1` ou `localhost`. O que altera algo exige um token que só a página do painel tem.
 - **Dado velho, ausente ou inconsistente = ESPERAR**, sem presumir valores.
 
 ## Horários

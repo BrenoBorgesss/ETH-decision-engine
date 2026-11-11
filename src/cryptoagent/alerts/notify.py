@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 from rich.console import Console
 
-from cryptoagent.config import Alertas
+from cryptoagent.config import SECRET_ENV_VARS, Alertas
 from cryptoagent.engine.decision import Decision
 from cryptoagent.fmt import num
 from cryptoagent.timeutils import format_local, now_ms
@@ -78,7 +78,10 @@ class Alerter:
 
     def _toast(self, alert: Alert) -> None:
         try:
-            env = {**os.environ, "CA_TITLE": alert.title[:120], "CA_BODY": alert.body[:240]}
+            # As chaves do .env ficam nas variáveis de ambiente deste processo; o PowerShell da
+            # notificação não precisa delas, então não as herda.
+            clean = {k: v for k, v in os.environ.items() if k.upper() not in SECRET_ENV_VARS}
+            env = {**clean, "CA_TITLE": alert.title[:120], "CA_BODY": alert.body[:240]}
             subprocess.Popen(
                 ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", _TOAST_PS],
                 env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),

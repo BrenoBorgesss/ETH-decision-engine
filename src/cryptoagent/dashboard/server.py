@@ -4,6 +4,10 @@ Proteção: as rotas que ALTERAM algo (sessão do dia, associação) exigem o ca
 um valor aleatório gerado a cada execução e embutido só na página servida aqui. Outro site aberto
 no navegador não consegue ler a página nem mandar esse cabeçalho (o navegador bloqueia), então não
 consegue mudar nada. Nenhuma rota envia ordens: o agente é somente leitura.
+
+Além disso, TODAS as rotas recusam (HTTP 400) qualquer chamada cujo cabeçalho Host não seja
+127.0.0.1 ou localhost. Isso fecha o ataque de "DNS rebinding", em que um site externo faz o
+navegador chamar o painel por um nome de domínio dele para ler o estado (saldo, posição).
 """
 
 from __future__ import annotations
@@ -15,11 +19,15 @@ from typing import Protocol
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from cryptoagent.security.redact import redact
 from cryptoagent.session.daily import SessionError
 
 STATIC = Path(__file__).parent / "static"
+
+# Únicos nomes pelos quais o painel aceita ser chamado (a porta é ignorada na comparação).
+LOCAL_HOSTS = ("127.0.0.1", "localhost")
 
 
 class ServiceLike(Protocol):
@@ -30,10 +38,12 @@ class ServiceLike(Protocol):
     def associate(self, data: dict) -> None: ...
 
 
-def create_app(service: ServiceLike, token: str | None = None) -> FastAPI:
+def create_app(service: ServiceLike, token: str | None = None, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS) -> FastAPI:
+    """Monta o aplicativo do painel. `token` e `allowed_hosts` só são passados nos testes."""
     token = token or pysecrets.token_urlsafe(24)
     app = FastAPI(title="Agente cripto (somente leitura)", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.token = token
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(allowed_hosts), www_redirect=False)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     def check(x_painel_token: str | None) -> None:
