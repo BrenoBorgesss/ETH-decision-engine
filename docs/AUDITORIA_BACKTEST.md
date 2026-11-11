@@ -98,6 +98,21 @@ decide como o backtest:
 - **Conclusão:** o modelo não aprendeu nada útil com estas variáveis e esta amostra. Ele não
   substitui as regras. Fica registrado como desafiador para a etapa de aprendizado contínuo.
 
+## 4b. Aprendizado contínuo (Etapa 8)
+
+- **Seis ciclos ponto no tempo no histórico real** (até 01/06, 01/07, 01/08, 01/09, 01/10 e 22/10/2026):
+  nenhum desafiante foi promovido.
+  - **Hipótese do setup 1h:** teve 2 operações fora da amostra, amostra insuficiente.
+  - **Modelo:** no último ciclo, 30 operações e −0,129% por operação, com retorno pior que o das regras.
+- **Calibração:** a confiança das regras não acompanha o acerto. Em todas as faixas, de 0% a 100% de
+  confiança, o acerto ficou entre 20% e 34%.
+- **Panoramas por cenário:** com 42 cenários olhados de uma vez e casos vizinhos parecidos, um
+  cenário com intervalo de 95% acima de zero não é evidência de vantagem. Ele só pode virar
+  estratégia como hipótese declarada e testada fora da amostra.
+- **Alerta de mudança de regime:** a primeira versão alertava em todos os ciclos, por efeito de
+  amostra pequena, comparações múltiplas e memória das séries. A versão final compara o último mês
+  com as outras janelas de 30 dias do período e alerta em 1 dos 6 ciclos (volatilidade em junho).
+
 ## 5. Correções feitas nesta etapa
 
 | ID | Problema | Correção |

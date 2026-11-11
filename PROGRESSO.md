@@ -454,12 +454,67 @@ Backup antes da etapa: tag git `backup-antes-etapa-7` (aponta para `2088f2f`).
 
 ## ETAPA 8 — APRENDIZADO CONTÍNUO E PANORAMAS CONFIÁVEIS
 
-- [ ] **8.1** Ciclo de reavaliação periódica (fim do dia ou a cada N operações) que ajusta/retreina com os dados da simulação.
-- [ ] **8.2** Esquema campeão/desafiador: o modelo novo só substitui o atual se for melhor fora da amostra (walk-forward), depois de custos, sem aumentar o drawdown.
-- [ ] **8.3** Histórico de versões do modelo com métricas.
-- [ ] **8.4** Proteções: mínimo de operações/dias antes de confiar, detecção de drift/mudança de regime, redução de confiança em cenários inéditos.
-- [ ] **8.5** Panoramas: probabilidade de acerto, ganho/perda esperados, intervalo de confiança e desempenho por cenário; calibração da confiança (com gráfico).
-- [ ] **8.6** Critérios de promoção configuráveis; enquanto não atingidos, mostrar "AGUARDAR / EM TESTE".
+Backup antes da etapa: tag git `backup-antes-etapa-8` (aponta para `a088e4e`). Pacote novo: `src/cryptoagent/learning/`.
+
+- [x] **8.1** Ciclo de reavaliação periódica (fim do dia ou a cada N operações) que ajusta/retreina com os dados da simulação.
+  - `learning/cycle.py` (`cryptoagent aprendizado reavaliar [--ate AAAA-MM-DD]`):
+    - monta os momentos candidatos pelo mesmo simulador do backtest;
+    - acrescenta as operações da simulação posteriores ao fim do histórico;
+    - retreina o modelo mês a mês e avalia todos os candidatos no mesmo período fora da amostra;
+    - mede mudança de regime e grava registro, panorama e relatório.
+  - **Ponto no tempo:** com `--ate`, só entram dados anteriores à data: janelas, rótulos e operações que já tinham terminado. Testado.
+  - **Automático:** `paper rodar` dispara o ciclo em segundo plano (outra thread, sem travar o laço) na virada do dia local e a cada `aprendizado.reavaliar_a_cada_operacoes` (20) operações virtuais fechadas. Os marcadores ficam no banco da simulação. Teste com os dois gatilhos.
+  - **Uso dos dados da simulação:** (a) operações virtuais com variáveis registradas e decididas depois do fim do histórico entram no treino; (b) o resultado da carteira virtual é comparado com o intervalo do campeão no backtest (alerta "simulação x backtest", a partir de 10 operações). Hoje há 0 operações nessas condições, então ainda não houve efeito real.
+- [x] **8.2** Esquema campeão/desafiador.
+  - **Desafiantes de cada ciclo:**
+    - as hipóteses declaradas em `aprendizado.hipoteses` (hoje `config/hipotese_setup_1h.yaml`);
+    - o modelo de regressão logística, retreinado a cada ciclo;
+    - os ex-campeões.
+  - **Comparação:** todos contra o campeão, no MESMO período fora da amostra, com custos.
+  - **Ao vivo:** o campeão é usado no `analisar`, no painel e na variante "padrao" do paper. Uma hipótese promovida troca a estratégia; o modelo promovido decide a compra nos momentos candidatos, sem passar por cima das travas de segurança, de custo e da regra de confiabilidade.
+  - **Demonstração ponto no tempo no histórico real** (6 ciclos: até 01/06, 01/07, 01/08, 01/09, 01/10 e o fim do histórico, 22/10/2026; ~28 s cada):
+    - **nenhuma promoção**: os desafiantes foram rejeitados nos 6 ciclos, cada vez com os motivos registrados;
+    - **hipótese do setup 1h:** só 2 operações fora da amostra (+1,215% por operação; intervalo de −3,691% a +6,120%). Amostra insuficiente.
+    - **modelo:** 30 operações e −0,129% por operação no último ciclo. Rejeitado por média negativa e retorno pior que o campeão (−3,68% x −3,67%).
+  - **Promoção:** como os dados reais não promoveram ninguém, a mecânica foi provada num teste que força o veredito. O campeão é trocado, o anterior vira "aposentado" e a análise ao vivo passa a usar o novo. **Não houve promoção real.**
+- [x] **8.3** Histórico de versões do modelo com métricas.
+  - `learning/registry.py`: `registro.json` legível, com cada versão (tipo, origem, estado) e cada avaliação. A avaliação guarda ciclo, dados até, período fora da amostra, métricas, hash dos parâmetros, hash dos dados, decisão e motivos. Os modelos de cada ciclo ficam em `modelos/modelo-cicloNNN.json`.
+  - `cryptoagent aprendizado versoes` mostra a tabela. Dois ciclos com os mesmos dados dão métricas idênticas (teste).
+- [x] **8.4** Proteções.
+  - **Mínimos antes de confiar:** critérios de promoção (30 operações e 60 dias fora da amostra) e a regra de confiabilidade da Etapa 6, que agora usa as métricas do campeão quando ele não é o padrão.
+  - **Mudança de regime (`learning/drift.py`):** PSI de regime, ATR% e tamanho dos movimentos do 15m, e das variáveis dos momentos candidatos.
+    - Só alerta se o PSI passar de 0,25 **e** o último mês for incomum frente às outras janelas de 30 dias do período (p < 0,05).
+    - Com alerta, nada é promovido e a análise ao vivo ganha um aviso de dados (−5% na confiança).
+  - **Calibração do alerta, com números:**
+    - **1ª versão:** alertou nos 6 ciclos. Um PSI de amostra pequena (51 casos) dá ~0,20 só por acaso, e olhar o maior de 17 variáveis aumenta isso.
+    - **2ª versão** (desconto do acaso + teste de permutação): ainda 6 de 6. Casos vizinhos no tempo se parecem, e a permutação ignora isso.
+    - **Versão final** (comparação com as janelas do próprio período): 1 de 6 ciclos, em 01/06 (ATR% com PSI 2,20, p = 0,04).
+    - Testes provam que, com dados sem mudança, há no máximo 1 alarme falso em 10, e que uma mudança real é detectada.
+  - **Cenário inédito:** cenário = regime | período do dia | faixa de volatilidade.
+    - Com menos de 30 casos no histórico, a confiança ao vivo é multiplicada por um fator que vai de 0,7 (nenhum caso) até 1, aparecendo como parcela "cenário".
+    - O backtest não aplica esse fator, porque precisaria das contagens ponto no tempo. É uma diferença que só deixa o ao vivo mais conservador.
+- [x] **8.5** Panoramas e calibração com gráfico.
+  - `learning/panorama.py`, sobre os 1.033 momentos candidatos do histórico real, em 42 cenários. Para cada cenário: casos, acerto com intervalo de 95% (Wilson), ganho médio, perda média e média por operação com intervalo de 95%.
+  - **Ao vivo:** o `analisar` mostra o panorama do cenário do momento.
+  - **Saídas:** `aprendizado panorama` e `aprendizado.html` (tabela por cenário e dois diagramas de calibração em SVG, regras e modelo, com barras de intervalo de 95%).
+  - **Resultado real da calibração:** a confiança das regras NÃO acompanha o acerto. Faixas 0–40%: 32%; 40–55%: 33%; 55–70%: 34%; 70–85%: 20% (35 casos); 85–100%: 30% (23 casos). Isso confirma M4 do diagnóstico: a confiança é uma pontuação, não uma probabilidade.
+  - **Cuidado registrado:** o cenário "alta_volatilidade | noite | volatilidade alta" mostra +0,450% por operação (IC +0,063% a +0,837%, 110 casos). São 42 cenários olhados de uma vez, e casos vizinhos se parecem, então o intervalo real é mais largo. Isso é descrição do passado, não vantagem validada. Para virar estratégia, teria de ser uma hipótese declarada e testada fora da amostra.
+- [x] **8.6** Critérios de promoção configuráveis; enquanto não atingidos, mostrar "AGUARDAR / EM TESTE".
+  - Seção `aprendizado` do config. Todos os critérios precisam passar: operações e dias mínimos, média ≥ campeão + 0,05 ponto, média > 0, retorno > campeão, drawdown não pior, sem mudança de regime. Cada um tem teste próprio, e o caso "menos ruim, mas ainda no prejuízo" não é promovido.
+  - "AGUARDAR / EM TESTE": a regra de confiabilidade da Etapa 6 continua mostrando "AGUARDAR (estratégia em teste)" com os motivos, agora para o campeão vigente.
+- **Decisão minha que precisa do seu aval:** a calibração do alerta de mudança de regime foi feita depois de ver os resultados no histórico real (3 versões, todas descritas acima). Cada ajuste tem justificativa estatística e teste, mas foi motivado pelos dados. Se preferir um alerta mais sensível, `aprendizado.psi_alerta` e `bloquear_promocao_com_drift` ficam no config.
+
+### Verificação final da Etapa 8
+- `python -m pytest -q` → `333 passed, 1 warning in 51.56s` (eram 310; +23 testes: 22 em `tests/test_learning.py` e 1 no demo).
+- `ruff check --select F,E9`: sem erros.
+- Backtest rápido de referência: SHA-256 `ac4ae271…7186df65`, igual ao da Etapa 7 (o backtest não mudou).
+- Modo demo: `aprendizado reavaliar`, `versoes` e `panorama` rodam sem rede e sem chave (teste).
+
+### Problemas durante a Etapa 8
+- O alerta de mudança de regime precisou de 3 versões (ver 8.4).
+- Os testes da análise ao vivo e do replay passaram a apontar a pasta do aprendizado para um lugar vazio. Antes, um ciclo rodado no demo mudaria a "foto" do teste ao vivo.
+- `extract_features` passou a tolerar coluna ausente (vira NaN, e o modelo usa a média do treino). Apareceu ao aplicar o modelo nos cenários de teste do motor, que não têm todas as colunas.
+- Não consegui tirar print do relatório HTML local no navegador embutido (ele não opera arquivos locais). O gráfico é verificado por teste (SVG com um ponto por faixa) e pelo arquivo gerado.
 
 ## ETAPA 9 — CONTROLE DE RISCO E SINAIS
 
@@ -556,3 +611,10 @@ Backup antes da etapa: tag git `backup-antes-etapa-7` (aponta para `2088f2f`).
 - Removidos: nenhum
 - Não tocados: `.env`, `data/agent.sqlite` (só lido, para contar o histórico antigo do paper), `data/history`, `data/costs.sqlite`, `logs/`, `README.md`
 - Criados pelo programa fora do repositório: `data/demo/replay/*.sqlite` e `data/demo/reports` (modo demo, ignorados pelo git); bancos de teste do paper ao vivo e do replay real ficaram no scratchpad
+
+### Etapa 8
+- Criados: `src/cryptoagent/learning/__init__.py`, `registry.py`, `criteria.py`, `drift.py`, `panorama.py`, `cycle.py`, `state.py`, `src/cryptoagent/cli/aprendizado.py`, `tests/test_learning.py`
+- Alterados: `config/config.yaml`, `config/demo.yaml`, `src/cryptoagent/config.py`, `src/cryptoagent/model/walkforward.py`, `model/dataset.py`, `model/features.py`, `src/cryptoagent/engine/context.py`, `engine/decision.py`, `engine/live.py`, `engine/reliability.py`, `src/cryptoagent/paper/runner.py`, `src/cryptoagent/cli/app.py`, `cli/decisao.py`, `cli/paper.py`, `tests/test_live.py`, `tests/test_replay.py`, `tests/test_demo.py`, `docs/AUDITORIA_BACKTEST.md`, `exemplos/LEIAME.md`, `PROGRESSO.md`
+- Removidos: nenhum
+- Não tocados: `.env`, `data/` real (os ciclos da demonstração gravaram no scratchpad; `data/learning` não foi criado), `logs/`, `README.md`
+- Criados pelo programa no modo demo: `data/demo/learning/` (ignorado pelo git)

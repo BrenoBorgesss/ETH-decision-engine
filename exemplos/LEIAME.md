@@ -8,6 +8,9 @@ cryptoagent --demo indicadores validar
 cryptoagent --demo backtest --rapido
 cryptoagent --demo modelo treinar
 cryptoagent --demo paper replay --inicio 2026-09-08 --dias 1
+cryptoagent --demo aprendizado reavaliar
+cryptoagent --demo aprendizado versoes
+cryptoagent --demo aprendizado panorama
 ```
 
 O `paper replay` roda a carteira virtual (R$ 1.000, perda máxima de R$ 30 por dia) sobre a amostra,
