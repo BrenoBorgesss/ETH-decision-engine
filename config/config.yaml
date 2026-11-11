@@ -1,0 +1,208 @@
+# Configuração do agente. Segredos (chaves) NUNCA ficam aqui: use o arquivo .env.
+# Um campo digitado errado gera erro ao iniciar (de propósito, para não passar despercebido).
+
+mercado:
+  simbolo_analise: ETHUSDT            # par usado para calcular os sinais (o mais líquido)
+  pares_candidatos: [ETHUSDT, ETHBRL] # pares onde você pode operar (comparação de custos)
+  par_operacao: null                  # par em que você opera de fato; null = o agente pergunta antes de rodar
+  par_cambio: USDTBRL                 # converte USDT <-> R$
+  timeframes: [1m, 5m, 15m, 1h, 4h, 1d]
+
+fuso:
+  local: America/Sao_Paulo   # horário de Brasília (com o histórico real de horário de verão)
+  inicio_dia_local: "00:00"  # VWAP e limite de perda do dia recomeçam neste horário local
+
+binance:
+  rest_url: https://api.binance.com
+  futures_url: https://fapi.binance.com      # só dados públicos (funding, open interest)
+  ws_url: wss://stream.binance.com:9443
+  dados_historicos_url: https://data.binance.vision
+  timeout_s: 10
+  max_tentativas: 4
+  limite_peso_por_minuto: 6000     # limite da Binance por IP
+  pausar_acima_de_pct_peso: 80     # pausa as consultas ao chegar a 80% do limite
+  recv_window_ms: 5000
+
+saude_dados:   # acima destes limites o dado é considerado velho -> sinal vira ESPERAR
+  preco_max_s: 5
+  order_book_max_s: 5
+  candle_tolerancia_s: 30        # atraso aceito após o fechamento esperado de um candle
+  derivativos_max_s: 120
+  desvio_relogio_max_ms: 1000    # diferença máxima entre o relógio do PC e o da Binance
+  divergencia_ws_rest_max_pct: 0.15
+
+historico:
+  pasta: data/history
+  meses: 13                      # meses completos para baixar (mínimo pedido: 12)
+  downloads_simultaneos: 4
+  intervalos:
+    ETHUSDT: [1m, 5m, 15m, 1h, 4h, 1d]
+    ETHBRL: [1m, 5m, 15m, 1h]
+    USDTBRL: [1m, 5m, 15m, 1h]
+
+custos:
+  banco: data/costs.sqlite
+  amostra_a_cada_s: 5                 # grava spread/profundidade/slippage a cada 5 s
+  snapshot_completo_a_cada_s: 300     # guarda o livro completo (20 níveis) a cada 5 min
+  tamanhos_ordem_brl: [500, 1000, 2500, 5000]   # tamanhos simulados de ordem a mercado (R$)
+  taxa_padrao_maker: 0.001            # usada SÓ se a leitura das taxas da sua conta falhar (com aviso)
+  taxa_padrao_taker: 0.001
+  spread_max_pct: 0.15                # acima disso, sinais ficam bloqueados (ESPERAR)
+  dias_minimos_para_conclusao: 7
+
+capital_operacao:
+  modo: brl       # brl = valor em R$; eth = quantidade de ETH
+  valor: 1000     # só este valor é tratado como posição; o resto da carteira é ignorado
+
+conta:
+  modo: binance                     # binance = lê saldo e operações pela chave somente leitura
+                                    # diario_manual = contingência: você registra as operações no terminal
+  banco: data/agent.sqlite
+  verificar_permissoes_a_cada_min: 60
+  saldo_max_s: 120                  # leitura de saldo mais velha que isso = ESPERAR
+
+risco:
+  divisor_perda_diaria: 3           # risco por operação = perda máxima do dia ÷ 3
+  lucro_amplia_limite: false        # false = lucro do dia NÃO aumenta a perda permitida
+  aviso_perda_max_pct_capital: 10   # avisa se a perda máxima informada passar de 10% do capital
+
+indicadores:
+  ema: [20, 50, 200]
+  inclinacao_ema_barras: 5          # inclinação da EMA = variação % em 5 candles
+  rsi: 14
+  macd: [12, 26, 9]                 # rápida, lenta, sinal
+  stoch_rsi: [14, 14, 3, 3]         # RSI, janela do estocástico, %K, %D
+  atr: 14
+  bollinger: { periodo: 20, desvios: 2.0 }
+  adx: 14
+  volume_relativo: 20
+  fluxo_taker_barras: 6
+  pivo_barras: 3                    # topo/fundo confirmado após 3 candles de cada lado
+  divergencia_max_barras: 60
+  pavio_min_proporcao: 0.5          # pavio >= 50% do candle = rejeição
+  sr_tolerancia_atr: 0.5            # pivôs a menos de 0,5 ATR viram o mesmo nível
+  sr_janela_barras: 300
+  sr_max_niveis: 6
+  janela_percentil: 500             # janela para percentis de ATR e largura das bandas
+
+regime:
+  adx_tendencia: 25
+  adx_lateral: 20
+  atr_percentil_alta_vol: 90
+
+sazonalidade:
+  timeframe: 15m                 # candles usados no perfil por hora
+  meses_treino: 6                # walk-forward: aprende em 6 meses...
+  meses_teste: 1                 # ...e confere no mês seguinte, que ele não viu
+  custo_folga: 1.5               # "compensa" = amplitude do candle > 1,5 × custo de ida e volta
+  pct_min_compensa: 50           # hora "compensa" se >= 50% dos candles passam do custo com folga
+  pct_max_nao_compensa: 30       # hora "não compensa" se <= 30%
+  desvio_min_volatilidade: 0.10  # dia/hora "mais/menos volátil" se a amplitude se afasta >= 10% da mediana
+  consistencia_min_pct: 75       # padrão mantido só se se repetir em >= 75% dos meses de teste
+  percentil_baixo: 20            # agora abaixo do percentil 20 da mesma hora = "abaixo do normal"
+  percentil_alto: 80
+  dias_comparacao: 90            # compara hoje com os últimos 90 dias
+  mult_compensa: 1.0             # multiplicadores de confiança (só para padrões VALIDADOS)
+  mult_neutro: 0.85
+  mult_nao_compensa: 0.6
+  mult_parado_agora: 0.8         # mercado parado agora em relação à mesma hora
+  spread_padrao_pct: { ETHUSDT: 0.001, ETHBRL: 0.04 }   # usado até haver coleta de custos
+  relatorio_pasta: data/reports
+
+estrategia:   # reversão à média intraday, só spot (sem short)
+  tf_contexto: 4h
+  tf_confirmacao: 1h
+  tf_setup: 15m                # onde se mede o esticamento
+  tf_gatilho: 5m               # gatilho anti-faca caindo
+  tf_timing: 1m                # fundo mais alto para refinar a entrada
+
+  # Conjunto mínimo de sinais. Os extras existem, mas ficam DESLIGADOS até o teste de
+  # ablação (backtest) mostrar que acrescentam algo: stoch_rsi, divergencia, pavio,
+  # fluxo_taker, suporte, order_book (este só funciona ao vivo).
+  sinais_ativos: [vwap, bollinger, rsi]
+  pesos: { vwap: 1.0, bollinger: 1.0, rsi: 1.0, stoch_rsi: 0.5, divergencia: 0.7, pavio: 0.5, fluxo_taker: 0.7, suporte: 0.7, order_book: 0.5 }
+
+  # Esticamento: rampa de 0 (início) a 1 (máximo)
+  vwap_atr_inicio: 1.0         # preço 1 ATR abaixo do VWAP começa a contar...
+  vwap_atr_maximo: 3.0         # ...e 3 ATR abaixo vale nota máxima
+  pctb_inicio: 0.2
+  pctb_maximo: -0.2
+  rsi_inicio: 40
+  rsi_maximo: 20
+
+  # Regras diferentes por regime (15m)
+  bloquear_regimes: [alta_volatilidade, indefinido]
+  confianca_minima: { lateral: 55, transicao: 60, tendencia_alta: 50, tendencia_baixa: 70 }
+
+  # Gatilho anti-faca caindo: houve esticamento nos últimos N candles de 5m e o último
+  # FECHOU de volta dentro da banda, subindo. Ou (opcional) fundo mais alto no 1m.
+  gatilho_janela_5m: 3
+  gatilho_fundo_mais_alto_1m: true
+
+  # Filtro de tendência (1h/4h): em queda forte e sustentada, NÃO comprar
+  adx_queda_forte_1h: 30       # ADX(1h) >= 30 com −DI > +DI = queda forte
+  # queda sustentada = EMA50(4h) < EMA200(4h) com EMA50 caindo E estrutura de baixa no 1h abaixo da EMA50
+  confirmacao_ambos_favoraveis: 1.0
+  confirmacao_um_neutro: 0.85
+  confirmacao_um_contra: 0.65
+
+  # Níveis
+  stop_fundo_barras_5m: 12     # stop abaixo do menor fundo dos últimos 12 candles de 5m...
+  stop_atr_5m: 0.5             # ...menos 0,5 ATR(5m)
+  stop_min_atr_5m: 0.5         # stop nunca mais perto que 0,5 ATR(5m)
+  rr_minimo: 1.0               # risco/retorno mínimo JÁ DESCONTADAS as taxas
+  distancia_alvo_min_custo: 2.5   # trava: distância até o alvo 1 >= 2,5 × custo de ida e volta
+  tempo_max_min: 180           # sem chegar ao alvo em 3 h: sair
+
+  # Saída (VENDER) com posição aberta
+  vender_pctb: 1.0             # esticado para cima: %B(15m) >= 1...
+  vender_rsi_5m: 70            # ...e RSI(5m) > 70...
+  vender_vwap_atr: 2.0         # ...e preço >= 2 ATR acima do VWAP
+
+  qualidade_min_dados: 0.9     # incerteza: qualidade dos dados abaixo disso = ESPERAR
+
+backtest:
+  pares: [ETHUSDT, ETHBRL]        # par de operação simulado (os sinais vêm sempre do simbolo_analise)
+  capital: 1000                   # na moeda do par; os resultados são em %
+  perda_max_dia_pct: 3            # simula a sessão do dia: perda máxima = 3% do capital do início do dia
+  slippage_mercado_pct: 0.01      # por lado, além do spread (ordens a mercado)
+  slippage_stop_pct: 0.05         # stop executado a mercado em queda costuma escorregar mais
+  amostras_min_spread_hora: 50    # usa o spread medido naquela hora só com >= 50 amostras; senão o padrão
+  meses_treino: 6
+  meses_teste: 1
+  operacoes_min_treino: 20        # combinação com menos operações no treino não pode ser escolhida
+  grade:                          # combinações testadas no walk-forward. Pequena e definida ANTES dos resultados.
+    distancia_alvo_min_custo: [1.5, 2.5]
+    stop_atr_5m: [0.5, 1.0]
+    tempo_max_min: [120, 240]
+  distancias_alternativas: [1.5, 1.0]   # sempre mostradas ao lado da trava padrão (2,5 × custo)
+  relatorio_pasta: data/reports
+
+paper:   # paper trading: sinais ao vivo com carteira VIRTUAL, sem dinheiro real
+  par: ETHBRL                     # par simulado
+  capital: 1000                   # capital virtual (moeda do par)
+  perda_max_dia_pct: 3            # perda máxima virtual por dia (% do capital do início do dia)
+  variantes:                      # roda lado a lado; "padrao" = este config, as outras são sobreposições
+    - padrao
+    - config/hipotese_setup_1h.yaml
+    - config/estudo_travas.yaml   # ESTUDO: compra mesmo com travas de estratégia, para medir cada trava
+  atraso_s: 5                     # espera alguns segundos após o fechamento do candle para os dados chegarem
+  horizonte_avaliacao_h: 12       # no relatório: o que o mercado fez até 12 h depois de cada sinal
+  operacoes_min_conclusao: 30     # abaixo disso, o relatório avisa que ainda não dá para concluir
+
+painel:   # cryptoagent painel -> abre http://127.0.0.1:8765 (só no seu computador)
+  porta: 8765
+  abrir_navegador: true
+  recalcular_ao_fechar: [5m]      # timeframes cujo FECHAMENTO de candle dispara uma nova análise
+  analise_extra_a_cada_s: 60      # além disso, reanalisa a cada 60 s (acompanha posição, conta e saúde); 0 = desliga
+  ws_silencio_max_s: 30           # WebSocket sem mensagens por mais que isso: usa a API REST (fallback)
+  candles_grafico: 300
+
+alertas:   # avisos quando a decisão mudar
+  terminal: true
+  som: true                       # bipe no terminal
+  windows: true                   # notificação do Windows
+
+logs:
+  pasta: logs
+  nivel: INFO

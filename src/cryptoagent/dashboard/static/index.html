@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agente cripto</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Agente cripto <span class="muted">· somente leitura, não envia ordens</span></div>
+  <div class="pills">
+    <span id="pill-data" class="pill">conectando…</span>
+    <span id="pill-health" class="pill">saúde…</span>
+    <span id="clock" class="muted"></span>
+  </div>
+</header>
+
+<main>
+  <div id="fatal" class="banner danger" hidden></div>
+  <div id="error" class="banner warn" hidden></div>
+  <div id="alert-banner" class="banner info" hidden></div>
+
+  <section class="hero card">
+    <div class="hero-main">
+      <div id="action" class="action wait">…</div>
+      <div class="hero-text">
+        <div class="hero-price"><span id="pair">—</span> <b id="price">—</b></div>
+        <div class="conf"><div class="conf-bar"><div id="conf-fill"></div></div><span id="conf-text">confiança —</span></div>
+        <div class="muted" id="updated">aguardando a primeira análise…</div>
+      </div>
+    </div>
+    <div id="position" class="position" hidden></div>
+    <div id="hour-note" class="muted small"></div>
+  </section>
+
+  <section id="session-card" class="card session" hidden>
+    <h2>Perguntas do início do dia</h2>
+    <p class="muted">Enquanto você não responder, o agente fica em ESPERAR. A perda máxima pode ser reduzida no meio do dia, mas não aumentada.</p>
+    <form id="session-form" class="form-grid">
+      <label>(1) Com quantos R$ você quer começar hoje?<input name="capital" type="number" step="0.01" min="1" required></label>
+      <label>(2) Qual o máximo que você aceita perder hoje (R$)?<input name="perda_max" type="number" step="0.01" min="0.01" required></label>
+      <label>Par em que vai operar<select name="par"><option>ETHBRL</option><option>ETHUSDT</option></select></label>
+      <label>Saldo da operação em<select name="saldo"><option>BRL</option><option>USDT</option></select></label>
+      <button type="submit">Salvar sessão do dia</button>
+      <span id="session-msg" class="small"></span>
+    </form>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Por quê</h2>
+      <div id="blocks-wrap" hidden><h3>Travas (o que obriga ESPERAR)</h3><ul id="blocks" class="list block"></ul></div>
+      <h3>A favor</h3><ul id="pros" class="list pro"></ul>
+      <h3>Contra</h3><ul id="cons" class="list con"></ul>
+      <p id="technical-note" class="muted small" hidden>A leitura técnica acima é só referência enquanto houver trava.</p>
+    </section>
+
+    <section class="card">
+      <h2>Níveis sugeridos</h2>
+      <table class="kv" id="levels"><tbody><tr><td class="muted">sem níveis nesta leitura</td></tr></tbody></table>
+      <p id="oco" class="note" hidden>Comprou? Coloque logo a ordem de <b>STOP (ou OCO)</b> na Binance. O agente não envia ordens.</p>
+      <h3>O que invalida a leitura</h3><ul id="invalid" class="list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Como a confiança foi calculada</h2>
+      <table class="tbl" id="parts"><thead><tr><th>Parcela</th><th class="num">Valor</th><th>Explicação</th></tr></thead><tbody></tbody></table>
+      <p class="muted small">Confiança = produto das parcelas × 100. É uma pontuação, não uma probabilidade: a calibração vem do paper trading.</p>
+    </section>
+
+    <section class="card">
+      <h2>Conta e limites do dia</h2>
+      <div id="account"><p class="muted">aguardando…</p></div>
+    </section>
+  </div>
+
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>Gráfico <span id="chart-sym" class="muted"></span></h2>
+      <div class="tabs" id="tf-tabs"><button data-tf="5m">5m</button><button data-tf="15m" class="on">15m</button><button data-tf="1h">1h</button><button data-tf="4h">4h</button></div>
+    </div>
+    <div id="chart"></div>
+    <div class="legend small">
+      <span><i class="sw c-ema20"></i>EMA 20</span><span><i class="sw c-ema50"></i>EMA 50</span><span><i class="sw c-ema200"></i>EMA 200</span>
+      <span><i class="sw c-bb"></i>Bollinger</span><span><i class="sw c-vwap"></i>VWAP do dia</span>
+      <span class="muted">Sinais calculados no par de análise; horários de Brasília.</span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Saúde dos dados</h2>
+      <div id="ws" class="small muted"></div>
+      <table class="tbl" id="health"><thead><tr><th>Verificação</th><th>Status</th><th>Detalhe</th></tr></thead><tbody></tbody></table>
+      <p id="latency" class="muted small"></p>
+    </section>
+
+    <section class="card">
+      <h2>Custos agora</h2>
+      <div id="costs"></div>
+      <h2 class="mt">Análise por horário <span id="heat-sym" class="muted"></span></h2>
+      <p class="muted small">% dos candles de 15m que passam do custo de ida e volta com folga (mais escuro = mais espaço para as taxas). Contorno = agora.</p>
+      <div class="scroll"><table class="heat" id="heat"></table></div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Últimos sinais</h2>
+      <div class="scroll"><table class="tbl" id="signals"><thead><tr><th>#</th><th>Quando</th><th>Decisão</th><th class="num">Confiança</th><th class="num">Preço</th><th class="num">Stop</th><th class="num">Alvo 1</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <section class="card">
+      <h2>Suas compras e o sinal associado</h2>
+      <p class="muted small">O agente liga cada compra ao último COMPRAR até 30 min antes. Confirme ou corrija.</p>
+      <div class="scroll"><table class="tbl" id="buys"><thead><tr><th>Quando</th><th class="num">Preço</th><th class="num">Qtd</th><th>Sinal</th><th>Situação</th><th></th></tr></thead><tbody></tbody></table></div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Paper trading (carteira virtual)</h2>
+      <div class="scroll"><table class="tbl" id="paper"><thead><tr><th>Variante</th><th class="num">Patrimônio virtual</th><th class="num">Fechadas</th><th class="num">Abertas</th><th>Desde</th></tr></thead><tbody></tbody></table></div>
+      <p class="muted small">Rode <code>cryptoagent paper rodar</code> em outra janela. Conclusões só com 30+ operações.</p>
+    </section>
+    <section class="card">
+      <h2>Alertas recentes</h2>
+      <button id="notif-btn" class="ghost small">Ativar notificações do navegador</button>
+      <ul id="alerts" class="list"></ul>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">Não é recomendação financeira e não há garantia de resultado. Resultados passados não garantem resultados futuros.</footer>
+<script>window.PAINEL_TOKEN = "__TOKEN__";</script>
+<script src="/static/app.js"></script>
+</body>
+</html>

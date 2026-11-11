@@ -1,0 +1,19 @@
+# Segredos: NUNCA versionar
+.env
+.env.*
+!.env.example
+
+# Ambiente Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Dados locais (histórico, custos, sinais) e logs
+data/
+logs/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.parquet

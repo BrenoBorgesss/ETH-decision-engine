@@ -1,0 +1,17 @@
+# VARIANTE DE ESTUDO do paper trading (23/10/2026), pedida pela usuária.
+#
+# Mesma estratégia do config.yaml, mas a carteira virtual COMPRA mesmo quando só as travas de
+# ESTRATÉGIA seguraram: regime, filtro de tendência, "não esticado", gatilho anti-faca,
+# distância mínima até o alvo, risco/retorno e confiança mínima.
+# Cada compra guarda quais travas foram ignoradas, e o relatório compara o resultado das
+# operações que cada trava teria barrado com as que ela deixaria passar.
+#
+# Continua valendo SEMPRE: dados com problema, spread alto, perda máxima do dia virtual,
+# stop obrigatório (sem stop/alvo calculáveis não há compra), taxas e slippage.
+# Com entrada contra a tendência, a saída por "tendência contra" é ignorada (anularia o teste);
+# stop, alvo, "esticado para cima" e tempo máximo seguem valendo.
+#
+# Isto NÃO muda os sinais do painel nem do `analisar`: lá as travas continuam todas ligadas.
+# Uso: já está na lista paper.variantes do config.yaml.
+paper:
+  estudo: true

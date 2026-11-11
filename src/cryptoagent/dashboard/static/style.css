@@ -1,0 +1,65 @@
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --fg: #1d2127; --muted: #5f6b78; --line: #e1e5ea;
+  --buy: #127a3e; --buy-bg: #e3f4ea; --sell: #b3261e; --sell-bg: #fbe7e5; --wait: #8a6100; --wait-bg: #fff4d6;
+  --accent: #2f6fde; --ema20: #d97706; --ema50: #7c3aed; --ema200: #0f766e; --bb: #94a3b8; --vwap: #db2777;
+  --heat: 210 70%;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111317; --card: #1a1d23; --fg: #e7e9ec; --muted: #9aa5b1; --line: #2c313a;
+    --buy: #4ade80; --buy-bg: #12351f; --sell: #f87171; --sell-bg: #3d1614; --wait: #fbbf24; --wait-bg: #3a2c08;
+    --accent: #6ea8fe; --ema20: #f59e0b; --ema50: #a78bfa; --ema200: #2dd4bf; --bb: #64748b; --vwap: #f472b6;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.muted { color: var(--muted); } .small { font-size: 12px; } .mt { margin-top: 20px; }
+code { font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; z-index: 5; }
+.brand { font-weight: 600; }
+.pills { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pill { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+.pill.ok { color: var(--buy); border-color: var(--buy); } .pill.bad { color: var(--sell); border-color: var(--sell); } .pill.warn { color: var(--wait); border-color: var(--wait); }
+main { max-width: 1200px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.card h2 { font-size: 15px; margin: 0 0 10px; } .card h3 { font-size: 13px; margin: 12px 0 4px; color: var(--muted); font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.banner { border-radius: 10px; padding: 12px 14px; font-weight: 500; }
+.banner.danger { background: var(--sell-bg); color: var(--sell); } .banner.warn { background: var(--wait-bg); color: var(--wait); } .banner.info { background: var(--card); border: 1px solid var(--accent); }
+.hero-main { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.action { font-size: 34px; font-weight: 800; letter-spacing: .5px; padding: 10px 22px; border-radius: 12px; }
+.action.buy { color: var(--buy); background: var(--buy-bg); } .action.sell { color: var(--sell); background: var(--sell-bg); } .action.wait { color: var(--wait); background: var(--wait-bg); }
+.hero-price { font-size: 18px; } .hero-price b { font-variant-numeric: tabular-nums; }
+.conf { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.conf-bar { width: 180px; height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }
+#conf-fill { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+.position { margin-top: 12px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--bg); border-radius: 6px; }
+.list { margin: 0; padding-left: 18px; } .list li { margin: 3px 0; }
+.list.pro li::marker { content: "+  "; color: var(--buy); } .list.con li::marker { content: "−  "; color: var(--sell); } .list.block li::marker { content: "•  "; color: var(--wait); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.tbl th, .tbl td { text-align: left; border-bottom: 1px solid var(--line); padding: 5px 8px; font-size: 13px; vertical-align: top; }
+.tbl th { color: var(--muted); font-weight: 600; font-size: 12px; } .num { text-align: right !important; white-space: nowrap; }
+.kv td { padding: 5px 8px; border-bottom: 1px solid var(--line); } .kv td:first-child { color: var(--muted); } .kv td:last-child { text-align: right; font-weight: 600; white-space: nowrap; }
+.stop { color: var(--sell); } .ok { color: var(--buy); } .bad { color: var(--sell); } .warnc { color: var(--wait); }
+.note { background: var(--wait-bg); color: var(--wait); padding: 8px 12px; border-radius: 8px; }
+.tag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 99px; }
+.tag.COMPRAR { color: var(--buy); background: var(--buy-bg); } .tag.VENDER { color: var(--sell); background: var(--sell-bg); } .tag.ESPERAR { color: var(--wait); background: var(--wait-bg); }
+.chart-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+#chart { width: 100%; height: 420px; }
+.tabs button, button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 8px; padding: 4px 12px; cursor: pointer; }
+.tabs button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+button[type=submit] { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.ghost { background: transparent; } button.mini { padding: 1px 8px; font-size: 12px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+.sw { display: inline-block; width: 14px; height: 3px; margin-right: 5px; vertical-align: middle; border-radius: 2px; }
+.c-ema20 { background: var(--ema20); } .c-ema50 { background: var(--ema50); } .c-ema200 { background: var(--ema200); } .c-bb { background: var(--bb); } .c-vwap { background: var(--vwap); }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end; }
+.form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+input, select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+.session { border-color: var(--wait); }
+.bar { height: 10px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 6px 0; } .bar > div { height: 100%; background: var(--sell); }
+.scroll { overflow-x: auto; }
+.heat td, .heat th { font-size: 11px; padding: 2px 4px; text-align: center; border: 1px solid var(--card); min-width: 30px; }
+.heat th { color: var(--muted); font-weight: 600; } .heat td.now { outline: 2px solid var(--fg); outline-offset: -2px; }
+.footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px 16px 30px; }
+@media (max-width: 520px) { .action { font-size: 26px; padding: 8px 14px; } #chart { height: 320px; } }

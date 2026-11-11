@@ -1,0 +1,22 @@
+# HIPÓTESE ÚNICA, declarada ANTES de ver o resultado (22/10/2026), aprovada pela usuária.
+#
+# Motivo: no backtest padrão, a volta à média no 15m ficou em mediana a só ~0,8× o custo de
+# ida e volta. Subindo o setup para o 1h, os movimentos tendem a ser maiores que as taxas.
+#
+# O que muda: setup 15m -> 1h e gatilho 5m -> 15m.
+# O que acompanha a troca de timeframe (×4): tempo máximo 180 -> 720 min e a grade de tempo
+# do walk-forward 120/240 -> 480/960 min.
+# Todo o resto fica igual ao config.yaml (pesos, limiares, R:R mínimo, travas, custos, período).
+#
+# Uso: cryptoagent --sobrepor config/hipotese_setup_1h.yaml backtest
+estrategia:
+  tf_setup: 1h
+  tf_gatilho: 15m
+  tempo_max_min: 720
+
+backtest:
+  relatorio_pasta: data/reports/hipotese_setup_1h
+  grade:
+    distancia_alvo_min_custo: [1.5, 2.5]
+    stop_atr_5m: [0.5, 1.0]
+    tempo_max_min: [480, 960]
