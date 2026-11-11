@@ -19,6 +19,7 @@ from cryptoagent.config import Estrategia
 from cryptoagent.engine.context import DecisionContext
 from cryptoagent.engine.rules import (
     Levels,
+    TrendView,
     buy_levels,
     data_problems,
     exit_check,
@@ -109,79 +110,137 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
     if frames_ok:
         d.regime = str(m.last(p.tf_setup)["regime"])
 
-    # ------------------------------------------------------- com posição aberta
     if ctx.position is not None:
-        pos = ctx.position
-        stop, t1, t2 = (pos.stop, pos.target1, pos.target2)
-        if frames_ok and (stop is None or t1 is None):
-            r_stop, r_t1, r_t2 = rules_levels_for_position(ctx, p)
-            stop, t1, t2 = stop or r_stop, t1 or r_t1, t2 or r_t2
-        ctx = _with_position_levels(ctx, stop, t1, t2)
+        return _decide_with_position(ctx, p, d, blocks, frames_ok)
 
-        def tp(x: float | None) -> str:
-            return num(x * ctx.trade_price_ratio)  # textos sempre no par de OPERAÇÃO
-
-        d.position_note = (
-            f"posição de operação: {num(pos.qty, 6)} ETH a custo médio {tp(pos.avg_cost)} | stop {tp(stop)} | alvo 1 {tp(t1)} | alvo 2 {tp(t2)} ({pos.source})"
-            if stop and t1 and t2
-            else f"posição de operação: {num(pos.qty, 6)} ETH a custo médio {tp(pos.avg_cost)}"
-        )
-        if blocks:
-            d.blocks = blocks + ([ctx.risk.daily_limit_reason] if ctx.risk.daily_limit_reason else [])
-            d.reasons_against = [
-                "há posição aberta: confira se a ordem de stop está na Binance (ela protege mesmo sem o agente)"
-            ]
-            return d
-        hit = exit_check(ctx, p, ratio=ctx.trade_price_ratio)
-        if ctx.risk.daily_limit_reason:
-            # Perda máxima atingida: só as saídas que REDUZEM risco viram VENDER; o resto é ESPERAR.
-            if hit and hit[0] in RISK_REDUCING_EXITS:
-                kind, text, conf = hit
-                d.action, d.confidence, d.exit_reason = "VENDER", conf, kind
-                d.parts = [ConfidencePart("regra de saída", conf / 100, text)]
-                d.reasons_for = [text, "perda máxima do dia atingida: esta saída é permitida porque reduz o risco"]
-                d.blocks = [ctx.risk.daily_limit_reason, "COMPRAR bloqueado até o próximo dia"]
-                return d
-            d.blocks = [ctx.risk.daily_limit_reason]
-            d.reasons_against = [
-                "há posição aberta: o stop na Binance (OCO) continua protegendo; o agente só indica VENDER em stop, invalidação ou tempo"
-            ]
-            return d
-        if hit:
-            kind, text, conf = hit
-            d.action, d.confidence, d.exit_reason = "VENDER", conf, kind
-            d.parts = [ConfidencePart("regra de saída", conf / 100, text)]
-            d.reasons_for = [text]
-            d.reasons_against = ["vender realiza o resultado; conferir o preço na Binance antes"]
-            return d
-        d.reasons_for = ["manter a posição: nenhuma regra de saída disparou"]
-        d.invalidation = [
-            f"preço abaixo de {tp(stop)} (stop)",
-            f"queda forte no {p.tf_confirmacao}",
-            f"mais de {p.tempo_max_min:.0f} min sem chegar ao alvo",
-        ]
-        return d
-
-    # ------------------------------------------------------- sem posição: compra?
-    # Mesmo com travas, a leitura técnica é calculada e mostrada (transparência); só a AÇÃO fica em ESPERAR.
+    # Sem posição: mesmo com travas, a leitura técnica é calculada e mostrada (transparência);
+    # só a AÇÃO fica em ESPERAR.
     d.blocks = list(blocks) + ([ctx.risk.daily_limit_reason] if ctx.risk.daily_limit_reason else [])
     if not frames_ok:
         return d
+    return _decide_entry(ctx, p, d, quality)
 
-    def gate(key: str, text: str) -> None:
-        d.blocks.append(text)
-        d.strategy_gates.setdefault(key, text)
 
+# ----------------------------------------------------------------------------- com posição aberta
+
+
+def _decide_with_position(
+    ctx: DecisionContext, p: Estrategia, d: Decision, blocks: list[str], frames_ok: bool
+) -> Decision:
+    """Com posição: travas gerais -> ESPERAR; perda do dia -> só saídas que reduzem risco; senão as regras de saída."""
+    pos = ctx.position
+    assert pos is not None
+    stop, t1, t2 = (pos.stop, pos.target1, pos.target2)
+    if frames_ok and (stop is None or t1 is None):
+        r_stop, r_t1, r_t2 = rules_levels_for_position(ctx, p)
+        stop, t1, t2 = stop or r_stop, t1 or r_t1, t2 or r_t2
+    ctx = _with_position_levels(ctx, stop, t1, t2)
+    ratio = ctx.trade_price_ratio
+    d.position_note = (
+        f"posição de operação: {num(pos.qty, 6)} ETH a custo médio {_tp(pos.avg_cost, ratio)} | stop {_tp(stop, ratio)} | alvo 1 {_tp(t1, ratio)} | alvo 2 {_tp(t2, ratio)} ({pos.source})"
+        if stop and t1 and t2
+        else f"posição de operação: {num(pos.qty, 6)} ETH a custo médio {_tp(pos.avg_cost, ratio)}"
+    )
+    if blocks:
+        d.blocks = blocks + ([ctx.risk.daily_limit_reason] if ctx.risk.daily_limit_reason else [])
+        d.reasons_against = [
+            "há posição aberta: confira se a ordem de stop está na Binance (ela protege mesmo sem o agente)"
+        ]
+        return d
+    hit = exit_check(ctx, p, ratio=ratio)
+    if ctx.risk.daily_limit_reason:
+        return _exit_after_daily_limit(d, hit, ctx.risk.daily_limit_reason)
+    if hit:
+        _sell(d, hit)
+        d.reasons_against = ["vender realiza o resultado; conferir o preço na Binance antes"]
+        return d
+    d.reasons_for = ["manter a posição: nenhuma regra de saída disparou"]
+    d.invalidation = [
+        f"preço abaixo de {_tp(stop, ratio)} (stop)",
+        f"queda forte no {p.tf_confirmacao}",
+        f"mais de {p.tempo_max_min:.0f} min sem chegar ao alvo",
+    ]
+    return d
+
+
+def _tp(x: float | None, ratio: float) -> str:
+    """Preço do par de análise traduzido para o par de OPERAÇÃO (os textos usam sempre o par de operação)."""
+    return num(x * ratio)  # type: ignore[operator]
+
+
+def _sell(d: Decision, hit: tuple[str, str, float]) -> None:
+    """Transforma a regra de saída que disparou em VENDER, com a confiança da própria regra."""
+    kind, text, conf = hit
+    d.action, d.confidence, d.exit_reason = "VENDER", conf, kind
+    d.parts = [ConfidencePart("regra de saída", conf / 100, text)]
+    d.reasons_for = [text]
+
+
+def _exit_after_daily_limit(d: Decision, hit: tuple[str, str, float] | None, reason: str) -> Decision:
+    """Perda máxima atingida: só as saídas que REDUZEM risco viram VENDER; o resto é ESPERAR."""
+    if hit and hit[0] in RISK_REDUCING_EXITS:
+        _sell(d, hit)
+        d.reasons_for.append("perda máxima do dia atingida: esta saída é permitida porque reduz o risco")
+        d.blocks = [reason, "COMPRAR bloqueado até o próximo dia"]
+        return d
+    d.blocks = [reason]
+    d.reasons_against = [
+        "há posição aberta: o stop na Binance (OCO) continua protegendo; o agente só indica VENDER em stop, invalidação ou tempo"
+    ]
+    return d
+
+
+# ----------------------------------------------------------------------------- sem posição: compra?
+
+
+def _gate(d: Decision, key: str, text: str) -> None:
+    """Registra uma trava de ESTRATÉGIA: entra em `blocks` e, por categoria, em `strategy_gates`."""
+    d.blocks.append(text)
+    d.strategy_gates.setdefault(key, text)
+
+
+def _decide_entry(ctx: DecisionContext, p: Estrategia, d: Decision, quality: float) -> Decision:
+    """Sem posição e com dados completos: regime, sinais, confiança, níveis e as travas de estratégia."""
     if ctx.risk.validation_reason:
-        gate("validacao", ctx.risk.validation_reason)
+        _gate(d, "validacao", ctx.risk.validation_reason)
     if d.regime in p.bloquear_regimes:
-        gate("regime", f"regime {REGIME_PT.get(d.regime, d.regime)} no {p.tf_setup}: sinais de compra bloqueados")
+        _gate(d, "regime", f"regime {REGIME_PT.get(d.regime, d.regime)} no {p.tf_setup}: sinais de compra bloqueados")
 
     trend = higher_timeframes(ctx, p)
     combined, signals = score_signals(ctx, p)
     trigger = anti_knife_trigger(ctx, p)
     d.signals, d.trigger = signals, trigger
-    d.parts = [
+    d.parts = _confidence_parts(ctx, combined, signals, trend, quality)
+    d.confidence = _confidence(d.parts)
+    _explain(d, ctx, p, signals, trend)
+
+    levels = buy_levels(ctx, p)
+    d.levels = levels
+    if trend.blocks_buy:
+        _gate(d, "tendencia", f"filtro de tendência: {trend.block_reason}")
+    if combined == 0:
+        _gate(d, "esticado", "preço não está esticado para baixo em relação à média")
+    if not trigger.ok:
+        _gate(d, "gatilho", trigger.detail)
+    _level_gates(d, ctx, p, levels)
+    min_conf = p.confianca_minima.get(d.regime, max(p.confianca_minima.values()))
+    if d.confidence < min_conf:
+        _gate(
+            d,
+            "confianca",
+            f"confiança {num(d.confidence, 0)}% abaixo do mínimo de {min_conf:g}% para regime {REGIME_PT.get(d.regime, d.regime)}",
+        )
+
+    if not d.blocks:
+        d.action = "COMPRAR"
+    return d
+
+
+def _confidence_parts(
+    ctx: DecisionContext, combined: float, signals: list[SignalScore], trend: TrendView, quality: float
+) -> list[ConfidencePart]:
+    """As parcelas que multiplicam a confiança, cada uma com a explicação que aparece na tela."""
+    parts = [
         ConfidencePart(
             "sinais",
             combined,
@@ -195,11 +254,14 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
         ConfidencePart("horário", ctx.season.factor, "; ".join(ctx.season.reasons) or "sem efeito"),
     ]
     if ctx.novelty.factor != 1 or ctx.novelty.reasons:
-        d.parts.append(
+        parts.append(
             ConfidencePart("cenário", ctx.novelty.factor, "; ".join(ctx.novelty.reasons) or "cenário conhecido")
         )
-    d.confidence = _confidence(d.parts)
+    return parts
 
+
+def _explain(d: Decision, ctx: DecisionContext, p: Estrategia, signals: list[SignalScore], trend: TrendView) -> None:
+    """Motivos a favor e contra, em ordem de contribuição dos sinais."""
     ranked = sorted((s for s in signals if s.available), key=lambda s: s.contribution, reverse=True)
     d.reasons_for = [s.detail for s in ranked if s.score > 0][:3] + trend.notes_for
     d.reasons_against = (
@@ -210,41 +272,27 @@ def decide(ctx: DecisionContext, p: Estrategia, *, spread_max_pct: float | None 
     if d.regime == "tendencia_baixa":
         d.reasons_against.append(f"regime de tendência de baixa no {p.tf_setup}: exige confiança maior")
 
-    levels = buy_levels(ctx, p)
-    d.levels = levels
-    if trend.blocks_buy:
-        gate("tendencia", f"filtro de tendência: {trend.block_reason}")
-    if combined == 0:
-        gate("esticado", "preço não está esticado para baixo em relação à média")
-    if not trigger.ok:
-        gate("gatilho", trigger.detail)
+
+def _level_gates(d: Decision, ctx: DecisionContext, p: Estrategia, levels: Levels | None) -> None:
+    """Travas que dependem dos níveis: sem volta à média, alvo perto demais para as taxas e risco/retorno."""
     if levels is None:
         d.blocks.append("preço já está acima das médias: não há volta à média para buscar")
-    else:
-        min_dist = p.distancia_alvo_min_custo * ctx.cost_pct
-        if levels.target_distance_pct < min_dist:
-            gate(
-                "distancia_alvo",
-                f"alvo 1 a só {pct(levels.target_distance_pct, 3)} (mínimo {pct(min_dist, 3)} = {num(p.distancia_alvo_min_custo, 1)} × custo de ida e volta de {pct(ctx.cost_pct, 3)})",
-            )
-        if levels.rr < p.rr_minimo:
-            gate("risco_retorno", f"risco/retorno {num(levels.rr, 2)} depois das taxas (mínimo {num(p.rr_minimo, 1)})")
-        d.invalidation = [
-            f"candle de {p.tf_gatilho} fechando abaixo do stop {num(levels.stop * ctx.trade_price_ratio)}",
-            f"{p.tf_confirmacao} virando queda forte (ADX >= {p.adx_queda_forte_1h:g} com −DI dominante)",
-            f"não chegar ao alvo em {p.tempo_max_min:.0f} min",
-            "notícia ou evento que faça a volatilidade disparar",
-        ]
-    min_conf = p.confianca_minima.get(d.regime, max(p.confianca_minima.values()))
-    if d.confidence < min_conf:
-        gate(
-            "confianca",
-            f"confiança {num(d.confidence, 0)}% abaixo do mínimo de {min_conf:g}% para regime {REGIME_PT.get(d.regime, d.regime)}",
+        return
+    min_dist = p.distancia_alvo_min_custo * ctx.cost_pct
+    if levels.target_distance_pct < min_dist:
+        _gate(
+            d,
+            "distancia_alvo",
+            f"alvo 1 a só {pct(levels.target_distance_pct, 3)} (mínimo {pct(min_dist, 3)} = {num(p.distancia_alvo_min_custo, 1)} × custo de ida e volta de {pct(ctx.cost_pct, 3)})",
         )
-
-    if not d.blocks:
-        d.action = "COMPRAR"
-    return d
+    if levels.rr < p.rr_minimo:
+        _gate(d, "risco_retorno", f"risco/retorno {num(levels.rr, 2)} depois das taxas (mínimo {num(p.rr_minimo, 1)})")
+    d.invalidation = [
+        f"candle de {p.tf_gatilho} fechando abaixo do stop {num(levels.stop * ctx.trade_price_ratio)}",
+        f"{p.tf_confirmacao} virando queda forte (ADX >= {p.adx_queda_forte_1h:g} com −DI dominante)",
+        f"não chegar ao alvo em {p.tempo_max_min:.0f} min",
+        "notícia ou evento que faça a volatilidade disparar",
+    ]
 
 
 # Travas de CUSTO: são conta, não previsão (alvo que não paga as taxas perde mesmo acertando).
