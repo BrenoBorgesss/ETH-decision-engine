@@ -340,5 +340,5 @@ Ferramentas de análise (ruff 0.17.4, vulture 2.16, pylint) instaladas num ambie
 ### Etapa 3
 - Criados: `src/cryptoagent/cli/` com `__init__.py`, `_shared.py`, `app.py`, `backtest.py`, `conta.py`, `custos.py`, `dados.py`, `decisao.py`, `diario.py`, `historico.py`, `indicadores.py`, `painel.py`, `paper.py`, `sazonalidade.py`, `sessao.py`
 - Removidos: `src/cryptoagent/cli.py` (conteúdo movido para o pacote acima)
-- Alterados: 66 arquivos de `src/cryptoagent` (docstrings e anotações; lista exata em `git diff --name-status backup-antes-etapa-3 HEAD`), `tests/test_backtest.py`, `tests/test_readonly_guard.py`, `PROGRESSO.md`
+- Alterados: 54 arquivos de `src/cryptoagent` (docstrings, anotações e limpeza; lista exata em `git diff --name-status backup-antes-etapa-3 HEAD`, que mostra 15 criados, 1 removido e 57 alterados no total), `tests/test_backtest.py`, `tests/test_readonly_guard.py`, `PROGRESSO.md`
 - Não tocados: `.env`, `data/`, `logs/`, `config/`, `README.md`
