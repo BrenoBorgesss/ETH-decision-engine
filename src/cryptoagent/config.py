@@ -390,6 +390,25 @@ class Backtest(_Section):
         return v
 
 
+class Modelo(_Section):
+    """Seção `modelo`: o desafiador (regressão logística) e a reprodutibilidade."""
+    semente: int = 42  # semente fixa: o mesmo treino com os mesmos dados dá o mesmo modelo
+    limiar_probabilidade: float = Field(0.5, gt=0, lt=1)  # compra só se a probabilidade prevista for >= isto
+    regularizacao_c: float = Field(0.5, gt=0)  # C da regressão logística (menor = coeficientes mais contidos)
+    exemplos_min_treino: int = Field(200, ge=20)  # mês de teste sem modelo se o treino tiver menos exemplos
+    pasta: str = "data/models"
+
+
+class Confiabilidade(_Section):
+    """Seção `confiabilidade`: o que o backtest precisa mostrar para uma compra ser firme (senão, AGUARDAR)."""
+    exigir_validacao: bool = True
+    operacoes_min: int = Field(30, ge=1)  # operações fora da amostra no último backtest do par
+    expectativa_min_pct: float = 0.0  # média por operação, depois dos custos, precisa ser MAIOR que isto
+    fator_lucro_min: float = Field(1.0, ge=0)
+    ic_inferior_min_pct: float = 0.0  # o limite inferior do intervalo de 95% da média precisa ser maior que isto
+    idade_max_relatorio_dias: int = Field(45, ge=1)
+
+
 class Paper(_Section):
     """Seção `paper`: carteira virtual, variantes e avaliação dos sinais."""
     par: str = "ETHBRL"
@@ -464,6 +483,8 @@ class Config(_Section):
     sazonalidade: Sazonalidade = Field(default_factory=Sazonalidade)
     estrategia: Estrategia = Field(default_factory=Estrategia)
     backtest: Backtest = Field(default_factory=Backtest)
+    modelo: Modelo = Field(default_factory=Modelo)
+    confiabilidade: Confiabilidade = Field(default_factory=Confiabilidade)
     paper: Paper = Field(default_factory=Paper)
     painel: Painel = Field(default_factory=Painel)
     alertas: Alertas = Field(default_factory=Alertas)

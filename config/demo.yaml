@@ -29,5 +29,9 @@ backtest:
   meses_teste: 1
   relatorio_pasta: data/demo/reports
 
+modelo:
+  pasta: data/demo/models
+  exemplos_min_treino: 20        # só no demo: a amostra tem 1 mês de treino (no uso normal, 200)
+
 logs:
   pasta: data/demo/logs

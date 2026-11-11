@@ -193,6 +193,21 @@ backtest:
   distancias_alternativas: [1.5, 1.0]   # sempre mostradas ao lado da trava padrão (2,5 × custo)
   relatorio_pasta: data/reports
 
+modelo:   # desafiador: regressão logística que estima se uma compra candidata termina no lucro (depois dos custos)
+  semente: 42                     # semente fixa: mesmo treino + mesmos dados = mesmo modelo
+  limiar_probabilidade: 0.5       # o desafiador só compra se a probabilidade prevista for >= isto
+  regularizacao_c: 0.5            # menor = coeficientes mais contidos (menos ajuste ao ruído)
+  exemplos_min_treino: 200        # mês de teste fica sem modelo se o treino tiver menos exemplos
+  pasta: data/models
+
+confiabilidade:   # compra FIRME só se o último backtest do par (fora da amostra, com custos) mostrar valor; senão: AGUARDAR (em teste)
+  exigir_validacao: true
+  operacoes_min: 30               # amostra mínima de operações fora da amostra
+  expectativa_min_pct: 0.0        # média por operação precisa ser maior que isto
+  fator_lucro_min: 1.0            # ganhos brutos ÷ perdas brutas
+  ic_inferior_min_pct: 0.0        # o intervalo de 95% da média precisa ficar todo acima disto
+  idade_max_relatorio_dias: 45    # backtest mais velho que isto não vale (rode de novo)
+
 paper:   # paper trading: sinais ao vivo com carteira VIRTUAL, sem dinheiro real
   par: ETHBRL                     # par simulado
   capital: 1000                   # capital virtual (moeda do par)

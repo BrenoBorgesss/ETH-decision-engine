@@ -81,3 +81,11 @@ def test_demo_nao_aceita_sobreposicao_junto(sem_rede_e_sem_chave, tmp_path):
 def test_intervalos_vazios_desligam_o_par():
     cfg = load_config(ROOT / "config" / "config.yaml")
     assert "ETHUSDT" in cfg.historico.intervalos  # no config normal o par continua lá
+
+
+def test_demo_treina_o_modelo_sem_rede_e_sem_chave(sem_rede_e_sem_chave, capsys):
+    assert app.main(["--demo", "modelo", "treinar"]) == 0
+    saida = capsys.readouterr().out
+    assert "Desafiador x regras" in saida and "regras (campeão atual)" in saida
+    modelos = sorted((ROOT / "data" / "demo" / "models" / "ETHBRL").glob("modelo-*.json"))
+    assert modelos and json.loads(modelos[-1].read_text(encoding="utf-8"))["tipo"] == "regressao_logistica"

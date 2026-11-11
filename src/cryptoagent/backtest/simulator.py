@@ -27,7 +27,7 @@ from cryptoagent.backtest.data import BacktestData
 from cryptoagent.backtest.execution import buy_fill, close_pnl, oco_check, sell_fill
 from cryptoagent.config import Estrategia, Indicadores
 from cryptoagent.engine.context import ArrayRow, DecisionContext, MarketView, PositionView, RiskView, SeasonView
-from cryptoagent.engine.decision import decide
+from cryptoagent.engine.decision import Decision, decide
 from cryptoagent.indicators.structure import Level, support_resistance_arrays
 
 ROWS = {"tf_contexto": 3, "tf_confirmacao": 3, "tf_setup": 10, "tf_timing": 15}
@@ -131,8 +131,19 @@ def simulate(
     season_on: bool = True,
     label: str = "",
     prefilter: bool = True,
+    observer: Callable[[int, DecisionContext, Decision], None] | None = None,
+    entry_rule: Callable[[int, DecisionContext, Decision], bool] | None = None,
+    open_positions: bool = True,
 ) -> SimResult:
-    """`prefilter=False` chama decide() em toda barra candidata (só para o teste de equivalência)."""
+    """Simula a estratégia candle a candle (ver a descrição do módulo).
+
+    `prefilter=False` chama decide() em toda barra candidata (só para o teste de equivalência).
+    `observer(t, ctx, decisão)` é chamado em cada barra avaliada sem posição (usado para montar o conjunto
+    de dados do modelo). `entry_rule(t, ctx, decisão)` substitui a regra "compra se a decisão for COMPRAR"
+    (usado pelo modelo desafiador). `open_positions=False` só observa, sem abrir operações.
+    Com `entry_rule` ou `observer`, o atalho do regime bloqueado é desligado: o regime é uma trava da
+    estratégia, e o desafiador pode decidir diferente.
+    """
     tf5, tf15 = p.tf_gatilho, p.tf_setup
     s5, s15 = data.frames[tf5], data.frames[tf15]
     ct = data.close_times
@@ -287,7 +298,7 @@ def simulate(
 
         stats.candidates += 1
         e15 = int(e15_of[i])
-        if prefilter and e15 >= 0 and regime15[e15] in p.bloquear_regimes:
+        if prefilter and entry_rule is None and observer is None and e15 >= 0 and regime15[e15] in p.bloquear_regimes:
             stats.blocks["regime bloqueado"] += 1
             continue  # decide() bloquearia pelo regime
         if prefilter and e15 >= 0 and min_set_only and no_stretch15[e15]:
@@ -311,7 +322,10 @@ def simulate(
         technical = d.levels is not None and d.trigger is not None and d.trigger.ok and d.parts and d.parts[0].value > 0
         if technical and cost_pct > 0 and not any("filtro de tendência" in b for b in d.blocks):
             stats.target_cost_multiples.append(d.levels.target_distance_pct / cost_pct)
-        if d.action != "COMPRAR" or d.levels is None or not d.levels.size_brl:
+        if observer is not None:
+            observer(t, ctx, d)
+        wants = entry_rule(t, ctx, d) if entry_rule is not None else d.action == "COMPRAR"
+        if not open_positions or not wants or d.levels is None or not d.levels.size_brl:
             continue
         k = next_bar(t)
         if k >= len(data.t_open):

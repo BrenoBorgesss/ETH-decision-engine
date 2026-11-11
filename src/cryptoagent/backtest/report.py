@@ -184,7 +184,7 @@ def render_html(reports: list[PairReport], path: Path, *, capital: float, tz: st
             for ch in r.wf_choices:
                 esc = ch["escolha"] if isinstance(ch["escolha"], str) else ", ".join(f"{k}={num(v, 2)}" for k, v in ch["escolha"].items())
                 out.append(
-                    f"<tr><td>{format_local(ch['teste_inicio'], tz, '%m/%Y')}</td><td>{html.escape(esc)}</td><td>{ch.get('treino_ops', 0)}</td>"
+                    f"<tr><td>{format_local(ch['teste_inicio'], 'UTC', '%m/%Y')}</td><td>{html.escape(esc)}</td><td>{ch.get('treino_ops', 0)}</td>"
                     f"<td>{pct(ch.get('treino_expectativa_pct'), 3, sign=True)}</td><td>{ch.get('teste_ops', '-')}</td>"
                     f"<td>{pct(ch.get('teste_expectativa_pct'), 3, sign=True)}</td><td>{pct(ch.get('teste_retorno_pct'), 2, sign=True)}</td></tr>"
                 )

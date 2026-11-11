@@ -36,6 +36,7 @@ DEMO_COMMANDS = {
     "historico:cmd_history_check": "historico verificar",
     "indicadores:cmd_indicators_validate": "indicadores validar",
     "backtest:cmd_backtest": "backtest --rapido",
+    "modelo:cmd_model_train": "modelo treinar",
 }
 DEMO_COSTS_RELATIVE = Path("exemplos") / "custos_demo.json"
 
@@ -111,6 +112,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="custos congelados: se o arquivo existir, usa os custos dele (não lê a conta nem o banco de custos); se não existir, grava nele os custos desta execução",
     )
     p.set_defaults(func="backtest:cmd_backtest")
+
+    modelo = sub.add_parser("modelo", help="modelo desafiador (regressão logística) avaliado contra as regras").add_subparsers(dest="acao")
+    p = modelo.add_parser("treinar", help="monta o conjunto de dados, avalia em walk-forward e salva o modelo")
+    p.add_argument("--par", default=None, help="par de operação (padrão: o último de backtest.pares)")
+    p.add_argument(
+        "--custos-arquivo", default=None, metavar="ARQUIVO.json",
+        help="custos congelados: se o arquivo existir, usa os custos dele; se não existir, grava nele os custos desta execução",
+    )
+    p.set_defaults(func="modelo:cmd_model_train")
 
     sinais = sub.add_parser("sinais", help="histórico de sinais e associação com suas compras").add_subparsers(dest="acao")
     p = sinais.add_parser("listar", help="últimos sinais e compras associadas")
@@ -198,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.demo:
         secrets = config.Secrets()  # o modo demonstração nem lê o .env
-        if args.func == "backtest:cmd_backtest" and args.custos_arquivo is None:
+        if args.func in ("backtest:cmd_backtest", "modelo:cmd_model_train") and args.custos_arquivo is None:
             args.custos_arquivo = str(cfg.path(DEMO_COSTS_RELATIVE))
         console.print("[bold cyan]MODO DEMONSTRAÇÃO[/]: candles de exemplo do repositório, sem internet e sem chave da Binance.")
     else:

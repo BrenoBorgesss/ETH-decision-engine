@@ -6,7 +6,11 @@ Esta pasta permite rodar o projeto **sem internet e sem chave da Binance**:
 cryptoagent --demo historico verificar
 cryptoagent --demo indicadores validar
 cryptoagent --demo backtest --rapido
+cryptoagent --demo modelo treinar
 ```
+
+No demo, o modelo aceita treinar com 20 exemplos (no uso normal, 200), porque a amostra só tem
+um mês de treino. É para ver o fluxo funcionando, não para avaliar o modelo.
 
 ## O que tem aqui
 
