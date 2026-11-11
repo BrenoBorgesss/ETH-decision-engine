@@ -17,7 +17,7 @@ Tudo aqui vem de leitura do código real ou de execução real. Onde eu **não**
 2. **Não existe "modelo adaptativo".** A decisão é um conjunto de regras fixas com uma pontuação (`engine/decision.py`). Não há modelo treinado, versão de modelo, esquema campeão/desafiador nem retreino. A Etapa 8 inteira é construção nova, não revisão.
 3. **A chave da Binance está sendo recusada agora** (erro −2015 em `/sapi/v1/account/apiRestrictions`, visto na execução do backtest). Causa provável segundo o próprio README: IP público mudou. Isso é ação sua, não defeito do código.
 
-**O que falta para publicar:** modo demo sem chave, licença, CI, lint, travar dependências, aba de simulação no painel, tema claro/escuro com botão, capturas de tela, e limpar do README o caminho pessoal `C:\Users\breno\...`.
+**O que falta para publicar:** modo demo sem chave, licença, CI, lint, travar dependências, aba de simulação no painel, tema claro/escuro com botão, capturas de tela, e limpar do README o caminho pessoal `C:\Users\<usuário>\...`.
 
 **Contagem de problemas:** 9 de prioridade alta, 31 média, 22 baixa.
 
@@ -117,7 +117,7 @@ Varredura nos 2 commits existentes, sem imprimir valores.
 | `.env`, `data/` ou `logs/` alguma vez versionados | 0 commits |
 | `.env.example` com valores preenchidos | 0 linhas |
 | E-mail de autor no histórico | só o noreply do GitHub |
-| Caminho pessoal em arquivos rastreados | `README.md:22`, `:29`, `:145` (`C:\Users\breno\Documents\...`) |
+| Caminho pessoal em arquivos rastreados | `README.md:22`, `:29`, `:145` (`C:\Users\<usuário>\Documents\...`) |
 
 **Conclusão: nenhum segredo no código nem no histórico.** Não há chave para revogar por vazamento no repositório.
 

@@ -28,7 +28,7 @@ Legenda: `[ ]` pendente · `[x]` concluído com evidência · `[BLOQUEADO]` · `
 ## ETAPA 0 — PREPARAÇÃO
 
 - [x] **0.1** Verificar se existe repositório git; se não, `git init` e commit inicial do estado atual.
-  - 2026-11-10: `git rev-parse --is-inside-work-tree` → `fatal: not a git repository`; `git init -b main` → `Initialized empty Git repository in C:/Users/breno/Documents/IA_para_Criptos_2.0/.git/`.
+  - 2026-11-10: `git rev-parse --is-inside-work-tree` → `fatal: not a git repository`; `git init -b main` → `Initialized empty Git repository in <pasta do projeto>/.git/`.
   - Conferência antes do commit: `git add -A --dry-run` não lista `.env`, `data/`, `logs/` nem `.venv/`; `git check-ignore -v` confirma as regras (`.gitignore:2:.env`, `.gitignore:14:data/`, `.gitignore:15:logs/`, `.gitignore:7:.venv/`).
   - O git não tinha `user.name`/`user.email`. Configurado só neste repositório: `BrenoBorgesss` / `BrenoBorgesss@users.noreply.github.com`.
   - Commit inicial: `8ab7665 chore: commit inicial do estado atual do projeto` — 99 arquivos. Filtro dos arquivos staged por `.env`, `data/`, `logs/`, `.venv/`, `.sqlite`, `.parquet` → nenhuma ocorrência.
@@ -699,7 +699,7 @@ Ferramentas instaladas no `.venv` e declaradas em `[project.optional-dependencie
 - `git status --short` → vazio.
 
 ### Problemas durante a Etapa 11
-- **Caminho no formato errado.** Passei ao Python do Windows um caminho no formato `/c/Users/...` dentro de uma opção (`--cov-report=json:/c/...`). O arquivo foi parar em `C:\c\Users\breno\AppData\...\cov_final.json`, numa pasta `C:\c` nova.
+- **Caminho no formato errado.** Passei ao Python do Windows um caminho no formato `/c/Users/...` dentro de uma opção (`--cov-report=json:/c/...`). O arquivo foi parar em `C:\c\Users\<usuário>\AppData\...\cov_final.json`, numa pasta `C:\c` nova.
   - A trava de segurança não me deixou apagar uma pasta no topo do disco. **Fica para você apagar `C:\c`**; ela contém só esse arquivo de cobertura (800 KB, sem dados pessoais).
   - Refiz com o caminho do Windows (`cygpath -w`).
 - O primeiro teste do WebSocket demorava 16 s: o laço só confere o `stop` entre mensagens. Com a Binance (várias mensagens por segundo) isso é imediato. O teste passou a fechar a conexão no fim, e a observação ficou no topo do arquivo de teste.
