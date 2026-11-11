@@ -338,7 +338,7 @@ Backup antes da etapa: tag git `backup-antes-etapa-5` (aponta para `a9d4ec2`).
   - Memória: o pico do backtest é 651 MB (carregar o histórico de dois pares em 1m com ~60 colunas de indicadores). Não foi alvo desta etapa e não mudou.
 - [x] **C5 do diagnóstico** (regravar o Parquet de 1m inteiro a cada atualização): medido, 0,23 s para 36,7 MB. Não é gargalo; mantive o formato atual, mais simples. Encerrado sem mudança.
 - [ADIADO] **`analyze_live` ainda tem 108 linhas** (a meta informal era ficar abaixo de 80). O que sobra são os dois ramos finais, carteira virtual e conta real; o da conta real não tem teste e será reescrito na Etapa 9, onde termino a divisão.
-- [ADIADO] **Backtest completo (grade + ablação)**: não medi antes nem depois (levaria vários minutos por execução). Ele chama a mesma `simulate`, então deve ganhar na mesma proporção, mas isso não foi verificado.
+- [x] **Backtest completo (grade + ablação)** (resolvido na Etapa 6): medido numa cópia do código de antes da Etapa 5 (`git worktree` na tag `backup-antes-etapa-5`) e no código atual, mesmos dados e custos congelados: **250 s → 67 s** (−73%), com as mesmas linhas de resultado (padrão 13 operações −3,67%; walk-forward 13 operações −4,21%).
 
 ### Verificação final da Etapa 5
 - `python -m pytest -q` → `270 passed, 1 warning in 12.09s` (eram 263; +7 testes em `tests/test_live.py`). A suíte ficou mais rápida que na Etapa 4 (24 s) por causa do backtest.
@@ -352,11 +352,51 @@ Backup antes da etapa: tag git `backup-antes-etapa-5` (aponta para `a9d4ec2`).
 
 ## ETAPA 6 — MODELO, BACKTEST E CONFIABILIDADE
 
-- [ ] **6.1** Auditar vazamento de dados, look-ahead bias e overfitting; documentar o que foi achado.
-- [ ] **6.2** Backtest com validação walk-forward (nunca embaralhar séries temporais), com taxas e slippage realistas.
-- [ ] **6.3** Métricas: retorno, win rate, drawdown máximo, Sharpe, nº de operações, comparação com buy-and-hold.
-- [ ] **6.4** Regra de confiança: ordem firme só acima do limiar configurável; senão "AGUARDAR".
-- [ ] **6.5** Reprodutibilidade (seed fixa, parâmetros versionados, modelo salvo).
+Backup antes da etapa: tag git `backup-antes-etapa-6` (aponta para `2f767af`).
+Relatório completo da auditoria: `docs/AUDITORIA_BACKTEST.md`. Nova dependência: `scikit-learn` (1.9.1 instalada; `>=1.7` no `pyproject.toml`), aprovada na decisão D2.
+
+- [x] **6.1** Auditar vazamento de dados, look-ahead bias e overfitting; documentar o que foi achado.
+  - `tests/test_sem_futuro.py` (6 testes): indicadores calculados com o histórico inteiro x cortado (35%, 60%, 85%) e x futuro ALTERADO (preços com choque de ~2% e volumes invertidos depois do corte). Linhas anteriores ao corte idênticas com tolerância zero em 5m, 15m, 1h e 4h. Sensibilidade do método provada: um indicador que usa o próximo fechamento é pego.
+  - Simulação completa no histórico real (análise por horário ligada), cortada em 15/03, 10/06 e 05/09/2026: 20, 29 e 38 operações encerradas antes do corte, idênticas (entrada, saída, resultado, motivo e confiança).
+  - Backtest x ao vivo: indicadores com os últimos 1.000 candles x histórico inteiro, 25 instantes por timeframe: maior diferença relativa 3,0e-5 (EMA 200 do 4h); regime e estrutura iguais em 25 de 25.
+  - **B2:** nenhuma regra de saída usa suportes/resistências; teste novo em `tests/test_engine.py` garante.
+  - **B3 explicado:** a trava de risco/retorno (≥ 1 depois dos custos) implica distância ≥ risco + 2 × custo; dos 557 sinais que passam nela, o menor alvo estava a 2,56× o custo. As variantes de distância 1×, 1,5× e 2,5× não testam nada. Não mudei o código; está documentado.
+  - **Vazamento leve conhecido (M6):** a tabela de spread (medida de 22/10 a 11/11) é aplicada a maio–setembro. Medido: 13 operações −3,67% com ela x 12 operações −3,21% com o spread padrão. Conclusão igual.
+  - **Overfitting:** parâmetros padrão escolhidos à mão antes desta revisão (não sei se olhando estes meses); 12 variantes no mesmo relatório; 13 operações com intervalo de 95% da média de −0,626% a +0,066%.
+- [x] **6.2** Backtest com validação walk-forward (nunca embaralhar séries temporais), com taxas e slippage realistas.
+  - Confirmado: janelas por mês-calendário, teste sempre depois do treino (`make_folds`), sem embaralhar; taxa, meio spread por hora, slippage (0,01% a mercado, 0,05% no stop) em toda operação (teste existente `test_custos_entram_em_toda_operacao`).
+  - **Defeito corrigido (M5):** o walk-forward escolhia a combinação "menos ruim" mesmo quando TODAS perdiam no treino. Nos 5 meses a melhor média de treino foi de −0,324% a −0,414% por operação, e mesmo assim operava: 13 operações, −4,21%. Agora o mês só opera se a melhor combinação tiver média > `backtest.expectativa_min_treino_pct` (0). Resultado atual: 0 operações, com o motivo registrado em cada mês. Commit `54375c3`.
+  - Intervalo de 95% da média do treino gravado em cada escolha do walk-forward.
+  - Tempo do backtest completo: 67 s (era 250 s antes da Etapa 5).
+- [x] **6.3** Métricas: retorno, win rate, drawdown máximo, Sharpe, nº de operações, comparação com buy-and-hold.
+  - Já existiam: retorno, acerto, drawdown, Sharpe, operações (e por dia), fator de lucro, média por operação, tempo médio, pior sequência, taxas pagas, saídas por motivo, comprar e segurar.
+  - **B4 corrigido:** a série diária do Sharpe usava dias UTC; uma operação na véspera UTC (dia local) era descartada. Teste novo: no código antigo o Sharpe dava NaN, no novo é calculado. Nos dados atuais o Sharpe não mudou (−2,33).
+  - **B5 corrigido:** comprar e segurar usava 0,1% fixo; agora usa a taxa, o spread médio e o slippage do backtest, com a mesma conta de uma operação. ETHBRL: +24,07% → +24,02%.
+  - Novo: `expectativa_ic95_pct` (intervalo de 95% da média por operação) em todas as métricas.
+  - M7 documentado no código: dias sem operação contam como 0 no Sharpe; anualização com 365 dias.
+  - Novo baseline do backtest rápido de referência (custos congelados): SHA-256 `ac4ae271f65f6e88374a85e6e8e64f3ed4107475dc937f7a87a934ec7186df65` (mudou de propósito por B5 e pela coluna nova; números das operações iguais). Commit `a93ebf9`.
+- [x] **6.4** Regra de confiança: ordem firme só acima do limiar configurável; senão "AGUARDAR".
+  - Camada 1 (já existia, agora testada): `estrategia.confianca_minima` por regime; teste prova que o limiar é configurável e que no limite exato compra.
+  - Camada 2 (nova, `engine/reliability.py`): compra ao vivo só é firme se o último backtest do par, feito com os MESMOS parâmetros (hash da procedência) e com até 45 dias, tiver ≥ 30 operações fora da amostra, média > 0, fator de lucro ≥ 1 e o intervalo de 95% da média todo acima de 0 (seção `confiabilidade` do config). Senão a decisão vira ESPERAR com a trava "AGUARDAR (estratégia em teste): <motivos>". Vendas nunca são bloqueadas. Não se aplica ao backtest nem ao paper trading (onde a estratégia é testada).
+  - Hoje, com o seu `data/reports/backtest.json`: "AGUARDAR (estratégia em teste): o último backtest não tem o registro de procedência (feito numa versão anterior; rode de novo)". Com um backtest novo, o ETHBRL reprovaria nos 4 critérios (13 operações, −0,280%, fator 0,36, intervalo começando em −0,626%).
+  - 12 testes em `tests/test_reliability.py`. Commits `fbb8a73` e `774774c`.
+- [x] **6.5** Reprodutibilidade (seed fixa, parâmetros versionados, modelo salvo).
+  - `backtest/provenance.py`: `backtest.meta.json` e `modelo.meta.json` ao lado dos relatórios, com commit e alterações não commitadas, versões do Python e das bibliotecas, parâmetros (estratégia, indicadores, regime, backtest, modelo, fuso) e o hash deles, custos (e hash do arquivo congelado), linhas/período/SHA-256 de cada arquivo de histórico lido, semente e hash dos arquivos gerados.
+  - Semente fixa `modelo.semente: 42`. O modelo é salvo em JSON legível (sem pickle). Três treinos seguidos geraram o mesmo arquivo de modelo, byte a byte (SHA-256 `d5b10af2…70ed89`).
+  - **Modelo desafiador (D2):** pacote `model/` e comando `cryptoagent modelo treinar` (também no `--demo`). Conjunto de dados pelo mesmo simulador do backtest: 1.033 momentos candidatos no ETHBRL, 32,1% lucrativos depois dos custos. Treino mês a mês só com rótulos já conhecidos (teste automático). Fora da amostra: AUC 0,486 (sorteio = 0,5); Brier 0,256, pior que a referência 0,224; no simulador, 30 operações e −3,68% contra 13 e −3,67% das regras; comprar e segurar +24,02%. O modelo NÃO supera as regras; fica como desafiador para a Etapa 8. Commit `4ff6a88`.
+  - Simulador ganhou ganchos opcionais (`observer`, `entry_rule`, `open_positions`); com os valores padrão o relatório de referência saiu com o mesmo hash.
+- [ADIADO] **Quebrar `simulate` (220 linhas) e `decide` (122 linhas)** (pendência da Etapa 3, prevista para esta etapa). Não fiz: esta etapa já mexeu muito no simulador, e quebrar agora misturaria refatoração com mudança de comportamento no mesmo período. Proponho fazer na Etapa 11 (qualidade e lint), com o hash do backtest e a foto do teste ao vivo como prova de que nada mudou.
+- **Decisão pendente (nome da ação):** o projeto usa a ação ESPERAR em todo lugar (banco, painel, terminal); o roteiro fala em "AGUARDAR". Por isso a trava nova aparece como "AGUARDAR (estratégia em teste)" dentro de uma decisão ESPERAR. Renomear a ação para AGUARDAR em todo o projeto é possível; aguardo sua decisão.
+
+### Verificação final da Etapa 6
+- `python -m pytest -q` → `298 passed, 1 warning in 21.93s` (eram 270; +28 testes).
+- Backtest rápido de referência: SHA-256 `ac4ae271…7186df65` antes e depois das mudanças de modelo, procedência e confiabilidade (só as correções B4/B5/IC mudaram o arquivo).
+- `--help`: diferenças em relação à Etapa 5 = comando novo `modelo` e a menção a `modelo treinar` na ajuda do `--demo`.
+
+### Problemas durante a Etapa 6
+- O primeiro `modelo treinar --demo` gravou o modelo em `data/models` (o config do demo não apontava a pasta do modelo). Apaguei o arquivo e a pasta, criados por essa execução, e o demo passou a usar `data/demo/models`.
+- Um comando meu ficou esperando entrada do teclado (`cat > /dev/null` sem arquivo); parei a tarefa. Nada foi alterado.
+- Os rótulos de mês do walk-forward apareciam no fuso de Brasília ("04/2026" para o mês de maio, que começa às 21h de 30/04 em Brasília); passaram a ser mostrados em UTC, o fuso das janelas.
 
 ## ETAPA 7 — SIMULAÇÃO COM DINHEIRO VIRTUAL
 
@@ -455,3 +495,11 @@ Backup antes da etapa: tag git `backup-antes-etapa-5` (aponta para `a9d4ec2`).
 - Removidos: nenhum
 - Não tocados: `.env`, `data/`, `logs/`, `config/`, `README.md`, `exemplos/`
 - Fora do repositório (temporários, no scratchpad da sessão): `medicao_antes.json`, `medicao_depois.json`, `ao_vivo_antes.json`, scripts de profiling
+
+### Etapa 6
+- Criados: `docs/AUDITORIA_BACKTEST.md`, `src/cryptoagent/backtest/provenance.py`, `src/cryptoagent/cli/modelo.py`, `src/cryptoagent/engine/reliability.py`, `src/cryptoagent/model/__init__.py`, `dataset.py`, `features.py`, `logistic.py`, `walkforward.py`, `tests/test_model.py`, `tests/test_reliability.py`, `tests/test_sem_futuro.py`
+- Alterados: `config/config.yaml`, `config/demo.yaml`, `exemplos/LEIAME.md`, `pyproject.toml`, `src/cryptoagent/config.py`, `src/cryptoagent/backtest/metrics.py`, `report.py`, `runner.py`, `simulator.py`, `src/cryptoagent/cli/app.py`, `cli/backtest.py`, `src/cryptoagent/engine/context.py`, `decision.py`, `live.py`, `tests/test_backtest.py`, `tests/test_demo.py`, `tests/test_engine.py`, `PROGRESSO.md`
+- Removidos: nenhum do repositório. Fora dele: `data/models/ETHBRL/modelo-20261111-183246.json` e as pastas vazias `data/models/ETHBRL` e `data/models`, criados por engano pela minha execução do demo.
+- Não tocados: `.env`, `data/history`, `data/*.sqlite`, `data/reports` (o seu relatório antigo continua lá), `logs/`, `README.md`
+- Instalado no `.venv`: `scikit-learn` 1.9.1 (com `scipy` 1.18.1 e dependências)
+- Fora do repositório (temporários): cópia do código antigo via `git worktree` (removida), scripts de auditoria e relatórios no scratchpad
