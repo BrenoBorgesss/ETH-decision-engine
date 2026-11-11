@@ -147,13 +147,27 @@ def test_metricas_a_mao():
     assert m["pior_sequencia_perdas"] == 2
     assert m["fator_lucro"] == pytest.approx(5 / 2)
     assert compute_metrics([], START, START + 86_400_000, 1000)["operacoes"] == 0
+    lo, hi = m["expectativa_ic95_pct"]
+    assert lo < m["expectativa_pct"] < hi and lo < 0 < hi  # 4 operações: o intervalo inclui zero
+
+
+def test_sharpe_usa_os_dias_do_fuso_local():
+    """B4: uma operação que fecha às 22h de Brasília do dia anterior ao primeiro dia UTC não pode sumir."""
+    inicio = START  # meia-noite UTC = 21h do dia anterior em Brasília
+    t = Trade(inicio + 3_600_000, inicio + 7_200_000, 100, 101, 1, 100, 1, 1, 0.01, "alvo1", 50, "lateral", 99, 101, 0.2)
+    m = compute_metrics([t], inicio, inicio + 3 * 86_400_000, 1000)
+    # com o dia em UTC, o dia local da operação (31/12) ficava fora da série: todos os dias valiam 0
+    # e o Sharpe saía indefinido (NaN). Com os dias locais, a operação entra e o Sharpe é calculado.
+    assert m["operacoes"] == 1 and not np.isnan(m["sharpe"])
 
 
 def test_drawdown_e_comprar_e_segurar():
     assert max_drawdown_pct(pd.Series([1100.0, 880.0, 1200.0]), 1000) == pytest.approx(-20)
     t = np.array([0, 1, 2, 3])
     bh = buy_and_hold(t, np.array([100.0, 120.0, 90.0, 110.0]), 0, 4)
-    assert bh["retorno_total_pct"] == pytest.approx((1.1 * 0.999 * 0.999 - 1) * 100)
+    assert bh["retorno_total_pct"] == pytest.approx((1.1 * 0.999 - 1.001) * 100)  # mesma conta de uma operação
+    com_custos = buy_and_hold(t, np.array([100.0, 120.0, 90.0, 110.0]), 0, 4, fee=0.001, half_spread=0.0002, slip_pct=0.01)
+    assert com_custos["retorno_total_pct"] == pytest.approx((110 * 0.9997 / (100 * 1.0003) * 0.999 - 1.001) * 100)
     assert bh["drawdown_max_pct"] == pytest.approx(-25)
 
 

@@ -20,7 +20,7 @@ import numpy as np
 from cryptoagent.backtest.baseline import naive_band
 from cryptoagent.backtest.costs import CostSchedule
 from cryptoagent.backtest.data import BacktestData
-from cryptoagent.backtest.metrics import buy_and_hold, compute_metrics
+from cryptoagent.backtest.metrics import buy_and_hold, compute_metrics, mean_ci95
 from cryptoagent.backtest.simulator import SimResult, Trade, simulate
 from cryptoagent.config import Config, Estrategia
 from cryptoagent.seasonality.validation import Fold, make_folds
@@ -97,7 +97,10 @@ def run_pair(cfg: Config, data: BacktestData, costs: CostSchedule, *, quick: boo
 
     naive = naive_band(data, costs, tf=p0.tf_setup, capital=bt.capital, loss_pct_day=bt.perda_max_dia_pct, divisor=cfg.risco.divisor_perda_diaria, start_ms=oos_a, end_ms=oos_b)
     rep.naive = Variant(naive.label, compute_metrics(naive.trades, oos_a, oos_b, bt.capital, tz))
-    rep.buy_hold = buy_and_hold(data.t_open_time, data.t_close, oos_a, oos_b)
+    mean_half_spread = float(np.mean(list(costs.spread_by_hour.values()))) / 200
+    rep.buy_hold = buy_and_hold(
+        data.t_open_time, data.t_close, oos_a, oos_b, fee=costs.fee, half_spread=mean_half_spread, slip_pct=costs.slip_market_pct
+    )
 
     for dist in bt.distancias_alternativas:
         progress(f"{data.trade}: trava de distância {dist:g}× o custo...")
@@ -133,6 +136,7 @@ def run_pair(cfg: Config, data: BacktestData, costs: CostSchedule, *, quick: boo
         tm = compute_metrics(chosen, f.test_start_ms, f.test_end_ms, bt.capital, tz)
         rep.wf_choices.append(
             {"teste_inicio": f.test_start_ms, "escolha": best[0], "treino_ops": best_n, "treino_expectativa_pct": best_score,
+             "treino_expectativa_ic95_pct": list(mean_ci95([t.pnl_pct for t in _in_window(best[1].trades, f.train_start_ms, f.train_end_ms)])),
              "teste_ops": tm["operacoes"], "teste_expectativa_pct": tm["expectativa_pct"], "teste_retorno_pct": tm["retorno_total_pct"]}
         )
     rep.walkforward = Variant("walk-forward (parâmetros escolhidos só no treino)", compute_metrics(test_trades, oos_a, oos_b, bt.capital, tz))

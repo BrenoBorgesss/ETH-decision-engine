@@ -281,3 +281,19 @@ def test_sinais_extras_entram_quando_ativados():
 def test_config_recusa_sinal_desconhecido():
     with pytest.raises(ValueError):
         Estrategia(sinais_ativos=["vwap", "bola_de_cristal"])
+
+
+def test_com_posicao_os_suportes_e_resistencias_nao_mudam_a_decisao():
+    """B2: o backtest passa a lista de níveis vazia quando há posição; o ao vivo passa os níveis.
+    Isso só é equivalente se nenhuma regra de saída usar os níveis. Este teste garante que não usa."""
+    niveis = [Level(98.5, 3, 5, "pivos"), Level(100.8, 2, 6, "pivos"), Level(101.5, 1, 7, "dia_anterior_maxima")]
+    cenarios = [
+        dict(position=pos(), price=97.9),
+        dict(position=pos(), price=102.1),
+        dict(position=pos(opened_ms=T - 200 * MIN), price=100.0),
+        dict(position=pos(), price=100.2),
+        dict(position=pos(stop=None, target1=None, target2=None), price=100.2),
+    ]
+    for c in cenarios:
+        sem, com = decide(ctx(**c), P), decide(ctx(levels=niveis, **c), P)
+        assert (sem.action, sem.exit_reason, sem.confidence, sem.blocks) == (com.action, com.exit_reason, com.confidence, com.blocks)
