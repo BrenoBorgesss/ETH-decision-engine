@@ -72,7 +72,9 @@ def test_demo_roda_o_backtest_sem_rede_e_sem_chave(sem_rede_e_sem_chave, capsys)
     assert app.main(["--demo", "backtest", "--rapido"]) == 0
     saida = capsys.readouterr().out
     assert "MODO DEMONSTRAÇÃO" in saida and "Comprar e segurar" in saida
-    relatorio = json.loads((sem_rede_e_sem_chave / "data" / "demo" / "reports" / "backtest.json").read_text(encoding="utf-8"))
+    relatorio = json.loads(
+        (sem_rede_e_sem_chave / "data" / "demo" / "reports" / "backtest.json").read_text(encoding="utf-8")
+    )
     texto = json.dumps(relatorio)
     assert "ETHBRL" in texto and "lida da sua conta" not in texto  # custos do config, nunca os da conta
 
@@ -112,8 +114,28 @@ def test_demo_roda_o_ciclo_de_aprendizado_e_mostra_versoes_e_panorama(sem_rede_e
 
 
 def test_demo_nao_grava_nada_na_pasta_do_projeto(sem_rede_e_sem_chave, capsys):
-    antes = {p: p.stat().st_mtime_ns for p in (ROOT / "data").rglob("*") if p.is_file()} if (ROOT / "data").exists() else {}
+    antes = (
+        {p: p.stat().st_mtime_ns for p in (ROOT / "data").rglob("*") if p.is_file()} if (ROOT / "data").exists() else {}
+    )
     assert app.main(["--demo", "backtest", "--rapido"]) == 0
-    depois = {p: p.stat().st_mtime_ns for p in (ROOT / "data").rglob("*") if p.is_file()} if (ROOT / "data").exists() else {}
+    depois = (
+        {p: p.stat().st_mtime_ns for p in (ROOT / "data").rglob("*") if p.is_file()} if (ROOT / "data").exists() else {}
+    )
     assert depois == antes
     assert (sem_rede_e_sem_chave / "data" / "demo" / "reports" / "backtest.json").is_file()
+
+
+@pytest.mark.lento
+def test_demo_roda_o_replay_da_carteira_virtual_e_compara_com_o_backtest(sem_rede_e_sem_chave, capsys):
+    args = ["--demo", "paper", "replay", "--inicio", "2026-09-08", "--dias", "1", "--variantes", "padrao"]
+    assert app.main(args) == 0
+    saida = capsys.readouterr().out
+    assert "Replay" in saida and "08/09/2026 00:00" in saida
+    assert "replay: padrao" in saida and "backtest (parâmetros padrão)" in saida
+    banco = sem_rede_e_sem_chave / "data" / "demo" / "replay" / "replay-20260908-1d.sqlite"
+    assert banco.is_file()
+
+
+def test_demo_recusa_replay_sem_aquecimento_dos_indicadores(sem_rede_e_sem_chave, capsys):
+    assert app.main(["--demo", "paper", "replay", "--inicio", "2026-07-01", "--dias", "1"]) == 1
+    assert "aquecimento dos indicadores" in capsys.readouterr().out

@@ -34,11 +34,12 @@ cryptoagent = "cryptoagent.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-cryptoagent = ["dashboard/static/*"]
+cryptoagent = ["dashboard/static/*", "dashboard/static/vendor/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = ["lento: teste de ponta a ponta demorado (roda no CI; para pular localmente: pytest -m \"not lento\")"]
 
 # Lint e formatação: ruff (o formatador do ruff segue o estilo do black).
 [tool.ruff]
