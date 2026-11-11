@@ -33,6 +33,12 @@ modelo:
   pasta: data/demo/models
   exemplos_min_treino: 20        # só no demo: a amostra tem 1 mês de treino (no uso normal, 200)
 
+aprendizado:
+  pasta: data/demo/learning
+  hipoteses: []                # a amostra é curta demais para a hipótese do setup 1h
+  operacoes_min: 5             # só no demo (no uso normal, 30): a amostra tem 1 mês fora da amostra
+  dias_min: 20
+
 paper:
   banco: data/demo/simulacao.sqlite
   replay_pasta: data/demo/replay

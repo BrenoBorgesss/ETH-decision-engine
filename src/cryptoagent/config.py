@@ -411,6 +411,29 @@ class Confiabilidade(_Section):
     idade_max_relatorio_dias: int = Field(45, ge=1)
 
 
+class Aprendizado(_Section):
+    """Seção `aprendizado`: ciclo de reavaliação, campeão x desafiantes, proteções e panoramas."""
+    pasta: str = "data/learning"
+    # quando reavaliar (no paper trading): na virada do dia local e/ou a cada N operações virtuais fechadas
+    reavaliar_no_fim_do_dia: bool = True
+    reavaliar_a_cada_operacoes: int = Field(20, ge=1)
+    # desafiantes: hipóteses declaradas (sobreposições do config) e o modelo de regressão logística
+    hipoteses: list[str] = Field(default_factory=lambda: ["config/hipotese_setup_1h.yaml"])
+    incluir_modelo: bool = True
+    # critérios de promoção (todos precisam ser atendidos, no MESMO período fora da amostra do campeão)
+    operacoes_min: int = Field(30, ge=1)
+    dias_min: int = Field(60, ge=1)
+    melhoria_min_expectativa_pct: float = Field(0.05, ge=0)  # média por operação acima da do campeão em pelo menos isto
+    expectativa_min_pct: float = 0.0  # e a média por operação do desafiante precisa ser maior que isto (lucro depois dos custos)
+    tolerancia_drawdown_pp: float = Field(0.0, ge=0)  # drawdown pode piorar no máximo isto (pontos percentuais)
+    bloquear_promocao_com_drift: bool = True
+    # proteções
+    psi_alerta: float = Field(0.25, gt=0)  # índice de estabilidade (PSI) acima disto = mudança de regime nos dados
+    dias_recentes_drift: int = Field(30, ge=7)
+    casos_min_cenario: int = Field(30, ge=1)  # cenário com menos casos no histórico = inédito: confiança reduzida
+    fator_cenario_inedito: float = Field(0.7, gt=0, le=1)  # fator aplicado com zero casos (sobe até 1 ao chegar no mínimo)
+
+
 class Paper(_Section):
     """Seção `paper`: carteira virtual (em R$, separada da conta real), execução simulada, variantes e replay."""
     par: str = "ETHBRL"
@@ -500,6 +523,7 @@ class Config(_Section):
     backtest: Backtest = Field(default_factory=Backtest)
     modelo: Modelo = Field(default_factory=Modelo)
     confiabilidade: Confiabilidade = Field(default_factory=Confiabilidade)
+    aprendizado: Aprendizado = Field(default_factory=Aprendizado)
     paper: Paper = Field(default_factory=Paper)
     painel: Painel = Field(default_factory=Painel)
     alertas: Alertas = Field(default_factory=Alertas)

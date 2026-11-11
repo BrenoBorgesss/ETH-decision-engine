@@ -65,13 +65,26 @@ def _num(x: object) -> float:
     return v
 
 
+class _Row:
+    """Lê colunas de uma linha devolvendo NaN para coluna ausente (o modelo trata ausente como a média do treino)."""
+
+    def __init__(self, row: object) -> None:
+        self.row = row
+
+    def __getitem__(self, col: str) -> float:
+        try:
+            return _num(self.row[col])  # type: ignore[index]
+        except (KeyError, IndexError):
+            return float("nan")
+
+
 def extract_features(ctx: DecisionContext, d: Decision, p: Estrategia, tz: str) -> dict[str, float]:
     """As variáveis de um momento candidato, num dicionário {nome: valor}. Valores ausentes viram NaN."""
     m = ctx.market
-    s15, g5, h1, h4 = m.last(p.tf_setup), m.last(p.tf_gatilho), m.last(p.tf_confirmacao), m.last(p.tf_contexto)
+    s15, g5, h1, h4 = (_Row(m.last(tf)) for tf in (p.tf_setup, p.tf_gatilho, p.tf_confirmacao, p.tf_contexto))
     lv = d.levels
     hour = ms_to_local(m.time_ms, tz).hour + ms_to_local(m.time_ms, tz).minute / 60
-    regime = str(s15["regime"])
+    regime = str(d.regime or "")
     ema200 = _num(h4["ema_200"])
     out = {
         "setup_dist_vwap_atr": _num(s15["dist_vwap_atr"]),

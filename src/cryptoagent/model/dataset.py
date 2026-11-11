@@ -66,7 +66,7 @@ def build_dataset(cfg: Config, data: BacktestData, costs: CostSchedule, *, start
     """Percorre o histórico com o mesmo simulador do backtest (sem abrir operações) e devolve uma linha por momento candidato.
 
     Colunas: `t_ms`, as variáveis de `FEATURES`, `pnl_pct`, `motivo`, `fim_ms`, `rotulo` (1 = resultado positivo),
-    `acao_regras` (o que as regras decidiram) e `confianca_regras`.
+    `acao_regras` (o que as regras decidiram), `confianca_regras`, `regime` e `hora_local` (cenário do momento).
     """
     p, tz = cfg.estrategia, cfg.fuso.local
     rows: list[dict] = []
@@ -82,7 +82,7 @@ def build_dataset(cfg: Config, data: BacktestData, costs: CostSchedule, *, start
             return
         row = {"t_ms": t, **extract_features(ctx, d, p, tz)}
         row.update(pnl_pct=out.pnl_pct, motivo=out.reason, fim_ms=out.exit_ms, rotulo=int(out.pnl_pct > 0),
-                   acao_regras=d.action, confianca_regras=d.confidence)
+                   acao_regras=d.action, confianca_regras=d.confidence, regime=d.regime, hora_local=hour)
         rows.append(row)
 
     bt = cfg.backtest
@@ -91,5 +91,5 @@ def build_dataset(cfg: Config, data: BacktestData, costs: CostSchedule, *, start
         spread_max_pct=cfg.custos.spread_max_pct, start_ms=start_ms, end_ms=end_ms, label="conjunto de dados do modelo",
         observer=observe, open_positions=False,
     )
-    columns = ["t_ms", *FEATURES, "pnl_pct", "motivo", "fim_ms", "rotulo", "acao_regras", "confianca_regras"]
+    columns = ["t_ms", *FEATURES, "pnl_pct", "motivo", "fim_ms", "rotulo", "acao_regras", "confianca_regras", "regime", "hora_local"]
     return pd.DataFrame(rows, columns=columns)

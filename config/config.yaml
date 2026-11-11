@@ -209,6 +209,25 @@ confiabilidade:   # compra FIRME só se o último backtest do par (fora da amost
   ic_inferior_min_pct: 0.0        # o intervalo de 95% da média precisa ficar todo acima disto
   idade_max_relatorio_dias: 45    # backtest mais velho que isto não vale (rode de novo)
 
+aprendizado:   # ciclo de reavaliação: o campeão só é trocado por um desafiante melhor FORA DA AMOSTRA, depois dos custos
+  pasta: data/learning
+  reavaliar_no_fim_do_dia: true       # no paper trading: reavalia na virada do dia local...
+  reavaliar_a_cada_operacoes: 20      # ...ou a cada 20 operações virtuais fechadas
+  hipoteses: [config/hipotese_setup_1h.yaml]   # desafiantes declarados (sobreposições do config)
+  incluir_modelo: true                # e o modelo de regressão logística
+  # critérios de promoção (todos, no mesmo período fora da amostra do campeão):
+  operacoes_min: 30
+  dias_min: 60
+  melhoria_min_expectativa_pct: 0.05  # média por operação pelo menos 0,05 ponto acima da do campeão
+  expectativa_min_pct: 0.0            # e média por operação positiva (lucro depois dos custos)
+  tolerancia_drawdown_pp: 0.0         # drawdown não pode piorar
+  bloquear_promocao_com_drift: true   # com mudança de regime detectada, nada é promovido
+  # proteções:
+  psi_alerta: 0.25                    # índice de estabilidade (PSI) acima disto = dados mudaram de comportamento
+  dias_recentes_drift: 30
+  casos_min_cenario: 30               # cenário com menos casos no histórico = inédito
+  fator_cenario_inedito: 0.7          # confiança × 0,7 em cenário sem nenhum caso (sobe até 1 no mínimo de casos)
+
 paper:   # paper trading: sinais ao vivo com carteira VIRTUAL, sem dinheiro real
   par: ETHBRL                     # par simulado (cotado em R$)
   capital: 1000                   # capital virtual inicial em R$ (também: paper rodar --capital)

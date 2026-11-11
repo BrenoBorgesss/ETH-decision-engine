@@ -73,11 +73,26 @@ def _auc(y: np.ndarray, p: np.ndarray) -> float | None:
     return float(roc_auc_score(y, p)) if len(np.unique(y)) == 2 else None
 
 
-def evaluate(cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.DataFrame) -> ChallengerReport:
-    """Walk-forward completo do desafiador (ver a descrição do módulo)."""
-    mc, bt, p, tz = cfg.modelo, cfg.backtest, cfg.estrategia, cfg.fuso.local
+def evaluation_folds(cfg: Config, data: BacktestData, until_ms: int | None = None) -> list[Fold]:
+    """Janelas do walk-forward (as mesmas do backtest), só com candles anteriores a `until_ms` quando informado."""
+    p, bt = cfg.estrategia, cfg.backtest
     s5 = data.frames[p.tf_gatilho]
-    folds = make_folds(s5.loc[s5["close_time"] >= data.first_valid_ms, "open_time"], bt.meses_treino, bt.meses_teste)
+    ok = s5["close_time"] >= data.first_valid_ms
+    if until_ms is not None:
+        ok &= s5["close_time"] < until_ms
+    return make_folds(s5.loc[ok, "open_time"], bt.meses_treino, bt.meses_teste)
+
+
+def evaluate(cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.DataFrame, *, until_ms: int | None = None) -> ChallengerReport:
+    """Walk-forward completo do desafiador (ver a descrição do módulo).
+
+    `until_ms` (ponto no tempo): só usa o que se sabia até aquele instante. As janelas de teste terminam antes
+    dele e as operações que ainda não tinham terminado nele ficam de fora.
+    """
+    mc, bt, p, tz = cfg.modelo, cfg.backtest, cfg.estrategia, cfg.fuso.local
+    if until_ms is not None:
+        dataset = dataset[dataset["fim_ms"] < until_ms]
+    folds = evaluation_folds(cfg, data, until_ms)
     if not folds:
         raise ValueError("histórico curto demais para o walk-forward (precisa de treino + pelo menos 1 mês de teste)")
     oos_a, oos_b = folds[0].test_start_ms, folds[-1].test_end_ms
@@ -144,7 +159,7 @@ def evaluate(cfg: Config, data: BacktestData, costs: CostSchedule, dataset: pd.D
     chall = simulate(data, p, cfg.indicadores, costs, label="desafiador", entry_rule=entry_rule, **common)
 
     def window(trades: list) -> list:
-        return [t for t in trades if oos_a <= t.entry_ms < oos_b]
+        return [t for t in trades if oos_a <= t.entry_ms < oos_b and (until_ms is None or t.exit_ms < until_ms)]
 
     rep.rules = compute_metrics(window(rules.trades), oos_a, oos_b, bt.capital, tz)
     rep.challenger = compute_metrics(window(chall.trades), oos_a, oos_b, bt.capital, tz)
