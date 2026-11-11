@@ -140,7 +140,7 @@ def local_trading_day_series(
 def local_hour_weekday_series(ts_ms: pd.Series, tz_name: str = "America/Sao_Paulo") -> pd.DataFrame:
     """Hora (0-23) e dia da semana (0=segunda ... 6=domingo) no fuso local."""
     local = pd.to_datetime(ts_ms, unit="ms", utc=True).dt.tz_convert(tz_name)
-    return pd.DataFrame({"hour": local.dt.hour, "weekday": local.dt.weekday}, index=ts_ms.index)
+    return pd.DataFrame({"hour": local.dt.hour, "weekday": local.dt.day_of_week}, index=ts_ms.index)
 
 
 def floor_to_interval(ts_ms: int, interval: str) -> int:

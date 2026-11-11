@@ -126,7 +126,9 @@ def validate(df_b: pd.DataFrame, cost_pct: float, s: Sazonalidade) -> Validation
         # 1) formato do dia + afirmações "esta hora compensa / não compensa as taxas"
         h_tr = bucket_stats(tr, ["hour"], cost_pct, s.custo_folga)
         h_te = bucket_stats(te, ["hour"], cost_pct, s.custo_folga)
-        joined = h_tr[["range_median"]].join(h_te[["range_median"]], rsuffix="_te", how="inner")
+        joined = h_tr[["range_median"]].join(
+            h_te[["range_median"]].rename(columns={"range_median": "range_median_te"}), how="inner"
+        )
         report.spearman.append(float(joined["range_median"].rank().corr(joined["range_median_te"].rank())))
         c_tr = classify(h_tr, s.pct_min_compensa, s.pct_max_nao_compensa)
         c_te = classify(h_te, s.pct_min_compensa, s.pct_max_nao_compensa)
