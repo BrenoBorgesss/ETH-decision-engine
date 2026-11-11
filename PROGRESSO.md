@@ -20,8 +20,8 @@ Legenda: `[ ]` pendente · `[x]` concluído com evidência · `[BLOQUEADO]` · `
 | 9 | Controle de risco e sinais | concluída e aprovada (2026-11-11) |
 | 10 | Dashboard e aparência | concluída e aprovada (2026-11-11) |
 | 11 | Testes, lint e CI | concluída e aprovada (2026-11-11) |
-| 12 | Documentação para o GitHub | concluída — aguardando aprovação |
-| 13 | LinkedIn, changelog e auditoria final | pendente |
+| 12 | Documentação para o GitHub | concluída e aprovada (2026-11-11) |
+| 13 | LinkedIn, changelog e auditoria final | concluída — aguardando aprovação |
 
 ---
 
@@ -761,10 +761,71 @@ Backup antes da etapa: tag git `backup-antes-etapa-12` (aponta para `6377e53`).
 
 ## ETAPA 13 — LINKEDIN, CHANGELOG E AUDITORIA FINAL
 
-- [ ] **13.1** `LINKEDIN.md`: 3 versões de post (curta, média, técnica), descrição para "Projetos" e palavras-chave. Somente números reais das etapas anteriores.
-- [ ] **13.2** `CHANGELOG.md` com o antes/depois.
-- [ ] **13.3** Auditoria final: reler este arquivo inteiro, confirmar que todos os itens das etapas 0 a 12 estão [x] com evidência, rodar tudo do zero e listar pendências, bloqueios e adiados.
-- [ ] **13.4** Resumo final: o que foi corrigido, o que melhorou (com números), o que ficou pendente e como rodar o projeto.
+Backup antes da etapa: tag git `backup-antes-etapa-13` (aponta para `457b161`).
+
+- [x] **13.1** `LINKEDIN.md`: 3 versões de post (curta, média, técnica), descrição para "Projetos" e palavras-chave. Somente números reais das etapas anteriores.
+  - Cada número do texto foi conferido com este arquivo ou com execuções desta revisão.
+  - Uma frase corrigida antes do commit: os critérios de promoção do aprendizado (`config.yaml`, seção `aprendizado`) são outros que os da regra de confiabilidade.
+  - O endereço do repositório ficou como `<link do repositório>`.
+- [x] **13.2** `CHANGELOG.md` com o antes/depois.
+  - Tabela antes x depois, mais Corrigido, Adicionado, Alterado, Removido, o resultado da estratégia e as pendências.
+  - Afirmações sobre o estado anterior conferidas no `DIAGNOSTICO.md`; uma corrigida antes do commit (o defeito B1 era a OCO conferir o minuto da compra, não o preço de entrada).
+  - **"Funções com mais de 80 linhas" deixou de ser comparável.** Depois da formatação da Etapa 11 (linha de 120, com quebras), são 18 funções, contra 8 na Etapa 3, sem mudança de lógica: o formatador só deixou o código mais alto. O CHANGELOG usa a complexidade (máximo 15, com 4 exceções justificadas). Os números de linhas citados nas Etapas 5 e 9 (`analyze_live` com 108 e 89 linhas) são da formatação antiga.
+- [x] **13.3** Auditoria final: reler este arquivo inteiro, confirmar que todos os itens das etapas 0 a 12 estão [x] com evidência, rodar tudo do zero e listar pendências, bloqueios e adiados.
+  - **Releitura:** todos os itens numerados das Etapas 0 a 12 estão `[x]`, com comando e saída ou commit. Contagem por script: 0 itens `[ ]` nas Etapas 0 a 12.
+  - **Itens adiados, onde foram resolvidos:**
+
+| Adiado em | Item | Resolvido em |
+|---|---|---|
+| Etapa 2 | Taxa fixa no comprar e segurar | Etapa 6 (B5) |
+| Etapa 2 | Repetição e limite de consultas fixos no código | Etapa 4.1 (foram para o config) |
+| Etapa 2 | Confianças fixas das saídas (100, 95, 90, 85, 80, 75) | **13.3**, ver abaixo |
+| Etapa 2 | Biblioteca do gráfico vinda de CDN (S3) | Etapa 10 |
+| Etapa 3 | Quebrar `analyze_live`, `refresh`, `simulate`, `decide` | Etapas 5 e 9 (`analyze_live`), 9 (`refresh`) e 11 (`simulate`, `decide`) |
+| Etapa 4 | Painel no modo demo | Etapa 10 |
+| Etapa 4 | Regravação do Parquet inteiro (C5) | Etapa 5 (medido: 0,23 s; mantido) |
+| Etapa 4 | Volume zero no ETHBRL (C7) | **13.3**, ver abaixo |
+| Etapa 5 | `analyze_live` ainda longa | Etapa 9 |
+| Etapa 6 | Quebrar `simulate` e `decide` | Etapa 11 |
+| Etapa 7 | Painel no modo demo | Etapa 10 |
+
+  - **Dois itens que tinham ficado sem registro de solução, fechados agora:**
+    - **Confianças das saídas:** em `exit_check` (`engine/rules.py`) elas são só informativas. A decisão de VENDER sai quando a regra dispara, sem passar por nenhum mínimo de confiança. Decisão: ficam como estão, como ordem de prioridade das regras de saída, sem virar parâmetro.
+    - **C7:** as travas de dados (`data_problems`) olham o 4h, o 1h, o 15m e o 5m, mas não o 1m, onde estavam quase todos os valores indefinidos. Um indicador indefinido no 5m vira ESPERAR, que é o comportamento seguro. No replay do demo de 08/09: 0 de 288 decisões com indicador indefinido. Nada a mudar.
+  - **Rodar tudo do zero** (clone limpo do commit `c31233d`, ambiente virtual novo, comandos do README), em 440 s:
+    - `pip install -e ".[dev]"` → exit 0 em 146 s; `pip check` sem problemas;
+    - demo do backtest e do replay → exit 0, mesmos números do seu ambiente;
+    - **suíte completa → `381 passed, 1 warning`**;
+    - `ruff check` → sem erros; `ruff format --check` → 162 arquivos formatados;
+    - cobertura (sem o teste lento) → todas as áreas acima de 85%, exit 0. O pacote inteiro dá 77,7% sem o teste lento e 79% com ele;
+    - wheel com a biblioteca do gráfico e a licença;
+    - nada criado no clone além das duas saídas de texto do próprio script.
+  - Observação: rodando sem `-X utf8` no Windows, o script de cobertura imprime os acentos errado no terminal (cp1252). Os números estão certos, e o CI usa `PYTHONUTF8=1`.
+- [x] **13.4** Resumo final: o que foi corrigido, o que melhorou (com números), o que ficou pendente e como rodar o projeto.
+  - Entregue no relatório da etapa; os números e as listas estão no `CHANGELOG.md` e no `README.md`.
+
+### Pendências finais (para você)
+
+**[BLOQUEADO]**
+- **CI no GitHub:** o repositório não tem remote. Precisa do nome do repositório e da sua autorização para criar e enviar. Só então Linux e Python 3.11 são testados.
+- **Conta real:** a chave da Binance está recusada (−2015). Os caminhos da conta real (saldo, posição, resultado do dia, painel com a conta) só foram testados com respostas simuladas. O painel nunca foi aberto com a sua conta.
+
+**Decisões em aberto**
+1. Renomear a ação ESPERAR para AGUARDAR em todo o projeto (banco, painel, terminal)?
+2. Copiar o histórico antigo do paper (3 carteiras, 1 operação, 857 sinais, em `data/agent.sqlite`) para o banco novo da simulação?
+3. Aval para a calibração do alerta de mudança de regime, ajustada depois de ver os dados (Etapa 8; configurável).
+4. Reescrever o histórico do git para tirar o caminho antigo `C:\Users\<usuário>\...`? Minha recomendação é não reescrever.
+5. Nome do repositório (sugestões na Etapa 12); depois, trocar `<nome-do-repositorio>` no README e `<link do repositório>` no LINKEDIN.
+
+**Ações simples**
+- Apagar a pasta `C:\c` (um arquivo de cobertura criado por engano na Etapa 11).
+- Com o coletor, o paper e o painel fechados: `.venv\Scripts\python.exe -m pip install -e ".[dev]"`, para atualizar os metadados do seu `.venv`.
+- Opcional: apagar os 21 modelos antigos de `data/demo/models/ETHBRL`, gerados pelos testes antes da correção.
+
+### Verificação final da Etapa 13
+- Auditoria do zero: ver 13.3 (`381 passed`, ruff limpo, cobertura acima do mínimo).
+- No seu ambiente: pre-commit em todos os commits desta etapa, sem falha.
+- `git status --short` → vazio.
 
 ---
 
@@ -869,3 +930,10 @@ Backup antes da etapa: tag git `backup-antes-etapa-12` (aponta para `6377e53`).
 - Não tocados: `.env`, `data/` real, `logs/`, `config/`, `.venv` (não reinstalado)
 - Criados pelo programa no modo demo: `data/demo/replay/replay-20260908-1d.sqlite` (ignorado pelo git)
 - Fora do repositório (temporários, no scratchpad): clone limpo com `.venv` novo, wheel gerada, replay real de 7 dias, página de teste do Mermaid
+
+### Etapa 13
+- Criados: `CHANGELOG.md`, `LINKEDIN.md`
+- Alterados: `PROGRESSO.md`
+- Removidos: nenhum
+- Não tocados: código, testes, `.env`, `data/` real, `logs/`, `config/`
+- Fora do repositório (temporários, no scratchpad): clone da auditoria com `.venv` novo e wheel
