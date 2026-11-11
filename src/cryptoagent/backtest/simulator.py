@@ -159,8 +159,10 @@ def simulate(
     columns = data.column_arrays()  # timeframe -> {coluna: array}: leitura de linha sem montar Series
     timing_close = columns[p.tf_timing]["close"]
 
-    def frames_at(t: int) -> tuple[dict[str, pd.DataFrame], Callable[[str, int], ArrayRow], float]:
-        """Candles fechados antes de `t`, o leitor rápido de linhas e o último fechamento do timeframe de timing."""
+    roundtrip_by_hour = [costs.roundtrip_pct(h) for h in range(24)]  # o custo só depende da hora: calcula uma vez
+
+    def frames_at(t: int) -> tuple[dict[str, pd.DataFrame], dict[str, Callable], float]:
+        """Candles fechados antes de `t`, os leitores rápidos (linha e últimos valores) e o último fechamento do timeframe de timing."""
         out, ends = {}, {}
         for tf, f in data.frames.items():
             e = int(np.searchsorted(ct[tf], t, side="left"))
@@ -170,7 +172,11 @@ def simulate(
         def rows(tf: str, back: int) -> ArrayRow:
             return ArrayRow(columns[tf], ends[tf] - back)
 
-        return out, rows, float(timing_close[ends[p.tf_timing] - 1])
+        def tails(tf: str, column: str, n: int) -> np.ndarray:
+            e = ends[tf]
+            return columns[tf][column][max(0, e - min(n, n_rows.get(tf, 3))) : e]  # mesma janela que `out[tf]` enxerga
+
+        return out, {"rows": rows, "tails": tails}, float(timing_close[ends[p.tf_timing] - 1])
 
     def ratio_at(t: int) -> float:
         i = int(np.searchsorted(data.ratio_time, t - 60_000, side="right")) - 1
@@ -242,7 +248,7 @@ def simulate(
         max_loss = day_start_equity * loss_pct_day / 100
         hour = int(data.decision_hours[i])
         spread = costs.spread_by_hour[hour]
-        cost_pct = costs.roundtrip_pct(hour)
+        cost_pct = roundtrip_by_hour[hour]
 
         if pos is not None:
             if check_oco(t):
@@ -254,11 +260,11 @@ def simulate(
             limit = "PERDA MÁXIMA DO DIA ATINGIDA" if day_pnl + unreal <= -max_loss else None
             if limit:
                 stats.limit_days.add(day_key)
-            frames, rows, price = frames_at(t)
+            frames, readers, price = frames_at(t)
             ratio = ratio_at(t)
             ctx = DecisionContext(
                 data.analysis, data.trade, ratio,
-                MarketView(t, price, frames, [], spread, rows=rows),
+                MarketView(t, price, frames, [], spread, **readers),
                 RiskView([], None, equity, daily_limit_reason=limit),
                 cost_pct,
                 PositionView(pos.qty, pos.avg_an, pos.entry_ms, pos.stop_an, pos.t1_an, pos.t2_an, "sinal do backtest"),
@@ -287,12 +293,12 @@ def simulate(
         if prefilter and e15 >= 0 and min_set_only and no_stretch15[e15]:
             stats.blocks["sem esticamento"] += 1
             continue  # todas as notas seriam 0: decide() daria ESPERAR
-        frames, rows, price = frames_at(t)
+        frames, readers, price = frames_at(t)
         ratio = ratio_at(t)
         risk_trade = max_loss / divisor
         ctx = DecisionContext(
             data.analysis, data.trade, ratio,
-            MarketView(t, price, frames, levels_at(t), spread, rows=rows),
+            MarketView(t, price, frames, levels_at(t), spread, **readers),
             RiskView([], risk_trade, equity),
             cost_pct,
             None,

@@ -14,10 +14,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
 from cryptoagent.config import Estrategia
-from cryptoagent.engine.context import DecisionContext
+from cryptoagent.engine.context import DecisionContext, nan_min
 from cryptoagent.fmt import num
 from cryptoagent.indicators.structure import nearest_levels
 
@@ -169,17 +168,17 @@ def anti_knife_trigger(ctx: DecisionContext, p: Estrategia) -> TriggerResult:
     if len(g) < p.gatilho_janela_5m + 1:
         return TriggerResult(False, "candles de 5m insuficientes para o gatilho")
     last, prev = ctx.market.last(p.tf_gatilho), ctx.market.last(p.tf_gatilho, 2)
-    window = slice(-(p.gatilho_janela_5m + 1), -1)  # os N candles antes do último
-    pctb, low, lower = (g[c].to_numpy()[window] for c in ("bb_pctb", "low", "bb_lower"))
+    n = p.gatilho_janela_5m  # os N candles antes do último
+    pctb, low, lower = (ctx.market.tail(p.tf_gatilho, c, n + 1)[:-1] for c in ("bb_pctb", "low", "bb_lower"))
     stretched = bool(((pctb <= 0) | (low < lower)).any())
     back_inside = bool(last["bb_pctb"] > 0 and last["close"] > prev["close"])
     if stretched and back_inside:
         return TriggerResult(True, f"{p.tf_gatilho}: esticou abaixo da banda e o último candle fechou de volta dentro, subindo")
     if p.gatilho_fundo_mais_alto_1m and p.tf_timing in ctx.market.frames:
-        m = ctx.market.frames[p.tf_timing]
-        if len(m) >= 13 and stretched:
-            recent_low = float(m["low"].iloc[-3:].min())
-            prior_low = float(m["low"].iloc[-13:-3].min())
+        lows = ctx.market.tail(p.tf_timing, "low", 13) if stretched else ()
+        if len(lows) >= 13:
+            recent_low = nan_min(lows[-3:])
+            prior_low = nan_min(lows[-13:-3])
             if recent_low > prior_low:
                 return TriggerResult(True, f"{p.tf_timing}: fundo mais alto ({recent_low:,.2f} > {prior_low:,.2f}) depois do esticamento")
     if not stretched:

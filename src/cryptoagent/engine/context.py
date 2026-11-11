@@ -39,6 +39,12 @@ class ArrayRow:
         return self._columns[column][self._index]
 
 
+def nan_min(values: np.ndarray) -> float:
+    """Menor valor ignorando NaN (como o `.min()` do pandas); NaN se não sobrar nenhum."""
+    valid = values[~np.isnan(values)]
+    return float(valid.min()) if valid.size else float("nan")
+
+
 @dataclass(frozen=True)
 class MarketView:
     """O mercado no instante da decisão: preço, candles fechados com indicadores, suportes e resistências, spread e extras."""
@@ -52,12 +58,19 @@ class MarketView:
     # Opcional: leitor rápido de linhas (timeframe, quantos candles para trás) -> linha. O backtest fornece um
     # baseado em arrays; sem ele, a linha vem de `frames`.
     rows: Callable[[str, int], Any] | None = None
+    tails: Callable[[str, str, int], np.ndarray] | None = None  # (timeframe, coluna, n) -> últimos n valores
 
     def last(self, tf: str, back: int = 1) -> Any:  # noqa: ANN401 - Series do pandas ou ArrayRow
         """Linha do candle fechado mais recente de `tf` (`back=1`) ou do anterior (`back=2`). Aceita `linha["coluna"]`."""
         if self.rows is not None:
             return self.rows(tf, back)
         return self.frames[tf].iloc[-back]
+
+    def tail(self, tf: str, column: str, n: int) -> np.ndarray:
+        """Os últimos `n` valores (ou menos, se não houver tantos) de uma coluna de `tf`, do mais antigo ao mais recente."""
+        if self.tails is not None:
+            return self.tails(tf, column, n)
+        return self.frames[tf][column].to_numpy()[-n:]
 
 
 @dataclass(frozen=True)

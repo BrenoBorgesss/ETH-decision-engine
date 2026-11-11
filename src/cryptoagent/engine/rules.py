@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from cryptoagent.config import Estrategia
-from cryptoagent.engine.context import DecisionContext
+from cryptoagent.engine.context import DecisionContext, nan_min
 from cryptoagent.fmt import num
 from cryptoagent.indicators.structure import nearest_levels
 
@@ -115,10 +115,9 @@ class Levels:
 def buy_levels(ctx: DecisionContext, p: Estrategia) -> Levels | None:
     """Entrada, stop e alvos de uma compra agora, com risco e retorno já descontados os custos e o tamanho sugerido. Devolve None se o preço já está acima das médias."""
     s15 = ctx.market.last(p.tf_setup)
-    g5 = ctx.market.frames[p.tf_gatilho]
     entry = ctx.market.price
     atr5 = float(ctx.market.last(p.tf_gatilho)["atr"])
-    recent_low = float(g5["low"].iloc[-p.stop_fundo_barras_5m :].min())
+    recent_low = nan_min(ctx.market.tail(p.tf_gatilho, "low", p.stop_fundo_barras_5m))
     stop = min(recent_low - p.stop_atr_5m * atr5, entry - p.stop_min_atr_5m * atr5)
 
     # alvo 1 = a média mais próxima ACIMA da entrada (VWAP do dia ou meio das bandas)
