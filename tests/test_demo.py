@@ -1,6 +1,7 @@
 """Modo demonstração: roda sem internet e sem chave, só com a amostra de candles do repositório."""
 
 import json
+import shutil
 from pathlib import Path
 
 import httpx
@@ -17,9 +18,18 @@ ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "exemplos" / "historico"
 
 
+@pytest.fixture(scope="module")
+def casa_demo(tmp_path_factory):
+    """Cópia de `config/` e `exemplos/` numa pasta temporária: o demo grava lá, nunca na pasta do projeto."""
+    home = tmp_path_factory.mktemp("casa_demo")
+    shutil.copytree(ROOT / "config", home / "config")
+    shutil.copytree(ROOT / "exemplos", home / "exemplos")
+    return home
+
+
 @pytest.fixture
-def sem_rede_e_sem_chave(monkeypatch):
-    """Qualquer tentativa de usar a rede ou de ler as chaves faz o teste falhar."""
+def sem_rede_e_sem_chave(monkeypatch, casa_demo):
+    """Qualquer tentativa de usar a rede ou de ler as chaves faz o teste falhar. Devolve a pasta do projeto usada."""
 
     async def rede_proibida(self, *args, **kwargs):
         raise AssertionError("o modo demonstração tentou usar a rede")
@@ -29,10 +39,11 @@ def sem_rede_e_sem_chave(monkeypatch):
 
     monkeypatch.setattr(httpx.AsyncClient, "send", rede_proibida)
     monkeypatch.setattr(config, "load_secrets", chave_proibida)
-    monkeypatch.setenv("CRYPTOAGENT_HOME", str(ROOT))
+    monkeypatch.setenv("CRYPTOAGENT_HOME", str(casa_demo))
     monkeypatch.setenv("COLUMNS", "250")  # terminal largo: as tabelas não cortam os nomes
     for name in ("BINANCE_API_KEY", "BINANCE_API_SECRET"):
         monkeypatch.delenv(name, raising=False)
+    return casa_demo
 
 
 def test_amostra_so_tem_candles_publicos_e_passa_na_validacao():
@@ -61,7 +72,7 @@ def test_demo_roda_o_backtest_sem_rede_e_sem_chave(sem_rede_e_sem_chave, capsys)
     assert app.main(["--demo", "backtest", "--rapido"]) == 0
     saida = capsys.readouterr().out
     assert "MODO DEMONSTRAÇÃO" in saida and "Comprar e segurar" in saida
-    relatorio = json.loads((ROOT / "data" / "demo" / "reports" / "backtest.json").read_text(encoding="utf-8"))
+    relatorio = json.loads((sem_rede_e_sem_chave / "data" / "demo" / "reports" / "backtest.json").read_text(encoding="utf-8"))
     texto = json.dumps(relatorio)
     assert "ETHBRL" in texto and "lida da sua conta" not in texto  # custos do config, nunca os da conta
 
@@ -87,7 +98,7 @@ def test_demo_treina_o_modelo_sem_rede_e_sem_chave(sem_rede_e_sem_chave, capsys)
     assert app.main(["--demo", "modelo", "treinar"]) == 0
     saida = capsys.readouterr().out
     assert "Desafiador x regras" in saida and "regras (campeão atual)" in saida
-    modelos = sorted((ROOT / "data" / "demo" / "models" / "ETHBRL").glob("modelo-*.json"))
+    modelos = sorted((sem_rede_e_sem_chave / "data" / "demo" / "models" / "ETHBRL").glob("modelo-*.json"))
     assert modelos and json.loads(modelos[-1].read_text(encoding="utf-8"))["tipo"] == "regressao_logistica"
 
 
@@ -97,4 +108,12 @@ def test_demo_roda_o_ciclo_de_aprendizado_e_mostra_versoes_e_panorama(sem_rede_e
     assert app.main(["--demo", "aprendizado", "panorama"]) == 0
     saida = capsys.readouterr().out
     assert "Campeão x desafiantes" in saida and "Versões da estratégia" in saida and "Calibração da confiança" in saida
-    assert (ROOT / "data" / "demo" / "learning" / "aprendizado.html").is_file()
+    assert (sem_rede_e_sem_chave / "data" / "demo" / "learning" / "aprendizado.html").is_file()
+
+
+def test_demo_nao_grava_nada_na_pasta_do_projeto(sem_rede_e_sem_chave, capsys):
+    antes = {p: p.stat().st_mtime_ns for p in (ROOT / "data").rglob("*") if p.is_file()} if (ROOT / "data").exists() else {}
+    assert app.main(["--demo", "backtest", "--rapido"]) == 0
+    depois = {p: p.stat().st_mtime_ns for p in (ROOT / "data").rglob("*") if p.is_file()} if (ROOT / "data").exists() else {}
+    assert depois == antes
+    assert (sem_rede_e_sem_chave / "data" / "demo" / "reports" / "backtest.json").is_file()
