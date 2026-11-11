@@ -9,8 +9,8 @@ Legenda: `[ ]` pendente · `[x]` concluído com evidência · `[BLOQUEADO]` · `
 | Etapa | Nome | Estado |
 |---|---|---|
 | 0 | Preparação | concluída e aprovada (2026-11-10) |
-| 1 | Diagnóstico | concluída — aguardando aprovação |
-| 2 | Segurança e configuração | pendente |
+| 1 | Diagnóstico | concluída e aprovada (2026-11-10) |
+| 2 | Segurança e configuração | concluída — aguardando aprovação (1 item extra adiado) |
 | 3 | Estrutura e qualidade do código | pendente |
 | 4 | Coleta de dados | pendente |
 | 5 | Performance e eficiência | pendente |
@@ -148,10 +148,47 @@ tests/                  conftest.py + 19 arquivos test_*.py
 
 ## ETAPA 2 — SEGURANÇA E CONFIGURAÇÃO
 
-- [ ] **2.1** Remover/mover segredos para variáveis de ambiente; criar `.env.example` e `.gitignore`.
-- [ ] **2.2** Garantir modo somente leitura da Binance e a trava de execução real desativada por padrão.
-- [ ] **2.3** Criar configuração centralizada (YAML/.env) e eliminar números mágicos.
-- [ ] **2.4** Adicionar logging estruturado no lugar de print.
+Decisões do usuário em 2026-11-10 ("Aprovado" às recomendações D1 a D4): manter os nomes das pastas; criar modelo de regressão logística como desafiador (Etapas 6/8); seguir sem depender da chave; remover `ANTHROPIC_API_KEY`.
+Backup antes da etapa: tag git `backup-antes-etapa-2` (aponta para `d8aaa3f`).
+
+- [x] **2.1** Remover/mover segredos para variáveis de ambiente; criar `.env.example` e `.gitignore`.
+  - Já existia: segredos só no `.env`, lidos apenas em `config.py` (`load_secrets`); `.env.example` e `.gitignore` presentes. Confirmado: `grep os.environ|getenv` fora de `config.py` → 1 ocorrência (`alerts/notify.py`, tratada abaixo).
+  - **Bug encontrado e corrigido:** a regra `data/` do `.gitignore` também ignorava o pacote de código `src/cryptoagent/data/` (7 arquivos: `rest.py`, `history.py`, `websocket.py`, `health.py`, `market_store.py`, `models.py`, `__init__.py`), que ficou FORA do commit inicial. O repositório público sairia sem o módulo de coleta. Regras trocadas por `/data/` e `/logs/` (só na raiz). Evidência: `git check-ignore` antes → `.gitignore:14:data/ src/cryptoagent/data/rest.py`; depois → não ignorado, e `.env`, `data/agent.sqlite`, `data/history/.../1m.parquet`, `logs/agente.log` continuam ignorados. Commit `045273f` (arquivos no estado original).
+  - `ANTHROPIC_API_KEY` removida de `config.py` e do `.env.example` (nada a usava). Evidência: `grep -i anthropic` em `src`, `config`, `.env.example` → vazio. Commit `83a4d05`.
+  - Notificação do Windows: o processo filho (PowerShell) herdava todo o ambiente, incluindo as chaves carregadas do `.env`. Agora não herda `BINANCE_API_KEY`/`BINANCE_API_SECRET`. Teste `test_notificacao_do_windows_nao_herda_as_chaves`. Commit `0fb9491`.
+  - Novos testes: `test_segredos_sao_so_os_da_binance`, `test_sem_env_o_agente_roda_sem_chave`.
+  - Nenhuma chave vazou no repositório; nada a revogar. (Sugestão, não obrigação: apagar a linha `ANTHROPIC_API_KEY` do seu `.env`.)
+- [x] **2.2** Garantir modo somente leitura da Binance e a trava de execução real desativada por padrão.
+  - Confirmado por execução: `pytest tests/test_readonly_guard.py tests/test_rest_client.py tests/test_permissions.py` → `30 passed`. Buscas em `src`: métodos de escrita HTTP fora das rotas locais = 0; endpoints de ordem/saque/transferência = 0. `ALLOWED_PATHS` tem 17 caminhos, todos de leitura (`data/rest.py:41-65`).
+  - Não existe código de execução real, então não há o que desligar; registrado no README (seção Segurança) junto com a regra para o futuro (desligado por padrão, flag explícita, aviso).
+  - Reforço: o painel recusa (HTTP 400) qualquer chamada com cabeçalho `Host` diferente de `127.0.0.1`/`localhost` (proteção contra DNS rebinding; antes `/api/estado` respondia a qualquer Host). Teste manual com servidor uvicorn real na porta 8799: Host local → 200; `Host: evil.example.com` → 400 em `/`, `/api/estado`, `/static/app.js` e `POST /api/sessao`; POST local sem token → 403. Testes automáticos: `test_host_de_fora_e_recusado_em_todas_as_rotas` (4 casos), `test_host_local_e_aceito` (3 casos). Commit `0fb9491`.
+- [x] **2.3** Criar configuração centralizada (YAML/.env) e eliminar números mágicos.
+  - Já existia: `config/config.yaml` validado por pydantic, com erro em campo desconhecido.
+  - Movidos para o config, com os mesmos valores: `binance.candles_por_consulta` e `candles_por_consulta_padrao` (era `KLINE_LIMITS` em `engine/live.py` e `limit=1000` em `dashboard/service.py`); `historico.timeout_download_s`, `tentativas_download`, `espera_entre_tentativas_s` (eram 60, 3 e 1,5 em `cli.py` e `data/history.py`); `estrategia.stop_posicao_sem_sinal_atr_5m` (era `POSITION_STOP_ATR_5M = 2.0`), `adx_vies_baixa_1h` (era `>= 20` em `engine/rules.py`), `penalidade_por_aviso_dados` (era `0.05` em `engine/decision.py`); `painel.buffer_candles` e `min_candles_ws` (eram 1100 e 300); `logs.tamanho_max_mb`, `arquivos_antigos`, `formato`.
+  - Prova de comportamento preservado: `backtest --rapido --pares ETHBRL` antes e depois gerou JSON idêntico byte a byte (SHA-256 `c348cc24…cf544` nos dois). Teste `test_constantes_que_viraram_config_mantem_os_valores_antigos` e `test_validacao_dos_campos_novos`.
+  - Testes manuais: sobreposição com `logs.formato: xml` → `Erro no arquivo de configuração ... Input should be 'texto' or 'json'`, exit 1; campo digitado errado → `Extra inputs are not permitted`, exit 1; `historico verificar` com as variáveis de chave vazias → exit 0.
+  - Commit `83a4d05`.
+  - **[ADIADO] números que continuam no código**, com motivo:
+    - `backtest/metrics.py:102` (taxa de 0,1% no comprar e segurar): mudar altera resultados; fica para a Etapa 6 (problema B5).
+    - `engine/rules.py` (confianças fixas das saídas: 100, 95, 90, 80, 85, 75): são rótulos de pontuação, não parâmetros; decidir na Etapa 6 junto com a calibração.
+    - `data/history.py` `max_requests=2000` e `data/rest.py` backoff (0,5 s × 2^n, teto 30 s): revisar na Etapa 4.1, que reescreve a política de repetição.
+    - Arquivos ainda não lidos (lista no fim do `DIAGNOSTICO.md`) podem ter outros; cada um será revisto na etapa que o tocar.
+- [x] **2.4** Adicionar logging estruturado no lugar de print.
+  - Não havia `print()` usado como log: as 123 ocorrências são `console.print` (interface de terminal da biblioteca rich). O log já era em arquivo rotativo, UTC, com filtro de segredos.
+  - Novo: `logs.formato: json` grava um objeto JSON por linha (`ts`, `nivel`, `logger`, `msg`, `erro`, e campos passados em `extra={...}`), com segredos mascarados em todos os campos. Padrão continua `texto`.
+  - Teste manual lendo o config real + sobreposição: `{"ts": "2026-11-11T03:18:30Z", "nivel": "INFO", "logger": "cryptoagent.teste_manual", "msg": "config carregado: formato=json nivel=INFO", "par": "ETHBRL"}` e, na linha seguinte, `"msg": "tentativa de vazar a chave *** e a assinatura signature=***"`.
+  - 6 testes novos em `tests/test_logging_setup.py`. Commit `cf263bb`.
+- [x] **Extra** `.gitattributes` (fim de linha LF; `.ps1` em CRLF). Commit `045273f`.
+- [ADIADO] **Extra (S3 do diagnóstico)** Biblioteca do gráfico carregada de CDN sem verificação de integridade (`index.html:8`). Corrigir exige baixar o arquivo da biblioteca (para calcular o hash ou servir localmente). Aguardando autorização do usuário para o download.
+
+### Verificação final da Etapa 2
+- `python -m pytest -q` → `231 passed, 1 warning in 18.93s` (eram 213; +18 testes novos).
+- Suíte também rodada só com o commit `83a4d05` aplicado (demais mudanças em stash): `217 passed`.
+- `git status --short` → vazio.
+
+### Problemas durante a Etapa 2
+- Dois scripts de edição enviados por heredoc falharam por causa de aspas simples no conteúdo; nada foi aplicado pela metade (passei a gravar os scripts em arquivo).
+- `history.py` foi editado antes de eu perceber que ele nunca tinha sido versionado. Restaurei o conteúdo original, fiz o commit `045273f` e só então reapliquei a mudança, para o histórico mostrar o diff verdadeiro.
 
 ## ETAPA 3 — ESTRUTURA E QUALIDADE DO CÓDIGO
 
@@ -252,3 +289,10 @@ tests/                  conftest.py + 19 arquivos test_*.py
 - Alterados: `PROGRESSO.md`
 - Removidos: nenhum
 - Fora do repositório (temporários, no scratchpad da sessão): `overlay_diag.yaml`, `reports/backtest.html`, `reports/backtest.json`
+
+### Etapa 2
+- Criados: `.gitattributes`, `tests/test_logging_setup.py`
+- Passaram a ser versionados (já existiam no disco, escondidos pelo `.gitignore`): `src/cryptoagent/data/__init__.py`, `health.py`, `history.py`, `market_store.py`, `models.py`, `rest.py`, `websocket.py`
+- Alterados: `.gitignore`, `.env.example`, `README.md`, `config/config.yaml`, `src/cryptoagent/config.py`, `src/cryptoagent/cli.py`, `src/cryptoagent/logging_setup.py`, `src/cryptoagent/alerts/notify.py`, `src/cryptoagent/dashboard/server.py`, `src/cryptoagent/dashboard/service.py`, `src/cryptoagent/data/history.py`, `src/cryptoagent/engine/decision.py`, `src/cryptoagent/engine/live.py`, `src/cryptoagent/engine/rules.py`, `tests/test_config_and_store.py`, `tests/test_dashboard.py`, `PROGRESSO.md`
+- Removidos: nenhum
+- Não tocados: `.env`, `data/`, `logs/`
